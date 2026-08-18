@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  EDITOR
+  CREATOR
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+
+enum ContentStatus {
+  REQUESTED
+  IN_PRODUCTION
+  IN_REVIEW
+  REVISION
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AssetType {
+  VIDEO
+  IMAGE
+  AUDIO
+  DOCUMENT
+  OTHER
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REVISION_REQUESTED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships      OrganizationMember[]
+  createdProjects  Project[]             @relation("ProjectCreator")
+  assignedTasks    Task[]                @relation("TaskAssignee")
+  uploadedAssets   Asset[]               @relation("AssetUploader")
+  reviews          Review[]              @relation("ReviewAuthor")
+  reviewComments   ReviewComment[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  OrganizationMember[]
+  creators Creator[]
+  projects Project[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  role           UserRole
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Creator {
+  id             String   @id @default(cuid())
+  name           String
+  email          String?
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projects     Project[]
+
+  @@index([organizationId])
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  description    String?
+  status         ProjectStatus @default(PLANNING)
+  priority       TaskPriority  @default(MEDIUM)
+  dueDate        DateTime?
+  organizationId String
+  creatorId      String?
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      Creator?     @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("ProjectCreator", fields: [createdById], references: [id])
+
+  contentItems ContentItem[]
+
+  @@index([organizationId])
+  @@index([creatorId])
+  @@index([status])
+}
+
+model ContentItem {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  status      ContentStatus @default(REQUESTED)
+  contentType String
+  dueDate     DateTime?
+  projectId   String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks   Task[]
+  assets  Asset[]
+  reviews Review[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  contentId   String
+  assignedToId String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  content   ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  assignedTo User?      @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([contentId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model Asset {
+  id           String    @id @default(cuid())
+  fileName     String
+  fileSize     BigInt?
+  mimeType     String?
+  storageKey   String    @unique
+  assetType    AssetType
+  contentId    String
+  uploadedById String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  content   ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  uploadedBy User        @relation("AssetUploader", fields: [uploadedById], references: [id])
+
+  versions AssetVersion[]
+
+  @@index([contentId])
+  @@index([uploadedById])
+}
+
+model AssetVersion {
+  id        String   @id @default(cuid())
+  version   Int
+  storageKey String
+  fileName  String
+  fileSize  BigInt?
+  mimeType  String?
+  assetId   String
+  createdAt DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, version])
+  @@index([assetId])
+}
+
+model Review {
+  id          String       @id @default(cuid())
+  status      ReviewStatus @default(PENDING)
+  notes       String?
+  contentId   String
+  authorId    String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  author  User        @relation("ReviewAuthor", fields: [authorId], references: [id])
+
+  comments ReviewComment[]
+
+  @@index([contentId])
+  @@index([authorId])
+  @@index([status])
+}
+
+model ReviewComment {
+  id        String   @id @default(cuid())
+  comment   String
+  timestamp Float?
+  reviewId  String
+  authorId  String
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([reviewId])
+  @@index([authorId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  resource  String
+  resourceId String?
+  metadata  Json?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([resource])
+  @@index([createdAt])
+}
