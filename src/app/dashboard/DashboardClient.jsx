@@ -1,10 +1,20 @@
 "use client";
 
+/**
+ * @param {{
+ *   user?: {
+ *     name?: string | null;
+ *     email?: string | null;
+ *   };
+ * }} props
+ */
+
 import "./dashboard.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 
-export default function CreatorDashboard() {
+export default function CreatorDashboard({ user }) {
     const router = useRouter();
 
     // =========================
@@ -17,39 +27,60 @@ export default function CreatorDashboard() {
     const [activePlatform, setActivePlatform] = useState("all");
     const [briefModalOpen, setBriefModalOpen] = useState(false);
     const [briefError, setBriefError] = useState(false);
+    const [briefSubmitting, setBriefSubmitting] = useState(false);
     const [settingsSaved, setSettingsSaved] = useState(false);
 
-    // Dynamic projects list state for interactive submission
-    const [projects, setProjects] = useState([
-        {
-            title: "CoD Bo7 Camo Checklist Breakdown",
-            type: "Short-form",
-            status: "rendering",
-            eta: "ETA: 2 Hours",
-            date: "Created Aug 04 • 1080x1920",
-        },
-        {
-            title: "PC Desk Setup Tour — 240Hz AM5 Upgrade",
-            type: "YouTube Long-form",
-            status: "review",
-            eta: "v1.2 Draft",
-            date: "Created Aug 03 • 3840x2160",
-        },
-        {
-            title: "Futives Movement Gameplay Clips Pack",
-            type: "Repurposed Cuts",
-            status: "queued",
-            eta: "Queue #1",
-            date: "Created Aug 02 • 1080x1920",
-        },
-        {
-            title: "Lil Uzi Vert Unreleased Audio Visualizer",
-            type: "Social Edit",
-            status: "completed",
-            eta: "Final v2.0",
-            date: "Created Jul 28 • 1080x1920",
-        },
-    ]);
+    // Projects now come from the database via /api/projects
+    const [projects, setProjects] = useState([]);
+    const [projectsLoading, setProjectsLoading] = useState(true);
+    const [projectsError, setProjectsError] = useState(null);
+
+    // =========================
+    // PROJECT FORMATTING HELPERS
+    // =========================
+    const resolutionForType = (type) =>
+        type === "YouTube Long-form" ? "3840x2160" : "1080x1920";
+
+    const formatProjectDate = (isoDate, type) => {
+        if (!isoDate) return "";
+        const d = new Date(isoDate);
+        const month = d.toLocaleString("en-US", { month: "short" });
+        const day = String(d.getDate()).padStart(2, "0");
+        return `Created ${month} ${day} • ${resolutionForType(type)}`;
+    };
+
+    // Map a raw DB project record into the shape the UI renders
+    const toDisplayProject = (p) => ({
+        id: p.id,
+        title: p.title,
+        type: p.type,
+        status: p.status,
+        eta: p.eta,
+        date: formatProjectDate(p.createdAt, p.type),
+    });
+
+    // =========================
+    // FETCH PROJECTS FROM API
+    // =========================
+    const loadProjects = async () => {
+        setProjectsLoading(true);
+        setProjectsError(null);
+        try {
+            const res = await fetch("/api/projects");
+            if (!res.ok) throw new Error("Failed to load projects");
+            const data = await res.json();
+            setProjects((data.projects || []).map(toDisplayProject));
+        } catch (err) {
+            setProjectsError("Couldn't load your projects. Try refreshing.");
+        } finally {
+            setProjectsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadProjects();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // =========================
     // THEME INITIALIZATION
@@ -161,9 +192,10 @@ export default function CreatorDashboard() {
     // =========================
     // BRIEF SUBMISSION
     // =========================
-    const handleBriefSubmit = (e) => {
+    const handleBriefSubmit = async (e) => {
         e.preventDefault();
-        const formData = new FormData(e.currentTarget);
+        const form = e.currentTarget;
+        const formData = new FormData(form);
         const title = String(formData.get("briefTitle") || "").trim();
         const type = String(formData.get("briefType") || "");
         const link = String(formData.get("briefLink") || "").trim();
@@ -174,20 +206,32 @@ export default function CreatorDashboard() {
         }
 
         setBriefError(false);
-        setProjects([
-            {
-                title,
-                type,
-                status: "queued",
-                eta: `Queue #${projects.length + 1}`,
-                date: "Just Submitted",
-            },
-            ...projects,
-        ]);
+        setBriefSubmitting(true);
 
-        setBriefModalOpen(false);
-        setCurrentView("overview");
-        e.currentTarget.reset();
+        try {
+            const res = await fetch("/api/projects", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title, type, footageLink: link }),
+            });
+
+            if (!res.ok) {
+                setBriefError(true);
+                setBriefSubmitting(false);
+                return;
+            }
+
+            // Re-fetch so eta/queue position/date come from the server, not guessed client-side
+            await loadProjects();
+
+            setBriefModalOpen(false);
+            setCurrentView("overview");
+            form.reset();
+        } catch (err) {
+            setBriefError(true);
+        } finally {
+            setBriefSubmitting(false);
+        }
     };
 
     // =========================
@@ -240,9 +284,16 @@ export default function CreatorDashboard() {
                     </nav>
 
                     <div className="sidebar-user">
-                        <div className="user-avatar">NS</div>
+                        <div className="user-avatar">
+                            {(user?.name || "Nexus Studio")
+                                .split(" ")
+                                .map((part) => part[0])
+                                .join("")
+                                .slice(0, 2)
+                                .toUpperCase()}
+                        </div>
                         <div className="user-meta">
-                            <strong>Nexus Studio</strong>
+                            <strong>{user?.name || "Nexus Studio"}</strong>
                             <small>GROWTH PLAN</small>
                         </div>
                         <a
@@ -251,8 +302,7 @@ export default function CreatorDashboard() {
                             title="Log Out"
                             onClick={(e) => {
                                 e.preventDefault();
-                                localStorage.removeItem("nexus-session");
-                                router.push("/homepage");
+                                signOut({ callbackUrl: "/homepage" });
                             }}
                         >
                             ↗
@@ -302,8 +352,12 @@ export default function CreatorDashboard() {
                             <section className="metrics-grid">
                                 <div className="metric-card">
                                     <span className="metric-label">ACTIVE EDITS</span>
-                                    <strong className="metric-value">04</strong>
-                                    <span className="metric-delta positive">↑ 2 in rendering</span>
+                                    <strong className="metric-value">
+                                        {projectsLoading ? "—" : String(projects.filter((p) => p.status !== "completed").length).padStart(2, "0")}
+                                    </strong>
+                                    <span className="metric-delta positive">
+                                        {projectsLoading ? "Loading…" : `↑ ${projects.filter((p) => p.status === "rendering").length} in rendering`}
+                                    </span>
                                 </div>
 
                                 <div className="metric-card">
@@ -345,11 +399,16 @@ export default function CreatorDashboard() {
                                     </div>
 
                                     <div className="project-list">
-                                        {projects.slice(0, 3).map((proj, idx) => (
-                                            <div className="project-item" key={idx}>
+                                        {projectsLoading && <p className="text-link">Loading projects…</p>}
+                                        {!projectsLoading && projectsError && <p className="brief-error-msg active">{projectsError}</p>}
+                                        {!projectsLoading && !projectsError && projects.length === 0 && (
+                                            <p className="text-link">No projects yet — submit a brief to get started.</p>
+                                        )}
+                                        {!projectsLoading && !projectsError && projects.slice(0, 3).map((proj) => (
+                                            <div className="project-item" key={proj.id}>
                                                 <div className="project-info">
                                                     <strong>{proj.title}</strong>
-                                                    <small>{proj.type} • 1080x1920</small>
+                                                    <small>{proj.type} • {resolutionForType(proj.type)}</small>
                                                 </div>
                                                 <div className={`project-status ${proj.status}`}>
                                                     {proj.status === "rendering" && "IN RENDERING"}
@@ -420,10 +479,14 @@ export default function CreatorDashboard() {
                                         <span>ACTION</span>
                                     </div>
 
-                                    {projects
+                                    {projectsLoading && <p className="text-link" style={{ padding: "16px" }}>Loading projects…</p>}
+                                    {!projectsLoading && projectsError && (
+                                        <p className="brief-error-msg active" style={{ padding: "16px" }}>{projectsError}</p>
+                                    )}
+                                    {!projectsLoading && !projectsError && projects
                                         .filter((p) => projectFilter === "all" || p.status === projectFilter)
-                                        .map((proj, i) => (
-                                            <div className="table-row" key={i}>
+                                        .map((proj) => (
+                                            <div className="table-row" key={proj.id}>
                                                 <div className="project-title-cell">
                                                     <strong>{proj.title}</strong>
                                                     <small>{proj.date}</small>
@@ -661,12 +724,12 @@ export default function CreatorDashboard() {
                                     <div className="form-row">
                                         <div className="form-field">
                                             <label htmlFor="stgName">STUDIO / CHANNEL NAME</label>
-                                            <input type="text" id="stgName" className="dash-input" defaultValue="Nexus Studio" />
+                                            <input type="text" id="stgName" className="dash-input" defaultValue={user?.name || "Nexus Studio"} />
                                         </div>
 
                                         <div className="form-field">
                                             <label htmlFor="stgEmail">PRIMARY EMAIL</label>
-                                            <input type="email" id="stgEmail" className="dash-input" defaultValue="nexus@setup.co" />
+                                            <input type="email" id="stgEmail" className="dash-input" defaultValue={user?.email || ""} />
                                         </div>
                                     </div>
 
@@ -714,10 +777,12 @@ export default function CreatorDashboard() {
                         <div className="form-field">
                             <label htmlFor="briefLink">RAW FOOTAGE LINK / DRIVE</label>
                             <input type="text" id="briefLink" name="briefLink" className="dash-input" placeholder="https://youtube.com/... or https://drive.google.com/..." required />
-                            <p className={`brief-error-msg ${briefError ? "active" : ""}`}>Please enter a valid URL (e.g. https://...)</p>
+                            <p className={`brief-error-msg ${briefError ? "active" : ""}`}>Please enter a valid URL, or check your connection and try again.</p>
                         </div>
 
-                        <button type="submit" className="button button-primary full-width">SUBMIT TO PRODUCTION QUEUE ↗</button>
+                        <button type="submit" className="button button-primary full-width" disabled={briefSubmitting}>
+                            {briefSubmitting ? "SUBMITTING…" : "SUBMIT TO PRODUCTION QUEUE ↗"}
+                        </button>
                     </form>
                 </div>
             </div>

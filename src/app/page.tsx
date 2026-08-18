@@ -2,6 +2,7 @@
 
 import "./homepage.css";
 import { useEffect, useRef, useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 export default function NexusHomepage() {
@@ -202,28 +203,24 @@ export default function NexusHomepage() {
     const password = String(formData.get("loginPass") || "");
 
     try {
-      const response = await fetch("/api/auth/callback/credentials", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          email,
-          password,
-          redirect: "false",
-        }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       });
 
-      if (response.ok) {
-        localStorage.setItem("nexus-session", "active");
-
-        closeLoginModal();
-
-        router.push("/dashboard");
-      } else {
+      if (result?.error) {
         setLoginError(
           "INVALID SYSTEM CREDENTIALS. CHECK EMAIL/PASSWORD."
         );
+        return;
+      }
+
+      if (result?.ok) {
+        closeLoginModal();
+
+        router.push("/dashboard");
+        router.refresh();
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -588,9 +585,8 @@ export default function NexusHomepage() {
       {/* MOBILE MENU */}
 
       <div
-        className={`mobile-menu ${
-          mobileMenuOpen ? "open" : ""
-        }`}
+        className={`mobile-menu ${mobileMenuOpen ? "open" : ""
+          }`}
       >
         <a
           href="#services"
@@ -959,11 +955,10 @@ export default function NexusHomepage() {
                 ].map(([filter, label]) => (
                   <button
                     key={filter}
-                    className={`work-tab ${
-                      workFilter === filter
+                    className={`work-tab ${workFilter === filter
                         ? "active"
                         : ""
-                    }`}
+                      }`}
                     onClick={() =>
                       setWorkFilter(filter)
                     }
@@ -983,9 +978,8 @@ export default function NexusHomepage() {
                 return (
                   <article
                     key={item.title}
-                    className={`work-card ${
-                      item.className || ""
-                    } ${!visible ? "hidden" : ""}`}
+                    className={`work-card ${item.className || ""
+                      } ${!visible ? "hidden" : ""}`}
                     data-category={item.category}
                   >
                     <div
@@ -993,13 +987,13 @@ export default function NexusHomepage() {
                     >
                       {item.visual ===
                         "visual-purple" && (
-                        <div className="visual-ring"></div>
-                      )}
+                          <div className="visual-ring"></div>
+                        )}
 
                       {item.visual ===
                         "visual-pink" && (
-                        <div className="visual-ring"></div>
-                      )}
+                          <div className="visual-ring"></div>
+                        )}
 
                       <div className="visual-word">
                         {item.word}
@@ -1153,11 +1147,10 @@ export default function NexusHomepage() {
 
               <div className="pricing-switch">
                 <button
-                  className={`pricing-period ${
-                    pricingPeriod === "monthly"
+                  className={`pricing-period ${pricingPeriod === "monthly"
                       ? "active"
                       : ""
-                  }`}
+                    }`}
                   onClick={() =>
                     setPricingPeriod("monthly")
                   }
@@ -1166,11 +1159,10 @@ export default function NexusHomepage() {
                 </button>
 
                 <button
-                  className={`pricing-period ${
-                    pricingPeriod === "custom"
+                  className={`pricing-period ${pricingPeriod === "custom"
                       ? "active"
                       : ""
-                  }`}
+                    }`}
                   onClick={() =>
                     setPricingPeriod("custom")
                   }
@@ -1475,9 +1467,8 @@ export default function NexusHomepage() {
 
                 return (
                   <div
-                    className={`faq-item ${
-                      isOpen ? "open" : ""
-                    }`}
+                    className={`faq-item ${isOpen ? "open" : ""
+                      }`}
                     key={faq.question}
                   >
                     <button
@@ -1501,9 +1492,8 @@ export default function NexusHomepage() {
               })}
 
               <div
-                className={`faq-item ${
-                  openFaq === 4 ? "open" : ""
-                }`}
+                className={`faq-item ${openFaq === 4 ? "open" : ""
+                  }`}
               >
                 <button
                   className="faq-question"
@@ -1581,9 +1571,8 @@ export default function NexusHomepage() {
       {/* LOGIN MODAL */}
 
       <div
-        className={`modal-overlay ${
-          modalOpen ? "active" : ""
-        }`}
+        className={`modal-overlay ${modalOpen ? "active" : ""
+          }`}
         id="loginModal"
         onClick={(event) => {
           if (event.target === event.currentTarget) {
@@ -1611,11 +1600,10 @@ export default function NexusHomepage() {
 
           <div className="auth-tabs">
             <button
-              className={`auth-tab ${
-                authTab === "login"
+              className={`auth-tab ${authTab === "login"
                   ? "active"
                   : ""
-              }`}
+                }`}
               onClick={() =>
                 handleAuthTab("login")
               }
@@ -1624,11 +1612,10 @@ export default function NexusHomepage() {
             </button>
 
             <button
-              className={`auth-tab ${
-                authTab === "signup"
+              className={`auth-tab ${authTab === "signup"
                   ? "active"
                   : ""
-              }`}
+                }`}
               onClick={() =>
                 handleAuthTab("signup")
               }
