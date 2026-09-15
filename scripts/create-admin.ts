@@ -28,16 +28,19 @@ async function main() {
     update: {
       password: hashedPassword,
       name: "Nexus Admin",
+      accountType: "EDITOR",
     },
     create: {
       email,
       name: "Nexus Admin",
       password: hashedPassword,
+      accountType: "EDITOR",
     },
   });
 
   console.log("Admin user created:");
   console.log(`Email: ${user.email}`);
+  console.log(`Account Type: ${user.accountType}`);
   console.log("Password: ChangeMe123!");
 }
 
