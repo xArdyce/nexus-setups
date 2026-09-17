@@ -1106,3 +1106,41 @@ body {
     opacity: 0.6;
     cursor: not-allowed;
 }
+/* =========================================
+   ANALYTICS EMPTY STATE
+   Matches Asset Vault
+========================================= */
+
+.analytics-panel .analytics-empty-state {
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+}
+
+.analytics-panel .analytics-empty-icon {
+    font-size: 32px;
+    line-height: 1;
+    margin-bottom: 20px;
+}
+
+.analytics-panel .analytics-empty-state strong {
+    display: block;
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #8d8b98;
+}
+
+.analytics-panel .analytics-empty-state p {
+    width: 100%;
+    max-width: 420px;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #777582;
+}

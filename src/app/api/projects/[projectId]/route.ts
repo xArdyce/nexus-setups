@@ -420,7 +420,23 @@ export async function PATCH(
                     },
                 });
             }
-
+            if (statusChanged) {
+                await tx.auditLog.create({
+                    data: {
+                        action: "CONTENT_STATUS_CHANGED",
+                        resource: "ContentItem",
+                        resourceId: content.id,
+                        userId: user.id,
+                        metadata: {
+                            title: content.title,
+                            previousStatus: content.status,
+                            newStatus: requestedStatus,
+                            organizationId: content.project.organizationId,
+                            creatorId: content.project.creator?.id ?? null,
+                        },
+                    },
+                });
+            }
             return updated;
         }
     );

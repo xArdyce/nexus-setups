@@ -31,6 +31,7 @@ export default function NexusHomepage() {
   const [formMessage, setFormMessage] = useState("");
 
   const [loginLoading, setLoginLoading] = useState(false);
+  const [signupLoading, setSignupLoading] = useState(false);
 
   // =========================
   // THEME
@@ -237,16 +238,73 @@ export default function NexusHomepage() {
   // SIGNUP
   // =========================
 
-  const handleSignup = (
+  const handleSignup = async (
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
 
-    localStorage.setItem("nexus-session", "active");
+    setLoginError("");
+    setSignupLoading(true);
 
-    closeLoginModal();
+    const formData = new FormData(event.currentTarget);
 
-    router.push("/dashboard");
+    const name = String(formData.get("signupName") || "").trim();
+    const email = String(formData.get("signupEmail") || "")
+      .trim()
+      .toLowerCase();
+    const password = String(formData.get("signupPass") || "");
+    const accountType = String(
+      formData.get("signupAccountType") || "CREATOR"
+    );
+
+    try {
+      const response = await fetch("/api/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          accountType,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setLoginError(
+          data.error || "ACCOUNT CREATION FAILED. PLEASE TRY AGAIN."
+        );
+        return;
+      }
+
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error || !result?.ok) {
+        setLoginError(
+          "ACCOUNT CREATED, BUT AUTOMATIC LOGIN FAILED. PLEASE LOG IN."
+        );
+        setAuthTab("login");
+        return;
+      }
+
+      closeLoginModal();
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      console.error("Signup error:", error);
+      setLoginError(
+        "SYSTEM ERROR. ACCOUNT COULD NOT BE CREATED."
+      );
+    } finally {
+      setSignupLoading(false);
+    }
   };
 
   // =========================
@@ -1813,6 +1871,51 @@ export default function NexusHomepage() {
               </div>
 
               <div className="form-field">
+                <label>ACCOUNT TYPE</label>
+
+                <div className="account-type-grid">
+                  <label className="account-type-option">
+                    <input
+                      type="radio"
+                      name="signupAccountType"
+                      value="CREATOR"
+                      defaultChecked
+                    />
+
+                    <span className="account-type-card">
+                      <span className="account-type-heading">
+                        <b>CREATOR</b>
+                        <i>◉</i>
+                      </span>
+
+                      <small>
+                        Submit content and manage your creator workspace.
+                      </small>
+                    </span>
+                  </label>
+
+                  <label className="account-type-option">
+                    <input
+                      type="radio"
+                      name="signupAccountType"
+                      value="EDITOR"
+                    />
+
+                    <span className="account-type-card">
+                      <span className="account-type-heading">
+                        <b>EDITOR</b>
+                        <i>◇</i>
+                      </span>
+
+                      <small>
+                        Manage production, reviews and creator content.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="form-field">
                 <label htmlFor="signupPass">
                   CREATE PASSWORD
                 </label>
@@ -1847,11 +1950,20 @@ export default function NexusHomepage() {
                 </div>
               </div>
 
+              {loginError && (
+                <p className="auth-error-msg active">
+                  {loginError}
+                </p>
+              )}
+
               <button
                 type="submit"
                 className="button button-primary auth-submit"
+                disabled={signupLoading}
               >
-                CREATE CREATOR PROFILE ↗
+                {signupLoading
+                  ? "CREATING PROFILE..."
+                  : "CREATE ACCOUNT ↗"}
               </button>
             </form>
           )}

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+const NEXUS_ORGANIZATION_ID = "cmszb0pbt0000946x26bw7452";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -76,22 +78,84 @@ export async function POST(request: Request) {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        accountType,
+    /*
+     * Make sure the main Nexus organization still exists before
+     * creating any account records.
+     */
+    const nexusOrganization = await prisma.organization.findUnique({
+      where: {
+        id: NEXUS_ORGANIZATION_ID,
       },
       select: {
         id: true,
-        name: true,
-        email: true,
-        accountType: true,
-        createdAt: true,
       },
+    });
+
+    if (!nexusOrganization) {
+      console.error(
+        `Nexus organization ${NEXUS_ORGANIZATION_ID} was not found.`
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "Nexus organization configuration could not be found.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    /*
+     * Everything is created in one transaction.
+     *
+     * CREATOR:
+     * User
+     *   ├─ OrganizationMember (CREATOR)
+     *   └─ Creator profile
+     *
+     * EDITOR:
+     * User
+     *   └─ OrganizationMember (EDITOR)
+     */
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          accountType,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          accountType: true,
+          createdAt: true,
+        },
+      });
+
+      await tx.organizationMember.create({
+        data: {
+          userId: newUser.id,
+          organizationId: nexusOrganization.id,
+          role: accountType === "CREATOR" ? "CREATOR" : "EDITOR",
+        },
+      });
+
+      if (accountType === "CREATOR") {
+        await tx.creator.create({
+          data: {
+            name,
+            email,
+            userId: newUser.id,
+            organizationId: nexusOrganization.id,
+          },
+        });
+      }
+
+      return newUser;
     });
 
     return NextResponse.json(
@@ -105,7 +169,9 @@ export async function POST(request: Request) {
     console.error("Signup error:", error);
 
     return NextResponse.json(
-      { error: "Something went wrong while creating your account." },
+      {
+        error: "Something went wrong while creating your account.",
+      },
       { status: 500 }
     );
   }

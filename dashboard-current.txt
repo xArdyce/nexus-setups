@@ -27,9 +27,11 @@ export default function CreatorDashboard({ user }) {
     const [currentView, setCurrentView] = useState("overview");
     const [projectFilter, setProjectFilter] = useState("all");
     const [assetSearch, setAssetSearch] = useState("");
+    const [activePlatform, setActivePlatform] = useState("all");
     const [briefModalOpen, setBriefModalOpen] = useState(false);
     const [briefError, setBriefError] = useState(false);
     const [briefSubmitting, setBriefSubmitting] = useState(false);
+    const [settingsSaved, setSettingsSaved] = useState(false);
 
     // Projects now come from the database via /api/projects
     const [projects, setProjects] = useState([]);
@@ -472,8 +474,239 @@ export default function CreatorDashboard({ user }) {
         settings: "WORKSPACE SETTINGS",
     };
 
-    // Analytics integrations are not connected yet.
-    // Keep this view intentionally empty rather than displaying sample metrics.
+    // =========================
+    // ANALYTICS DATASETS
+    // =========================
+    const analyticsData = {
+        all: {
+            views: "2.4M",
+            watchTime: "124,800",
+            subs: "+42,100",
+            revenue: "R48,920",
+            graphTitle:
+                "VIEWERSHIP TRAJECTORY (PAST 6 WEEKS)",
+            distTitle:
+                "DELIVERABLE FORMAT DISTRIBUTION",
+            topTitle:
+                "TOP PERFORMING CONTENT (LAST 7D)",
+
+            svgArea:
+                "M 0 150 Q 120 110, 240 120 T 480 45 L 600 25 L 600 200 L 0 200 Z",
+
+            svgLine:
+                "M 0 150 Q 120 110, 240 120 T 480 45 L 600 25",
+
+            distribution: [
+                {
+                    label: "TikTok / Reels",
+                    pct: "58%",
+                    color: "var(--purple-bright)",
+                },
+                {
+                    label: "YouTube Long-form",
+                    pct: "24%",
+                    color: "var(--blue)",
+                },
+                {
+                    label: "Clips & Shorts",
+                    pct: "12%",
+                    color: "var(--green)",
+                },
+                {
+                    label: "Podcasts & Audio",
+                    pct: "6%",
+                    color: "var(--yellow)",
+                },
+            ],
+
+            topContent: [
+                {
+                    badge: "YT",
+                    class: "yt",
+                    title:
+                        "PC Desk Setup Tour — 240Hz AM5 Upgrade",
+                    sub:
+                        "142,000 views • 94% VBR • 11:20 watch time",
+                    stat: "+14.2K subs",
+                },
+                {
+                    badge: "TT",
+                    class: "tt",
+                    title:
+                        "CoD Bo7 Camo Grind Movement Guide",
+                    sub:
+                        "890,000 views • 82% completion rate",
+                    stat: "+28.4K subs",
+                },
+                {
+                    badge: "X",
+                    class: "tw",
+                    title:
+                        "Futives Controller Settings Config Thread",
+                    sub:
+                        "45,200 impressions • 3,400 engagements",
+                    stat: "9.2% ER",
+                },
+            ],
+        },
+
+        youtube: {
+            views: "1.6M",
+            watchTime: "112,000",
+            subs: "+18,400",
+            revenue: "R38,400",
+            graphTitle:
+                "YOUTUBE VIEWS & WATCH TIME TRAJECTORY",
+            distTitle: "YOUTUBE FORMAT BREAKDOWN",
+            topTitle: "TOP YOUTUBE VIDEOS",
+
+            svgArea:
+                "M 0 170 Q 150 90, 300 100 T 500 35 L 600 20 L 600 200 L 0 200 Z",
+
+            svgLine:
+                "M 0 170 Q 150 90, 300 100 T 500 35 L 600 20",
+
+            distribution: [
+                {
+                    label: "Long-form 4K",
+                    pct: "75%",
+                    color: "var(--blue)",
+                },
+                {
+                    label: "YouTube Shorts",
+                    pct: "25%",
+                    color: "var(--purple-bright)",
+                },
+            ],
+
+            topContent: [
+                {
+                    badge: "YT",
+                    class: "yt",
+                    title:
+                        "PC Desk Setup Tour — 240Hz AM5 Upgrade",
+                    sub:
+                        "142,000 views • 94% VBR • 11:20 watch time",
+                    stat: "+14.2K subs",
+                },
+                {
+                    badge: "YT",
+                    class: "yt",
+                    title:
+                        "AM5 Motherboard BIOS Tuning Guide",
+                    sub:
+                        "98,000 views • 88% VBR • 8:40 watch time",
+                    stat: "+4,200 subs",
+                },
+            ],
+        },
+
+        tiktok: {
+            views: "720K",
+            watchTime: "12,200",
+            subs: "+22,100",
+            revenue: "R7,520",
+            graphTitle:
+                "TIKTOK REELS ENGAGEMENT SURGE",
+            distTitle: "TIKTOK CONTENT STYLES",
+            topTitle: "TOP TIKTOK SHORTS",
+
+            svgArea:
+                "M 0 180 Q 100 60, 250 80 T 450 30 L 600 15 L 600 200 L 0 200 Z",
+
+            svgLine:
+                "M 0 180 Q 100 60, 250 80 T 450 30 L 600 15",
+
+            distribution: [
+                {
+                    label: "Gameplay Montages",
+                    pct: "65%",
+                    color: "var(--purple-bright)",
+                },
+                {
+                    label: "Setup Showcase",
+                    pct: "35%",
+                    color: "var(--green)",
+                },
+            ],
+
+            topContent: [
+                {
+                    badge: "TT",
+                    class: "tt",
+                    title:
+                        "CoD Bo7 Camo Grind Movement Guide",
+                    sub:
+                        "890,000 views • 82% completion rate",
+                    stat: "+28.4K subs",
+                },
+                {
+                    badge: "TT",
+                    class: "tt",
+                    title:
+                        "Reverse Fan Airflow Setup Test",
+                    sub:
+                        "210,000 views • 91% completion rate",
+                    stat: "+6,100 subs",
+                },
+            ],
+        },
+
+        twitter: {
+            views: "80K",
+            watchTime: "600",
+            subs: "+1,600",
+            revenue: "R3,000",
+            graphTitle:
+                "X / TWITTER THREAD IMPRESSIONS",
+            distTitle: "X MEDIA FORMATS",
+            topTitle: "TOP X THREADS & CLIPS",
+
+            svgArea:
+                "M 0 160 Q 120 140, 240 130 T 480 90 L 600 70 L 600 200 L 0 200 Z",
+
+            svgLine:
+                "M 0 160 Q 120 140, 240 130 T 480 90 L 600 70",
+
+            distribution: [
+                {
+                    label: "Config Threads",
+                    pct: "70%",
+                    color: "var(--blue)",
+                },
+                {
+                    label: "Direct Video Clips",
+                    pct: "30%",
+                    color: "var(--yellow)",
+                },
+            ],
+
+            topContent: [
+                {
+                    badge: "X",
+                    class: "tw",
+                    title:
+                        "Futives Controller Settings Config Thread",
+                    sub:
+                        "45,200 impressions • 3,400 engagements",
+                    stat: "9.2% ER",
+                },
+                {
+                    badge: "X",
+                    class: "tw",
+                    title:
+                        "PKHeX Legality Checker Snippet",
+                    sub:
+                        "18,400 impressions • 1,200 engagements",
+                    stat: "6.4% ER",
+                },
+            ],
+        },
+    };
+
+    const activeAnalytics =
+        analyticsData[activePlatform] ||
+        analyticsData.all;
 
     // =========================
     // BRIEF SUBMISSION
@@ -610,7 +843,7 @@ export default function CreatorDashboard({ user }) {
             <div className="app-shell">
                 {/* SIDEBAR NAVIGATION */}
                 <aside className="sidebar">
-                    <a href="/" className="brand">
+                    <a href="/homepage" className="brand">
                         <span>NEXUS</span>
                         <b>SETUPS</b>
                     </a>
@@ -639,12 +872,12 @@ export default function CreatorDashboard({ user }) {
 
                             ...(isEditor
                                 ? [
-                                    [
-                                        "creators",
-                                        "👥",
-                                        "Creators",
-                                    ],
-                                ]
+                                      [
+                                          "creators",
+                                          "👥",
+                                          "Creators",
+                                      ],
+                                  ]
                                 : []),
 
                             [
@@ -671,10 +904,11 @@ export default function CreatorDashboard({ user }) {
                                 <button
                                     key={view}
                                     type="button"
-                                    className={`nav-item ${currentView === view
-                                        ? "active"
-                                        : ""
-                                        }`}
+                                    className={`nav-item ${
+                                        currentView === view
+                                            ? "active"
+                                            : ""
+                                    }`}
                                     onClick={() =>
                                         setCurrentView(
                                             view
@@ -714,12 +948,12 @@ export default function CreatorDashboard({ user }) {
                             </strong>
 
                             <small>
-                                {accountType} ACCOUNT
+                                GROWTH PLAN
                             </small>
                         </div>
 
                         <a
-                            href="/"
+                            href="/homepage"
                             className="logout-btn"
                             title="Log Out"
                             onClick={(e) => {
@@ -727,7 +961,7 @@ export default function CreatorDashboard({ user }) {
 
                                 signOut({
                                     callbackUrl:
-                                        "/",
+                                        "/homepage",
                                 });
                             }}
                         >
@@ -748,7 +982,7 @@ export default function CreatorDashboard({ user }) {
                             <h2>
                                 {
                                     viewTitles[
-                                    currentView
+                                        currentView
                                     ]
                                 }
                             </h2>
@@ -776,7 +1010,7 @@ export default function CreatorDashboard({ user }) {
                                     disabled={
                                         organizationsLoading ||
                                         organizations.length ===
-                                        0
+                                            0
                                     }
                                 >
                                     {organizationsLoading && (
@@ -844,85 +1078,119 @@ export default function CreatorDashboard({ user }) {
                         VIEW 1: OVERVIEW
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel ${
+                            currentView ===
                             "overview"
-                            ? "active"
-                            : ""
-                            }`}
+                                ? "active"
+                                : ""
+                        }`}
                     >
                         <div className="panel-scroll-container">
                             <section className="metrics-grid">
                                 <div className="metric-card">
-                                    <span className="metric-label">ACTIVE EDITS</span>
+                                    <span className="metric-label">
+                                        ACTIVE EDITS
+                                    </span>
+
                                     <strong className="metric-value">
                                         {projectsLoading
                                             ? "—"
                                             : String(
-                                                projects.filter(
-                                                    (p) =>
-                                                        ![
-                                                            "APPROVED",
-                                                            "SCHEDULED",
-                                                            "PUBLISHED",
-                                                        ].includes(
-                                                            normalizeProjectStatus(p.status)
-                                                        )
-                                                ).length
-                                            ).padStart(2, "0")}
+                                                  projects.filter(
+                                                      (
+                                                          p
+                                                      ) =>
+                                                          ![
+                                                              "PUBLISHED",
+                                                              "SCHEDULED",
+                                                          ].includes(
+                                                              normalizeProjectStatus(
+                                                                  p.status
+                                                              )
+                                                          )
+                                                  ).length
+                                              ).padStart(
+                                                  2,
+                                                  "0"
+                                              )}
                                     </strong>
-                                    <span className="metric-delta">
+
+                                    <span className="metric-delta positive">
                                         {projectsLoading
                                             ? "Loading…"
-                                            : `${projects.filter(
-                                                (p) =>
-                                                    normalizeProjectStatus(p.status) ===
-                                                    "IN_PRODUCTION"
-                                            ).length} in production`}
+                                            : `↑ ${
+                                                  projects.filter(
+                                                      (
+                                                          p
+                                                      ) =>
+                                                          normalizeProjectStatus(
+                                                              p.status
+                                                          ) ===
+                                                          "IN_PRODUCTION"
+                                                  ).length
+                                              } in production`}
                                     </span>
                                 </div>
 
                                 <div className="metric-card">
-                                    <span className="metric-label">DELIVERED</span>
-                                    <strong className="metric-value">
-                                        {projectsLoading
-                                            ? "—"
-                                            : String(
-                                                projects.filter(
-                                                    (p) =>
-                                                        normalizeProjectStatus(p.status) ===
-                                                        "PUBLISHED"
-                                                ).length
-                                            ).padStart(2, "0")}
-                                    </strong>
-                                    <span className="metric-delta">Published projects</span>
-                                </div>
+                                    <span className="metric-label">
+                                        DELIVERED THIS MO.
+                                    </span>
 
-                                <div className="metric-card">
-                                    <span className="metric-label">ASSETS</span>
                                     <strong className="metric-value">
-                                        {assetsLoading
-                                            ? "—"
-                                            : String(assets.length).padStart(2, "0")}
+                                        18
                                     </strong>
+
                                     <span className="metric-delta">
-                                        {assetsLoading ? "Loading…" : "Files in asset vault"}
+                                        Target: 24 clips
                                     </span>
+
+                                    <div className="metric-progress-bar">
+                                        <div
+                                            className="progress-fill"
+                                            style={{
+                                                width: "75%",
+                                            }}
+                                        ></div>
+                                    </div>
                                 </div>
 
                                 <div className="metric-card">
-                                    <span className="metric-label">IN REVIEW</span>
+                                    <span className="metric-label">
+                                        STORAGE USED
+                                    </span>
+
                                     <strong className="metric-value">
-                                        {projectsLoading
-                                            ? "—"
-                                            : String(
-                                                projects.filter(
-                                                    (p) =>
-                                                        normalizeProjectStatus(p.status) ===
-                                                        "IN_REVIEW"
-                                                ).length
-                                            ).padStart(2, "0")}
+                                        412 GB
                                     </strong>
-                                    <span className="metric-delta">Awaiting review</span>
+
+                                    <span className="metric-delta">
+                                        of 1.0 TB Vault
+                                        (41%)
+                                    </span>
+
+                                    <div className="metric-progress-bar">
+                                        <div
+                                            className="progress-fill storage"
+                                            style={{
+                                                width: "41%",
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div>
+
+                                <div className="metric-card">
+                                    <span className="metric-label">
+                                        TURNAROUND AVG.
+                                    </span>
+
+                                    <strong className="metric-value">
+                                        18h
+                                    </strong>
+
+                                    <span className="metric-delta positive">
+                                        ⚡ Priority Queue
+                                    </span>
                                 </div>
                             </section>
 
@@ -967,7 +1235,7 @@ export default function CreatorDashboard({ user }) {
                                         {!projectsLoading &&
                                             !projectsError &&
                                             projects.length ===
-                                            0 && (
+                                                0 && (
                                                 <p className="text-link">
                                                     No projects
                                                     yet —
@@ -1034,18 +1302,81 @@ export default function CreatorDashboard({ user }) {
 
                                 <div className="panel activity-panel">
                                     <div className="panel-header">
-                                        <h3>SYSTEM ACTIVITY</h3>
+                                        <h3>
+                                            SYSTEM ACTIVITY
+                                        </h3>
                                     </div>
 
-                                    <div style={{ padding: "18px 0" }}>
-                                        <strong>NO ACTIVITY YET</strong>
-                                        <p
-                                            className="text-link"
-                                            style={{ marginTop: "8px" }}
-                                        >
-                                            Project and account activity will appear here once the activity log is connected.
-                                        </p>
-                                    </div>
+                                    <ul className="activity-log">
+                                        <li>
+                                            <span className="time">
+                                                10:14
+                                            </span>
+
+                                            <p>
+                                                <strong>
+                                                    Raw footage
+                                                    uploaded:
+                                                </strong>{" "}
+                                                <code>
+                                                    CoD_Bo7_Match_04.mov
+                                                </code>{" "}
+                                                (12.4 GB)
+                                            </p>
+                                        </li>
+
+                                        <li>
+                                            <span className="time">
+                                                08:45
+                                            </span>
+
+                                            <p>
+                                                Editor{" "}
+                                                <strong>
+                                                    Alex M.
+                                                </strong>{" "}
+                                                exported
+                                                draft for{" "}
+                                                <em>
+                                                    Desk Setup
+                                                    Tour v1.2
+                                                </em>
+                                            </p>
+                                        </li>
+
+                                        <li>
+                                            <span className="time">
+                                                YESTERDAY
+                                            </span>
+
+                                            <p>
+                                                Asset Vault
+                                                synced with{" "}
+                                                <strong>
+                                                    Blender glTF
+                                                    3D Setup
+                                                    Model
+                                                </strong>
+                                            </p>
+                                        </li>
+
+                                        <li>
+                                            <span className="time">
+                                                AUG 02
+                                            </span>
+
+                                            <p>
+                                                Delivered{" "}
+                                                <strong>
+                                                    4x
+                                                    Short-form
+                                                    Reels
+                                                </strong>{" "}
+                                                for TikTok &
+                                                Shorts
+                                            </p>
+                                        </li>
+                                    </ul>
                                 </div>
                             </section>
                         </div>
@@ -1055,11 +1386,12 @@ export default function CreatorDashboard({ user }) {
                         VIEW 2: PROJECTS
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel ${
+                            currentView ===
                             "projects"
-                            ? "active"
-                            : ""
-                            }`}
+                                ? "active"
+                                : ""
+                        }`}
                     >
                         <div className="panel-scroll-container">
                             <div className="panel">
@@ -1085,11 +1417,12 @@ export default function CreatorDashboard({ user }) {
                                                         filter
                                                     }
                                                     type="button"
-                                                    className={`filter-pill ${projectFilter ===
+                                                    className={`filter-pill ${
+                                                        projectFilter ===
                                                         filter
-                                                        ? "active"
-                                                        : ""
-                                                        }`}
+                                                            ? "active"
+                                                            : ""
+                                                    }`}
                                                     onClick={() =>
                                                         setProjectFilter(
                                                             filter
@@ -1097,11 +1430,11 @@ export default function CreatorDashboard({ user }) {
                                                     }
                                                 >
                                                     {filter ===
-                                                        "all"
+                                                    "all"
                                                         ? "ALL"
                                                         : displayStatus(
-                                                            filter
-                                                        )}
+                                                              filter
+                                                          )}
                                                 </button>
                                             )
                                         )}
@@ -1167,11 +1500,11 @@ export default function CreatorDashboard({ user }) {
                                                     p
                                                 ) =>
                                                     projectFilter ===
-                                                    "all" ||
+                                                        "all" ||
                                                     normalizeProjectStatus(
                                                         p.status
                                                     ) ===
-                                                    projectFilter
+                                                        projectFilter
                                             )
                                             .map(
                                                 (
@@ -1222,13 +1555,14 @@ export default function CreatorDashboard({ user }) {
                                                         <div>
                                                             <button
                                                                 type="button"
-                                                                className={`action-btn ${proj.status ===
-                                                                    "IN_REVIEW" ||
+                                                                className={`action-btn ${
                                                                     proj.status ===
-                                                                    "REVISION"
-                                                                    ? "active"
-                                                                    : ""
-                                                                    }`}
+                                                                        "IN_REVIEW" ||
+                                                                    proj.status ===
+                                                                        "REVISION"
+                                                                        ? "active"
+                                                                        : ""
+                                                                }`}
                                                                 onClick={() =>
                                                                     openProjectDetails(
                                                                         proj
@@ -1236,15 +1570,15 @@ export default function CreatorDashboard({ user }) {
                                                                 }
                                                             >
                                                                 {proj.status ===
-                                                                    "IN_REVIEW"
+                                                                "IN_REVIEW"
                                                                     ? "REVIEW CUT ↗"
                                                                     : proj.status ===
-                                                                        "REVISION"
-                                                                        ? "VIEW REVISION ↗"
-                                                                        : proj.status ===
-                                                                            "PUBLISHED"
-                                                                            ? "VIEW PROJECT ↗"
-                                                                            : "VIEW BRIEF"}
+                                                                      "REVISION"
+                                                                    ? "VIEW REVISION ↗"
+                                                                    : proj.status ===
+                                                                      "PUBLISHED"
+                                                                    ? "VIEW PROJECT ↗"
+                                                                    : "VIEW BRIEF"}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -1259,11 +1593,12 @@ export default function CreatorDashboard({ user }) {
                         VIEW 3: CREATORS
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel ${
+                            currentView ===
                             "creators"
-                            ? "active"
-                            : ""
-                            }`}
+                                ? "active"
+                                : ""
+                        }`}
                     >
                         <div className="panel-scroll-container">
                             <div className="panel">
@@ -1281,11 +1616,12 @@ export default function CreatorDashboard({ user }) {
                                     <span className="graph-tag">
                                         {creatorsLoading
                                             ? "LOADING..."
-                                            : `${creators.length} CREATOR${creators.length ===
-                                                1
-                                                ? ""
-                                                : "S"
-                                            }`}
+                                            : `${creators.length} CREATOR${
+                                                  creators.length ===
+                                                  1
+                                                      ? ""
+                                                      : "S"
+                                              }`}
                                     </span>
                                 </div>
 
@@ -1307,7 +1643,7 @@ export default function CreatorDashboard({ user }) {
                                 {!creatorsLoading &&
                                     !creatorsError &&
                                     creators.length ===
-                                    0 && (
+                                        0 && (
                                         <p className="text-link">
                                             No creators have
                                             been added to this
@@ -1318,7 +1654,7 @@ export default function CreatorDashboard({ user }) {
                                 {!creatorsLoading &&
                                     !creatorsError &&
                                     creators.length >
-                                    0 && (
+                                        0 && (
                                         <div className="project-list">
                                             {creators.map(
                                                 (
@@ -1381,11 +1717,12 @@ export default function CreatorDashboard({ user }) {
                         VIEW 4: CREATOR WORKSPACE
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel ${
+                            currentView ===
                             "creator-workspace"
-                            ? "active"
-                            : ""
-                            }`}
+                                ? "active"
+                                : ""
+                        }`}
                     >
                         <div className="panel-scroll-container">
                             <div className="panel">
@@ -1545,7 +1882,7 @@ export default function CreatorDashboard({ user }) {
                                                     }{" "}
                                                     PROJECT
                                                     {projects.length ===
-                                                        1
+                                                    1
                                                         ? ""
                                                         : "S"}
                                                 </span>
@@ -1570,7 +1907,7 @@ export default function CreatorDashboard({ user }) {
                                             {!projectsLoading &&
                                                 !projectsError &&
                                                 projects.length ===
-                                                0 && (
+                                                    0 && (
                                                     <p className="text-link">
                                                         No
                                                         projects
@@ -1586,7 +1923,7 @@ export default function CreatorDashboard({ user }) {
                                             {!projectsLoading &&
                                                 !projectsError &&
                                                 projects.length >
-                                                0 && (
+                                                    0 && (
                                                     <div className="project-list">
                                                         {projects.map(
                                                             (
@@ -1611,9 +1948,9 @@ export default function CreatorDashboard({ user }) {
                                                                     ) => {
                                                                         if (
                                                                             e.key ===
-                                                                            "Enter" ||
+                                                                                "Enter" ||
                                                                             e.key ===
-                                                                            " "
+                                                                                " "
                                                                         ) {
                                                                             e.preventDefault();
 
@@ -1652,7 +1989,7 @@ export default function CreatorDashboard({ user }) {
                                                                     <div className="project-eta">
                                                                         {project.status ===
                                                                             "IN_REVIEW" ||
-                                                                            project.status ===
+                                                                        project.status ===
                                                                             "REVISION"
                                                                             ? "REVIEW CUT ↗"
                                                                             : project.eta}
@@ -1673,11 +2010,12 @@ export default function CreatorDashboard({ user }) {
                         VIEW 5: PROJECT DETAILS / REVIEW
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel ${
+                            currentView ===
                             "project-details"
-                            ? "active"
-                            : ""
-                            }`}
+                                ? "active"
+                                : ""
+                        }`}
                     >
                         <div className="panel-scroll-container">
                             <div className="panel">
@@ -1799,11 +2137,12 @@ export default function CreatorDashboard({ user }) {
                                                     </span>
 
                                                     <strong
-                                                        className={`project-status ${selectedProject
-                                                            .content
-                                                            ?.status?.toLowerCase() ||
+                                                        className={`project-status ${
+                                                            selectedProject
+                                                                .content
+                                                                ?.status?.toLowerCase() ||
                                                             ""
-                                                            }`}
+                                                        }`}
                                                     >
                                                         {displayStatus(
                                                             selectedProject
@@ -1818,10 +2157,10 @@ export default function CreatorDashboard({ user }) {
                                                             .content
                                                             ?.updatedAt
                                                             ? new Date(
-                                                                selectedProject
-                                                                    .content
-                                                                    .updatedAt
-                                                            ).toLocaleDateString()
+                                                                  selectedProject
+                                                                      .content
+                                                                      .updatedAt
+                                                              ).toLocaleDateString()
                                                             : "—"}
                                                     </span>
                                                 </div>
@@ -1836,10 +2175,10 @@ export default function CreatorDashboard({ user }) {
                                                             .content
                                                             ?.createdAt
                                                             ? new Date(
-                                                                selectedProject
-                                                                    .content
-                                                                    .createdAt
-                                                            ).toLocaleDateString()
+                                                                  selectedProject
+                                                                      .content
+                                                                      .createdAt
+                                                              ).toLocaleDateString()
                                                             : "—"}
                                                     </strong>
 
@@ -1868,21 +2207,21 @@ export default function CreatorDashboard({ user }) {
                                                     {selectedProject
                                                         .content
                                                         ?.footageLink && (
-                                                            <a
-                                                                href={
-                                                                    selectedProject
-                                                                        .content
-                                                                        .footageLink
-                                                                }
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="action-btn active"
-                                                            >
-                                                                OPEN
-                                                                FOOTAGE
-                                                                ↗
-                                                            </a>
-                                                        )}
+                                                        <a
+                                                            href={
+                                                                selectedProject
+                                                                    .content
+                                                                    .footageLink
+                                                            }
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="action-btn active"
+                                                        >
+                                                            OPEN
+                                                            FOOTAGE
+                                                            ↗
+                                                        </a>
+                                                    )}
                                                 </div>
 
                                                 {selectedProject
@@ -2004,9 +2343,9 @@ export default function CreatorDashboard({ user }) {
 
                                                             const completed =
                                                                 statusIndex <=
-                                                                currentIndex &&
+                                                                    currentIndex &&
                                                                 current !==
-                                                                "REVISION";
+                                                                    "REVISION";
 
                                                             const isCurrent =
                                                                 current ===
@@ -2031,7 +2370,7 @@ export default function CreatorDashboard({ user }) {
                                                                             "8px",
                                                                         opacity:
                                                                             completed ||
-                                                                                isCurrent
+                                                                            isCurrent
                                                                                 ? 1
                                                                                 : 0.45,
                                                                     }}
@@ -2047,7 +2386,7 @@ export default function CreatorDashboard({ user }) {
                                                                         {completed
                                                                             ? "✓"
                                                                             : index +
-                                                                            1}
+                                                                              1}
                                                                     </span>
 
                                                                     <strong>
@@ -2105,7 +2444,7 @@ export default function CreatorDashboard({ user }) {
                                                         {selectedProject
                                                             .reviews
                                                             ?.length ===
-                                                            1
+                                                        1
                                                             ? ""
                                                             : "S"}
                                                     </span>
@@ -2116,80 +2455,80 @@ export default function CreatorDashboard({ user }) {
                                                     .reviews
                                                     ?.length >
                                                     0 && (
-                                                        <div
-                                                            style={{
-                                                                display:
-                                                                    "grid",
-                                                                gap: "12px",
-                                                                marginBottom:
-                                                                    "20px",
-                                                            }}
-                                                        >
-                                                            {selectedProject.reviews.map(
-                                                                (
-                                                                    review
-                                                                ) => (
+                                                    <div
+                                                        style={{
+                                                            display:
+                                                                "grid",
+                                                            gap: "12px",
+                                                            marginBottom:
+                                                                "20px",
+                                                        }}
+                                                    >
+                                                        {selectedProject.reviews.map(
+                                                            (
+                                                                review
+                                                            ) => (
+                                                                <div
+                                                                    key={
+                                                                        review.id
+                                                                    }
+                                                                    style={{
+                                                                        padding:
+                                                                            "14px",
+                                                                        border:
+                                                                            "1px solid var(--line)",
+                                                                        borderRadius:
+                                                                            "8px",
+                                                                    }}
+                                                                >
                                                                     <div
-                                                                        key={
-                                                                            review.id
-                                                                        }
                                                                         style={{
-                                                                            padding:
-                                                                                "14px",
-                                                                            border:
-                                                                                "1px solid var(--line)",
-                                                                            borderRadius:
+                                                                            display:
+                                                                                "flex",
+                                                                            justifyContent:
+                                                                                "space-between",
+                                                                            gap: "12px",
+                                                                        }}
+                                                                    >
+                                                                        <strong>
+                                                                            {review.status.replaceAll(
+                                                                                "_",
+                                                                                " "
+                                                                            )}
+                                                                        </strong>
+
+                                                                        <small>
+                                                                            {new Date(
+                                                                                review.createdAt
+                                                                            ).toLocaleString()}
+                                                                        </small>
+                                                                    </div>
+
+                                                                    <p
+                                                                        style={{
+                                                                            marginTop:
                                                                                 "8px",
                                                                         }}
                                                                     >
-                                                                        <div
-                                                                            style={{
-                                                                                display:
-                                                                                    "flex",
-                                                                                justifyContent:
-                                                                                    "space-between",
-                                                                                gap: "12px",
-                                                                            }}
-                                                                        >
-                                                                            <strong>
-                                                                                {review.status.replaceAll(
-                                                                                    "_",
-                                                                                    " "
-                                                                                )}
-                                                                            </strong>
+                                                                        {review.notes ||
+                                                                            "No review notes."}
+                                                                    </p>
 
-                                                                            <small>
-                                                                                {new Date(
-                                                                                    review.createdAt
-                                                                                ).toLocaleString()}
-                                                                            </small>
-                                                                        </div>
-
-                                                                        <p
-                                                                            style={{
-                                                                                marginTop:
-                                                                                    "8px",
-                                                                            }}
-                                                                        >
-                                                                            {review.notes ||
-                                                                                "No review notes."}
-                                                                        </p>
-
-                                                                        <small>
-                                                                            By{" "}
-                                                                            {review
+                                                                    <small>
+                                                                        By{" "}
+                                                                        {review
+                                                                            .author
+                                                                            ?.name ||
+                                                                            review
                                                                                 .author
-                                                                                ?.name ||
-                                                                                review
-                                                                                    .author
-                                                                                    ?.email ||
-                                                                                "Unknown reviewer"}
-                                                                        </small>
-                                                                    </div>
-                                                                )
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                                                ?.email ||
+                                                                            "Unknown reviewer"}
+                                                                    </small>
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                )}
 
                                                 {/* EDITOR REVIEW CONTROLS */}
                                                 {isEditor &&
@@ -2284,7 +2623,7 @@ export default function CreatorDashboard({ user }) {
                                                                             ) {
                                                                                 throw new Error(
                                                                                     data.error ||
-                                                                                    "Failed to approve project."
+                                                                                        "Failed to approve project."
                                                                                 );
                                                                             }
 
@@ -2310,7 +2649,7 @@ export default function CreatorDashboard({ user }) {
                                                                                 ""
                                                                             );
                                                                         } catch (
-                                                                        err
+                                                                            err
                                                                         ) {
                                                                             console.error(
                                                                                 err
@@ -2318,7 +2657,7 @@ export default function CreatorDashboard({ user }) {
 
                                                                             setProjectDetailsError(
                                                                                 err.message ||
-                                                                                "Failed to approve project."
+                                                                                    "Failed to approve project."
                                                                             );
                                                                         } finally {
                                                                             setProjectStatusUpdating(
@@ -2373,7 +2712,7 @@ export default function CreatorDashboard({ user }) {
                                                                             ) {
                                                                                 throw new Error(
                                                                                     data.error ||
-                                                                                    "Failed to request revision."
+                                                                                        "Failed to request revision."
                                                                                 );
                                                                             }
 
@@ -2399,7 +2738,7 @@ export default function CreatorDashboard({ user }) {
                                                                                 ""
                                                                             );
                                                                         } catch (
-                                                                        err
+                                                                            err
                                                                         ) {
                                                                             console.error(
                                                                                 err
@@ -2407,7 +2746,7 @@ export default function CreatorDashboard({ user }) {
 
                                                                             setProjectDetailsError(
                                                                                 err.message ||
-                                                                                "Failed to request revision."
+                                                                                    "Failed to request revision."
                                                                             );
                                                                         } finally {
                                                                             setProjectStatusUpdating(
@@ -2435,12 +2774,12 @@ export default function CreatorDashboard({ user }) {
                                                                 ?.status
                                                         )
                                                     )) && (
-                                                        <p className="text-link">
-                                                            {isEditor
-                                                                ? "This project is not currently awaiting review."
-                                                                : "Review actions are managed by the production team."}
-                                                        </p>
-                                                    )}
+                                                    <p className="text-link">
+                                                        {isEditor
+                                                            ? "This project is not currently awaiting review."
+                                                            : "Review actions are managed by the production team."}
+                                                    </p>
+                                                )}
                                             </div>
                                         </>
                                     )}
@@ -2452,10 +2791,11 @@ export default function CreatorDashboard({ user }) {
                         VIEW 6: ASSET VAULT
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView === "assets"
-                            ? "active"
-                            : ""
-                            }`}
+                        className={`view-panel ${
+                            currentView === "assets"
+                                ? "active"
+                                : ""
+                        }`}
                     >
                         <div className="panel-scroll-container">
                             <div className="panel">
@@ -2620,39 +2960,489 @@ export default function CreatorDashboard({ user }) {
                     ========================================= */}
                     <div
                         className={`view-panel ${
-                            currentView === "analytics" ? "active" : ""
+                            currentView ===
+                            "analytics"
+                                ? "active"
+                                : ""
                         }`}
                     >
-                        <div className="panel-scroll-container">
-                            <div className="panel analytics-panel">
-                                <div className="panel-header">
-                                    <div>
-                                        <span className="status-tag">
-                                            ANALYTICS
-                                        </span>
+                        <div className="analytics-scroll-container">
+                            <div className="analytics-platform-bar">
+                                <span className="analytics-label">
+                                    DATA SOURCE:
+                                </span>
 
-                                        <h3>
-                                            PERFORMANCE ANALYTICS
-                                        </h3>
-                                    </div>
-                                </div>
-
-                                <div className="analytics-empty-state">
-                                    <div className="analytics-empty-icon">
-                                        📊
-                                    </div>
-
-                                    <strong>
-                                        NO ANALYTICS DATA YET
-                                    </strong>
-
-                                    <p>
-                                        Creator platform analytics have not been connected yet.
-                                        Views, watch time, audience growth and content performance
-                                        will appear here when integrations are added.
-                                    </p>
+                                <div className="platform-tabs">
+                                    {[
+                                        [
+                                            "all",
+                                            "🌐 ALL PLATFORMS",
+                                        ],
+                                        [
+                                            "youtube",
+                                            "▶ YOUTUBE STUDIO",
+                                        ],
+                                        [
+                                            "tiktok",
+                                            "📱 TIKTOK CREATOR",
+                                        ],
+                                        [
+                                            "twitter",
+                                            "🐦 X / TWITTER",
+                                        ],
+                                    ].map(
+                                        ([
+                                            key,
+                                            label,
+                                        ]) => (
+                                            <button
+                                                key={
+                                                    key
+                                                }
+                                                type="button"
+                                                className={`platform-tab ${
+                                                    activePlatform ===
+                                                    key
+                                                        ? "active"
+                                                        : ""
+                                                }`}
+                                                onClick={() =>
+                                                    setActivePlatform(
+                                                        key
+                                                    )
+                                                }
+                                            >
+                                                {
+                                                    label
+                                                }
+                                            </button>
+                                        )
+                                    )}
                                 </div>
                             </div>
+
+                            <section className="metrics-grid">
+                                <div className="metric-card">
+                                    <span className="metric-label">
+                                        TOTAL VIEWS (28D)
+                                    </span>
+
+                                    <strong className="metric-value">
+                                        {
+                                            activeAnalytics.views
+                                        }
+                                    </strong>
+
+                                    <span className="metric-delta positive">
+                                        ↑ 18.2% vs prev.
+                                        28d
+                                    </span>
+                                </div>
+
+                                <div className="metric-card">
+                                    <span className="metric-label">
+                                        WATCH TIME
+                                        (HOURS)
+                                    </span>
+
+                                    <strong className="metric-value">
+                                        {
+                                            activeAnalytics.watchTime
+                                        }
+                                    </strong>
+
+                                    <span className="metric-delta positive">
+                                        ↑ 24.5% vs prev.
+                                        28d
+                                    </span>
+                                </div>
+
+                                <div className="metric-card">
+                                    <span className="metric-label">
+                                        NEW SUBSCRIBERS /
+                                        FOLLOWERS
+                                    </span>
+
+                                    <strong className="metric-value">
+                                        {
+                                            activeAnalytics.subs
+                                        }
+                                    </strong>
+
+                                    <span className="metric-delta positive">
+                                        ⚡ Viral Surge
+                                        Peak
+                                    </span>
+                                </div>
+
+                                <div className="metric-card">
+                                    <span className="metric-label">
+                                        ESTIMATED REVENUE
+                                    </span>
+
+                                    <strong className="metric-value">
+                                        {
+                                            activeAnalytics.revenue
+                                        }
+                                    </strong>
+
+                                    <span className="metric-delta positive">
+                                        AdSense + Brand
+                                        Deals
+                                    </span>
+                                </div>
+                            </section>
+
+                            <section className="analytics-graphs-grid">
+                                <div className="panel graph-panel">
+                                    <div className="panel-header">
+                                        <h3>
+                                            {
+                                                activeAnalytics.graphTitle
+                                            }
+                                        </h3>
+
+                                        <span className="graph-tag">
+                                            LIVE API SYNC
+                                        </span>
+                                    </div>
+
+                                    <div className="chart-container">
+                                        <svg
+                                            className="line-chart"
+                                            viewBox="0 0 600 210"
+                                            preserveAspectRatio="none"
+                                        >
+                                            <defs>
+                                                <linearGradient
+                                                    id="chartGradient"
+                                                    x1="0"
+                                                    y1="0"
+                                                    x2="0"
+                                                    y2="1"
+                                                >
+                                                    <stop
+                                                        offset="0%"
+                                                        stopColor="var(--purple-bright)"
+                                                        stopOpacity="0.35"
+                                                    />
+
+                                                    <stop
+                                                        offset="100%"
+                                                        stopColor="var(--purple-bright)"
+                                                        stopOpacity="0.0"
+                                                    />
+                                                </linearGradient>
+                                            </defs>
+
+                                            <line
+                                                x1="0"
+                                                y1="40"
+                                                x2="600"
+                                                y2="40"
+                                                stroke="var(--line)"
+                                                strokeDasharray="4"
+                                            />
+
+                                            <line
+                                                x1="0"
+                                                y1="100"
+                                                x2="600"
+                                                y2="100"
+                                                stroke="var(--line)"
+                                                strokeDasharray="4"
+                                            />
+
+                                            <line
+                                                x1="0"
+                                                y1="160"
+                                                x2="600"
+                                                y2="160"
+                                                stroke="var(--line)"
+                                                strokeDasharray="4"
+                                            />
+
+                                            <path
+                                                d={
+                                                    activeAnalytics.svgArea
+                                                }
+                                                fill="url(#chartGradient)"
+                                            />
+
+                                            <path
+                                                d={
+                                                    activeAnalytics.svgLine
+                                                }
+                                                fill="none"
+                                                stroke="var(--purple-bright)"
+                                                strokeWidth="3.5"
+                                                strokeLinecap="round"
+                                            />
+                                        </svg>
+
+                                        <div className="chart-labels">
+                                            <span>
+                                                Week 1
+                                            </span>
+
+                                            <span>
+                                                Week 2
+                                            </span>
+
+                                            <span>
+                                                Week 3
+                                            </span>
+
+                                            <span>
+                                                Week 4
+                                            </span>
+
+                                            <span>
+                                                Week 5
+                                            </span>
+
+                                            <span>
+                                                Week 6
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="panel graph-panel">
+                                    <div className="panel-header">
+                                        <h3>
+                                            {
+                                                activeAnalytics.distTitle
+                                            }
+                                        </h3>
+
+                                        <span className="graph-tag">
+                                            BREAKDOWN
+                                        </span>
+                                    </div>
+
+                                    <div className="bar-chart-container">
+                                        {activeAnalytics.distribution.map(
+                                            (
+                                                item,
+                                                idx
+                                            ) => (
+                                                <div
+                                                    className="bar-row"
+                                                    key={
+                                                        idx
+                                                    }
+                                                >
+                                                    <span className="bar-label">
+                                                        {
+                                                            item.label
+                                                        }
+                                                    </span>
+
+                                                    <div className="bar-track">
+                                                        <div
+                                                            className="bar-fill"
+                                                            style={{
+                                                                width:
+                                                                    item.pct,
+                                                                background:
+                                                                    item.color,
+                                                            }}
+                                                        ></div>
+                                                    </div>
+
+                                                    <span className="bar-value">
+                                                        {
+                                                            item.pct
+                                                        }
+                                                    </span>
+                                                </div>
+                                            )
+                                        )}
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="social-hub-grid">
+                                <div className="panel">
+                                    <div className="panel-header">
+                                        <h3>
+                                            {
+                                                activeAnalytics.topTitle
+                                            }
+                                        </h3>
+
+                                        <span className="graph-tag">
+                                            BY VIEWS
+                                        </span>
+                                    </div>
+
+                                    <div className="top-content-list">
+                                        {activeAnalytics.topContent.map(
+                                            (
+                                                c,
+                                                idx
+                                            ) => (
+                                                <div
+                                                    className="top-content-item"
+                                                    key={
+                                                        idx
+                                                    }
+                                                >
+                                                    <span
+                                                        className={`platform-badge ${c.class}`}
+                                                    >
+                                                        {
+                                                            c.badge
+                                                        }
+                                                    </span>
+
+                                                    <div className="content-meta">
+                                                        <strong>
+                                                            {
+                                                                c.title
+                                                            }
+                                                        </strong>
+
+                                                        <small>
+                                                            {
+                                                                c.sub
+                                                            }
+                                                        </small>
+                                                    </div>
+
+                                                    <span className="content-stat">
+                                                        {
+                                                            c.stat
+                                                        }
+                                                    </span>
+                                                </div>
+                                            )
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="panel">
+                                    <div className="panel-header">
+                                        <h3>
+                                            AUDIENCE TRAFFIC
+                                            & RETENTION
+                                        </h3>
+
+                                        <span className="graph-tag">
+                                            INSIGHTS
+                                        </span>
+                                    </div>
+
+                                    <div className="audience-stats-stack">
+                                        <div className="stat-row">
+                                            <div className="stat-info">
+                                                <strong>
+                                                    Traffic
+                                                    Source:
+                                                    Suggested
+                                                    Videos /
+                                                    FYP
+                                                </strong>
+
+                                                <small>
+                                                    Algorithm-driven
+                                                    discovery
+                                                </small>
+                                            </div>
+
+                                            <span className="stat-pct">
+                                                64.2%
+                                            </span>
+                                        </div>
+
+                                        <div className="metric-progress-bar">
+                                            <div
+                                                className="progress-fill"
+                                                style={{
+                                                    width:
+                                                        "64.2%",
+                                                }}
+                                            ></div>
+                                        </div>
+
+                                        <div
+                                            className="stat-row"
+                                            style={{
+                                                marginTop:
+                                                    "14px",
+                                            }}
+                                        >
+                                            <div className="stat-info">
+                                                <strong>
+                                                    Audience
+                                                    Retention
+                                                    at 0:30
+                                                </strong>
+
+                                                <small>
+                                                    Hook
+                                                    effectiveness
+                                                    benchmark
+                                                </small>
+                                            </div>
+
+                                            <span className="stat-pct">
+                                                78.5%
+                                            </span>
+                                        </div>
+
+                                        <div className="metric-progress-bar">
+                                            <div
+                                                className="progress-fill storage"
+                                                style={{
+                                                    width:
+                                                        "78.5%",
+                                                }}
+                                            ></div>
+                                        </div>
+
+                                        <div
+                                            className="stat-row"
+                                            style={{
+                                                marginTop:
+                                                    "14px",
+                                            }}
+                                        >
+                                            <div className="stat-info">
+                                                <strong>
+                                                    Unique
+                                                    Viewers
+                                                    vs
+                                                    Returning
+                                                </strong>
+
+                                                <small>
+                                                    Subscriber
+                                                    loyalty
+                                                    ratio
+                                                </small>
+                                            </div>
+
+                                            <span className="stat-pct">
+                                                42% Loyal
+                                            </span>
+                                        </div>
+
+                                        <div className="metric-progress-bar">
+                                            <div
+                                                className="progress-fill"
+                                                style={{
+                                                    width:
+                                                        "42%",
+                                                    background:
+                                                        "var(--green)",
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
                     </div>
 
@@ -2660,74 +3450,105 @@ export default function CreatorDashboard({ user }) {
                         VIEW 8: SETTINGS
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel ${
+                            currentView ===
                             "settings"
-                            ? "active"
-                            : ""
-                            }`}
+                                ? "active"
+                                : ""
+                        }`}
                     >
                         <div className="panel-scroll-container">
                             <div className="panel settings-panel">
-                                <h3>ACCOUNT & WORKSPACE</h3>
+                                <h3>
+                                    ACCOUNT & WORKSPACE
+                                    PREFERENCES
+                                </h3>
 
-                                <div className="settings-form">
+                                <form
+                                    className="settings-form"
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+
+                                        setSettingsSaved(
+                                            true
+                                        );
+
+                                        setTimeout(
+                                            () =>
+                                                setSettingsSaved(
+                                                    false
+                                                ),
+                                            3000
+                                        );
+                                    }}
+                                >
                                     <div className="form-row">
                                         <div className="form-field">
-                                            <label htmlFor="stgName">ACCOUNT NAME</label>
+                                            <label htmlFor="stgName">
+                                                STUDIO / CHANNEL
+                                                NAME
+                                            </label>
+
                                             <input
                                                 type="text"
                                                 id="stgName"
                                                 className="dash-input"
-                                                value={user?.name || ""}
-                                                readOnly
+                                                defaultValue={
+                                                    user?.name ||
+                                                    "Nexus Studio"
+                                                }
                                             />
                                         </div>
 
                                         <div className="form-field">
-                                            <label htmlFor="stgEmail">PRIMARY EMAIL</label>
+                                            <label htmlFor="stgEmail">
+                                                PRIMARY EMAIL
+                                            </label>
+
                                             <input
                                                 type="email"
                                                 id="stgEmail"
                                                 className="dash-input"
-                                                value={user?.email || ""}
-                                                readOnly
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-row">
-                                        <div className="form-field">
-                                            <label htmlFor="stgAccountType">ACCOUNT TYPE</label>
-                                            <input
-                                                type="text"
-                                                id="stgAccountType"
-                                                className="dash-input"
-                                                value={accountType}
-                                                readOnly
-                                            />
-                                        </div>
-
-                                        <div className="form-field">
-                                            <label htmlFor="stgWorkspace">WORKSPACE</label>
-                                            <input
-                                                type="text"
-                                                id="stgWorkspace"
-                                                className="dash-input"
-                                                value={
-                                                    organizations.find(
-                                                        (organization) =>
-                                                            organization.id === activeOrganizationId
-                                                    )?.name || ""
+                                                defaultValue={
+                                                    user?.email ||
+                                                    ""
                                                 }
-                                                readOnly
                                             />
                                         </div>
                                     </div>
 
-                                    <p className="text-link">
-                                        Editable account preferences will be enabled when the settings API is connected.
+                                    <div className="form-field">
+                                        <label htmlFor="stgPlan">
+                                            SUBSCRIPTION PLAN
+                                        </label>
+
+                                        <input
+                                            type="text"
+                                            id="stgPlan"
+                                            className="dash-input"
+                                            defaultValue="GROWTH PLAN — R17,999/mo"
+                                            disabled
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        className="button button-primary"
+                                    >
+                                        SAVE PREFERENCES
+                                    </button>
+
+                                    <p
+                                        className={`settings-saved-msg ${
+                                            settingsSaved
+                                                ? "active"
+                                                : ""
+                                        }`}
+                                    >
+                                        PREFERENCES SAVED
+                                        SUCCESSFULLY ✓
                                     </p>
-                                </div>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -2738,10 +3559,11 @@ export default function CreatorDashboard({ user }) {
                 NEW PROJECT BRIEF MODAL
             ========================================= */}
             <div
-                className={`modal-overlay ${briefModalOpen
-                    ? "active"
-                    : ""
-                    }`}
+                className={`modal-overlay ${
+                    briefModalOpen
+                        ? "active"
+                        : ""
+                }`}
                 onClick={(e) => {
                     if (
                         e.target ===
@@ -2840,10 +3662,11 @@ export default function CreatorDashboard({ user }) {
                             />
 
                             <p
-                                className={`brief-error-msg ${briefError
-                                    ? "active"
-                                    : ""
-                                    }`}
+                                className={`brief-error-msg ${
+                                    briefError
+                                        ? "active"
+                                        : ""
+                                }`}
                             >
                                 Please enter a valid
                                 URL, or check your

@@ -228,7 +228,7 @@ export async function GET(request: Request) {
    */
   const targetOrganizationId =
     requestedOrganizationId &&
-    organizationIds.includes(requestedOrganizationId)
+      organizationIds.includes(requestedOrganizationId)
       ? requestedOrganizationId
       : organizationIds[0];
 
@@ -269,8 +269,8 @@ export async function GET(request: Request) {
         organizationId: targetOrganizationId,
         ...(requestedCreatorId
           ? {
-              creatorId: requestedCreatorId,
-            }
+            creatorId: requestedCreatorId,
+          }
           : {}),
       },
     },
@@ -301,8 +301,8 @@ export async function GET(request: Request) {
     organizationId: targetOrganizationId,
     ...(requestedCreatorId
       ? {
-          creatorId: requestedCreatorId,
-        }
+        creatorId: requestedCreatorId,
+      }
       : {}),
   });
 }
@@ -425,13 +425,33 @@ export async function POST(request: Request) {
       });
     }
 
-    const contentItem = await prisma.contentItem.create({
-      data: {
-        title,
-        contentType: type,
-        status: "REQUESTED",
-        projectId: project.id,
-      },
+    const contentItem = await prisma.$transaction(async (tx) => {
+      const created = await tx.contentItem.create({
+        data: {
+          title,
+          contentType: type,
+          status: "REQUESTED",
+          projectId: project.id,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: "CONTENT_SUBMITTED",
+          resource: "ContentItem",
+          resourceId: created.id,
+          userId: user.id,
+          metadata: {
+            title: created.title,
+            contentType: created.contentType,
+            status: created.status,
+            organizationId: creator.organizationId,
+            creatorId: creator.id,
+          },
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json(
@@ -486,13 +506,32 @@ export async function POST(request: Request) {
     );
   }
 
-  const contentItem = await prisma.contentItem.create({
-    data: {
-      title,
-      contentType: type,
-      status: "REQUESTED",
-      projectId: project.id,
-    },
+  const contentItem = await prisma.$transaction(async (tx) => {
+    const created = await tx.contentItem.create({
+      data: {
+        title,
+        contentType: type,
+        status: "REQUESTED",
+        projectId: project.id,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: "CONTENT_SUBMITTED",
+        resource: "ContentItem",
+        resourceId: created.id,
+        userId: user.id,
+        metadata: {
+          title: created.title,
+          contentType: created.contentType,
+          status: created.status,
+          organizationId,
+        },
+      },
+    });
+
+    return created;
   });
 
   return NextResponse.json(

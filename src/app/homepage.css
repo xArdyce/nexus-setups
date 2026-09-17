@@ -2924,3 +2924,97 @@ footer {
             .001ms !important;
     }
 }
+
+/* =========================================
+   SIGNUP ACCOUNT TYPE SELECTOR
+========================================= */
+
+.account-type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.account-type-option {
+    display: block !important;
+    margin: 0 !important;
+    cursor: pointer;
+}
+
+.account-type-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.account-type-card {
+    min-height: 92px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    background: var(--input-bg);
+    transition:
+        border-color .25s ease,
+        background-color .25s ease,
+        box-shadow .25s ease,
+        transform .25s ease;
+}
+
+.account-type-option:hover .account-type-card {
+    border-color: rgba(160, 92, 230, .45);
+    background: rgba(122, 50, 224, .05);
+}
+
+.account-type-option input:checked + .account-type-card {
+    border-color: var(--purple-bright);
+    background: rgba(122, 50, 224, .10);
+    box-shadow: 0 0 18px rgba(122, 50, 224, .08);
+}
+
+.account-type-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.account-type-heading b {
+    color: var(--white);
+    font: 500 11px "DM Mono", monospace;
+    letter-spacing: .08em;
+}
+
+.account-type-heading i {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-style: normal;
+}
+
+.account-type-option input:checked + .account-type-card .account-type-heading b,
+.account-type-option input:checked + .account-type-card .account-type-heading i {
+    color: var(--purple-bright);
+}
+
+.account-type-card small {
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.auth-card {
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+@media (max-width: 480px) {
+    .account-type-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .account-type-card {
+        min-height: 76px;
+    }
+}
