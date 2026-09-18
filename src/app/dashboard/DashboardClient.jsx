@@ -53,6 +53,47 @@ export default function CreatorDashboard({ user }) {
 
     const [selectedCreator, setSelectedCreator] = useState(null);
 
+    const [projectAssignments, setProjectAssignments] = useState([]);
+    const [inheritedProjectEditors, setInheritedProjectEditors] =
+        useState([]);
+    const [availableEditors, setAvailableEditors] = useState([]);
+    const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+    const [assignmentsError, setAssignmentsError] = useState(null);
+    const [canManageAssignments, setCanManageAssignments] = useState(false);
+    const [assignmentUpdatingUserId, setAssignmentUpdatingUserId] =
+        useState(null);
+
+    const [creatorAssignments, setCreatorAssignments] = useState([]);
+    const [creatorAvailableEditors, setCreatorAvailableEditors] =
+        useState([]);
+    const [creatorAssignmentsLoading, setCreatorAssignmentsLoading] =
+        useState(false);
+    const [creatorAssignmentsError, setCreatorAssignmentsError] =
+        useState(null);
+    const [
+        canManageCreatorAssignments,
+        setCanManageCreatorAssignments,
+    ] = useState(false);
+    const [
+        creatorAssignmentUpdatingUserId,
+        setCreatorAssignmentUpdatingUserId,
+    ] = useState(null);
+
+    const [tasks, setTasks] = useState([]);
+    const [tasksLoading, setTasksLoading] = useState(false);
+    const [tasksError, setTasksError] = useState(null);
+    const [taskDrafts, setTaskDrafts] = useState({});
+    const [taskCreating, setTaskCreating] = useState(false);
+    const [taskUpdatingId, setTaskUpdatingId] = useState(null);
+    const [taskDeletingId, setTaskDeletingId] = useState(null);
+    const [newTask, setNewTask] = useState({
+        title: "",
+        description: "",
+        priority: "MEDIUM",
+        dueDate: "",
+        assignedToId: "",
+    });
+
     const [assets, setAssets] = useState([]);
     const [assetsLoading, setAssetsLoading] = useState(true);
     const [assetsError, setAssetsError] = useState(null);
@@ -91,6 +132,28 @@ export default function CreatorDashboard({ user }) {
         );
     };
 
+    const displayTaskStatus = (status) => {
+        const labels = {
+            TODO: "TO DO",
+            IN_PROGRESS: "IN PROGRESS",
+            IN_REVIEW: "IN REVIEW",
+            COMPLETED: "COMPLETED",
+        };
+
+        return labels[status] || status?.replaceAll("_", " ") || "UNKNOWN";
+    };
+
+    const displayTaskPriority = (priority) => {
+        const labels = {
+            LOW: "LOW",
+            MEDIUM: "MEDIUM",
+            HIGH: "HIGH",
+            URGENT: "URGENT",
+        };
+
+        return labels[priority] || priority || "MEDIUM";
+    };
+
     // =========================
     // PROJECT FORMATTING HELPERS
     // =========================
@@ -112,6 +175,7 @@ export default function CreatorDashboard({ user }) {
     // Map a raw DB project record into the shape the UI renders
     const toDisplayProject = (p) => ({
         id: p.id,
+        projectId: p.projectId,
         title: p.title,
         type: p.type,
         status: normalizeProjectStatus(p.status),
@@ -148,6 +212,25 @@ export default function CreatorDashboard({ user }) {
                         ? currentId
                         : loadedOrganizations[0].id;
                 });
+            } else {
+                // Zero accessible organizations is a valid state, such as
+                // an Editor who has not been assigned to any projects yet.
+                setActiveOrganizationId(null);
+
+                setProjects([]);
+                setCreators([]);
+                setAssets([]);
+
+                setProjectsError(null);
+                setCreatorsError(null);
+                setAssetsError(null);
+
+                setProjectsLoading(false);
+                setCreatorsLoading(false);
+                setAssetsLoading(false);
+
+                setSelectedProject(null);
+                setSelectedCreator(null);
             }
         } catch (err) {
             console.error("Failed to load organizations:", err);
@@ -332,6 +415,585 @@ export default function CreatorDashboard({ user }) {
     };
 
     // =========================
+    // PROJECT ASSIGNMENTS
+    // =========================
+    const loadProjectAssignments = async (contentId) => {
+        if (!contentId || !isEditor) {
+            setProjectAssignments([]);
+            setInheritedProjectEditors([]);
+            setAvailableEditors([]);
+            setCanManageAssignments(false);
+            setAssignmentsError(null);
+            setAssignmentsLoading(false);
+            return;
+        }
+
+        setAssignmentsLoading(true);
+        setAssignmentsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/projects/${encodeURIComponent(
+                    contentId
+                )}/assignments`
+            );
+
+            if (res.status === 404 || res.status === 403) {
+                setProjectAssignments([]);
+                setInheritedProjectEditors([]);
+                setAvailableEditors([]);
+                setCanManageAssignments(false);
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to load project assignments."
+                );
+            }
+
+            setProjectAssignments(
+                data.assignedEditors || []
+            );
+            setInheritedProjectEditors(
+                data.inheritedEditors || []
+            );
+            setAvailableEditors(
+                data.availableEditors || []
+            );
+            setCanManageAssignments(true);
+        } catch (error) {
+            console.error(
+                "Failed to load project assignments:",
+                error
+            );
+
+            setProjectAssignments([]);
+            setInheritedProjectEditors([]);
+            setAvailableEditors([]);
+            setCanManageAssignments(false);
+            setAssignmentsError(
+                error.message ||
+                    "Couldn't load project assignments."
+            );
+        } finally {
+            setAssignmentsLoading(false);
+        }
+    };
+
+    const assignEditorToProject = async (
+        contentId,
+        editorUserId
+    ) => {
+        if (!contentId || !editorUserId) {
+            return;
+        }
+
+        setAssignmentUpdatingUserId(editorUserId);
+        setAssignmentsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/projects/${encodeURIComponent(
+                    contentId
+                )}/assignments`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        userId: editorUserId,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to assign Editor."
+                );
+            }
+
+            await loadProjectAssignments(contentId);
+        } catch (error) {
+            console.error(
+                "Failed to assign Editor:",
+                error
+            );
+
+            setAssignmentsError(
+                error.message ||
+                    "Couldn't assign this Editor."
+            );
+        } finally {
+            setAssignmentUpdatingUserId(null);
+        }
+    };
+
+    const unassignEditorFromProject = async (
+        contentId,
+        editorUserId
+    ) => {
+        if (!contentId || !editorUserId) {
+            return;
+        }
+
+        setAssignmentUpdatingUserId(editorUserId);
+        setAssignmentsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/projects/${encodeURIComponent(
+                    contentId
+                )}/assignments`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        userId: editorUserId,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to remove Editor."
+                );
+            }
+
+            await loadProjectAssignments(contentId);
+        } catch (error) {
+            console.error(
+                "Failed to remove Editor:",
+                error
+            );
+
+            setAssignmentsError(
+                error.message ||
+                    "Couldn't remove this Editor."
+            );
+        } finally {
+            setAssignmentUpdatingUserId(null);
+        }
+    };
+
+    // =========================
+    // CREATOR ASSIGNMENTS
+    // =========================
+    const loadCreatorAssignments = async (creatorId) => {
+        if (!creatorId || !isEditor) {
+            setCreatorAssignments([]);
+            setCreatorAvailableEditors([]);
+            setCanManageCreatorAssignments(false);
+            setCreatorAssignmentsError(null);
+            setCreatorAssignmentsLoading(false);
+            return;
+        }
+
+        setCreatorAssignmentsLoading(true);
+        setCreatorAssignmentsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/creators/${encodeURIComponent(
+                    creatorId
+                )}/assignments`
+            );
+
+            if (res.status === 404 || res.status === 403) {
+                setCreatorAssignments([]);
+                setCreatorAvailableEditors([]);
+                setCanManageCreatorAssignments(false);
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to load Creator assignments."
+                );
+            }
+
+            setCreatorAssignments(
+                data.assignedEditors || []
+            );
+            setCreatorAvailableEditors(
+                data.availableEditors || []
+            );
+            setCanManageCreatorAssignments(true);
+        } catch (error) {
+            console.error(
+                "Failed to load Creator assignments:",
+                error
+            );
+
+            setCreatorAssignments([]);
+            setCreatorAvailableEditors([]);
+            setCanManageCreatorAssignments(false);
+            setCreatorAssignmentsError(
+                error.message ||
+                    "Couldn't load Creator assignments."
+            );
+        } finally {
+            setCreatorAssignmentsLoading(false);
+        }
+    };
+
+    const assignEditorToCreator = async (
+        creatorId,
+        editorUserId
+    ) => {
+        if (!creatorId || !editorUserId) {
+            return;
+        }
+
+        setCreatorAssignmentUpdatingUserId(editorUserId);
+        setCreatorAssignmentsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/creators/${encodeURIComponent(
+                    creatorId
+                )}/assignments`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        userId: editorUserId,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to assign Editor to Creator."
+                );
+            }
+
+            await loadCreatorAssignments(creatorId);
+        } catch (error) {
+            console.error(
+                "Failed to assign Editor to Creator:",
+                error
+            );
+
+            setCreatorAssignmentsError(
+                error.message ||
+                    "Couldn't assign this Editor to the Creator."
+            );
+        } finally {
+            setCreatorAssignmentUpdatingUserId(null);
+        }
+    };
+
+    const unassignEditorFromCreator = async (
+        creatorId,
+        editorUserId
+    ) => {
+        if (!creatorId || !editorUserId) {
+            return;
+        }
+
+        setCreatorAssignmentUpdatingUserId(editorUserId);
+        setCreatorAssignmentsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/creators/${encodeURIComponent(
+                    creatorId
+                )}/assignments`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        userId: editorUserId,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to remove Editor from Creator."
+                );
+            }
+
+            await loadCreatorAssignments(creatorId);
+        } catch (error) {
+            console.error(
+                "Failed to remove Editor from Creator:",
+                error
+            );
+
+            setCreatorAssignmentsError(
+                error.message ||
+                    "Couldn't remove this Editor from the Creator."
+            );
+        } finally {
+            setCreatorAssignmentUpdatingUserId(null);
+        }
+    };
+
+    // =========================
+    // TASK MANAGEMENT
+    // =========================
+    const toTaskDraft = (task) => ({
+        title: task?.title || "",
+        description: task?.description || "",
+        status: task?.status || "TODO",
+        priority: task?.priority || "MEDIUM",
+        dueDate: task?.dueDate
+            ? new Date(task.dueDate).toISOString().slice(0, 10)
+            : "",
+        assignedToId: task?.assignedTo?.id || "",
+    });
+
+    const loadTasks = async (contentId) => {
+        if (!contentId) {
+            setTasks([]);
+            setTaskDrafts({});
+            setTasksError(null);
+            setTasksLoading(false);
+            return;
+        }
+
+        setTasksLoading(true);
+        setTasksError(null);
+
+        try {
+            const res = await fetch(
+                `/api/tasks?contentId=${encodeURIComponent(contentId)}`
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to load tasks."
+                );
+            }
+
+            const loadedTasks = Array.isArray(data) ? data : [];
+
+            setTasks(loadedTasks);
+            setTaskDrafts(
+                Object.fromEntries(
+                    loadedTasks.map((task) => [
+                        task.id,
+                        toTaskDraft(task),
+                    ])
+                )
+            );
+        } catch (error) {
+            console.error("Failed to load tasks:", error);
+
+            setTasks([]);
+            setTaskDrafts({});
+            setTasksError(
+                error.message || "Couldn't load project tasks."
+            );
+        } finally {
+            setTasksLoading(false);
+        }
+    };
+
+    const updateTaskDraft = (taskId, field, value) => {
+        setTaskDrafts((current) => ({
+            ...current,
+            [taskId]: {
+                ...(current[taskId] || {}),
+                [field]: value,
+            },
+        }));
+    };
+
+    const createTask = async (event) => {
+        event.preventDefault();
+
+        const contentId = selectedProject?.content?.id;
+
+        if (!contentId || !newTask.title.trim()) {
+            return;
+        }
+
+        setTaskCreating(true);
+        setTasksError(null);
+
+        try {
+            const res = await fetch("/api/tasks", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    title: newTask.title.trim(),
+                    description:
+                        newTask.description.trim() || null,
+                    status: "TODO",
+                    priority: newTask.priority,
+                    dueDate: newTask.dueDate || null,
+                    contentId,
+                    assignedToId:
+                        newTask.assignedToId || null,
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to create task."
+                );
+            }
+
+            setNewTask({
+                title: "",
+                description: "",
+                priority: "MEDIUM",
+                dueDate: "",
+                assignedToId: "",
+            });
+
+            await loadTasks(contentId);
+        } catch (error) {
+            console.error("Failed to create task:", error);
+
+            setTasksError(
+                error.message || "Couldn't create this task."
+            );
+        } finally {
+            setTaskCreating(false);
+        }
+    };
+
+    const saveTask = async (taskId) => {
+        const draft = taskDrafts[taskId];
+
+        if (!draft) {
+            return;
+        }
+
+        setTaskUpdatingId(taskId);
+        setTasksError(null);
+
+        try {
+            const payload = canManageAssignments
+                ? {
+                    title: draft.title.trim(),
+                    description:
+                        draft.description.trim() || null,
+                    status: draft.status,
+                    priority: draft.priority,
+                    dueDate: draft.dueDate || null,
+                    assignedToId:
+                        draft.assignedToId || null,
+                }
+                : {
+                    status: draft.status,
+                };
+
+            const res = await fetch(
+                `/api/tasks/${encodeURIComponent(taskId)}`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to update task."
+                );
+            }
+
+            await loadTasks(selectedProject?.content?.id);
+        } catch (error) {
+            console.error("Failed to update task:", error);
+
+            setTasksError(
+                error.message || "Couldn't update this task."
+            );
+        } finally {
+            setTaskUpdatingId(null);
+        }
+    };
+
+    const deleteTask = async (taskId) => {
+        if (!canManageAssignments) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            "Delete this task? This cannot be undone."
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setTaskDeletingId(taskId);
+        setTasksError(null);
+
+        try {
+            const res = await fetch(
+                `/api/tasks/${encodeURIComponent(taskId)}`,
+                {
+                    method: "DELETE",
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to delete task."
+                );
+            }
+
+            await loadTasks(selectedProject?.content?.id);
+        } catch (error) {
+            console.error("Failed to delete task:", error);
+
+            setTasksError(
+                error.message || "Couldn't delete this task."
+            );
+        } finally {
+            setTaskDeletingId(null);
+        }
+    };
+
+    // =========================
     // FETCH PROJECT DETAILS
     // =========================
     const loadProjectDetails = async (projectId) => {
@@ -372,9 +1034,25 @@ export default function CreatorDashboard({ user }) {
     const openProjectDetails = async (project) => {
         setSelectedProject(null);
         setProjectDetailsError(null);
+        setAssignmentsError(null);
+        setTasksError(null);
+        setTasks([]);
+        setTaskDrafts({});
+        setCanManageAssignments(false);
         setCurrentView("project-details");
 
-        await loadProjectDetails(project.id);
+        if (isEditor) {
+            await Promise.all([
+                loadProjectDetails(project.id),
+                loadProjectAssignments(project.id),
+                loadTasks(project.id),
+            ]);
+        } else {
+            await Promise.all([
+                loadProjectDetails(project.id),
+                loadTasks(project.id),
+            ]);
+        }
     };
 
     // =========================
@@ -391,10 +1069,24 @@ export default function CreatorDashboard({ user }) {
             loadProjects(activeOrganizationId);
             loadCreators(activeOrganizationId);
             loadAssets(activeOrganizationId);
+        } else if (!organizationsLoading) {
+            // No accessible organization means there is nothing left to
+            // fetch, so finish the dependent loading states.
+            setProjects([]);
+            setCreators([]);
+            setAssets([]);
+
+            setProjectsError(null);
+            setCreatorsError(null);
+            setAssetsError(null);
+
+            setProjectsLoading(false);
+            setCreatorsLoading(false);
+            setAssetsLoading(false);
         }
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeOrganizationId]);
+    }, [activeOrganizationId, organizationsLoading]);
 
     useEffect(() => {
         if (!activeOrganizationId) {
@@ -602,6 +1294,18 @@ export default function CreatorDashboard({ user }) {
 
         return `${type} • ${formatAssetSize(asset.fileSize)}`;
     };
+
+    const taskAssignableEditors = Array.from(
+        new Map(
+            [
+                ...projectAssignments,
+                ...inheritedProjectEditors,
+            ]
+                .map((assignment) => assignment?.user)
+                .filter(Boolean)
+                .map((editor) => [editor.id, editor])
+        ).values()
+    );
 
     return (
         <>
@@ -1362,6 +2066,10 @@ export default function CreatorDashboard({ user }) {
                                                                 loadCreatorProjects(
                                                                     creator.id
                                                                 );
+
+                                                                loadCreatorAssignments(
+                                                                    creator.id
+                                                                );
                                                             }}
                                                         >
                                                             OPEN
@@ -1530,6 +2238,240 @@ export default function CreatorDashboard({ user }) {
                                                 </span>
                                             </div>
                                         </div>
+
+                                        {isEditor &&
+                                            canManageCreatorAssignments && (
+                                                <div
+                                                    className="panel"
+                                                    style={{
+                                                        marginBottom:
+                                                            "20px",
+                                                    }}
+                                                >
+                                                    <div className="panel-header">
+                                                        <div>
+                                                            <span className="status-tag">
+                                                                CREATOR
+                                                                ACCESS
+                                                            </span>
+
+                                                            <h3>
+                                                                ASSIGN
+                                                                ENTIRE
+                                                                CREATOR
+                                                            </h3>
+                                                        </div>
+
+                                                        <span className="graph-tag">
+                                                            {
+                                                                creatorAssignments.length
+                                                            }{" "}
+                                                            ASSIGNED
+                                                        </span>
+                                                    </div>
+
+                                                    <p className="text-link">
+                                                        Editors
+                                                        assigned here
+                                                        can access every
+                                                        project for this
+                                                        Creator,
+                                                        including future
+                                                        projects.
+                                                    </p>
+
+                                                    {creatorAssignmentsLoading && (
+                                                        <p className="text-link">
+                                                            Loading
+                                                            assignments…
+                                                        </p>
+                                                    )}
+
+                                                    {!creatorAssignmentsLoading &&
+                                                        creatorAssignmentsError && (
+                                                            <p className="brief-error-msg active">
+                                                                {
+                                                                    creatorAssignmentsError
+                                                                }
+                                                            </p>
+                                                        )}
+
+                                                    {!creatorAssignmentsLoading &&
+                                                        creatorAssignments.length >
+                                                            0 && (
+                                                            <div
+                                                                className="project-list"
+                                                                style={{
+                                                                    marginTop:
+                                                                        "14px",
+                                                                }}
+                                                            >
+                                                                {creatorAssignments.map(
+                                                                    (
+                                                                        assignment
+                                                                    ) => (
+                                                                        <div
+                                                                            className="project-item"
+                                                                            key={
+                                                                                assignment.assignmentId
+                                                                            }
+                                                                        >
+                                                                            <div className="project-info">
+                                                                                <strong>
+                                                                                    {assignment
+                                                                                        .user
+                                                                                        ?.name ||
+                                                                                        assignment
+                                                                                            .user
+                                                                                            ?.email ||
+                                                                                        "Editor"}
+                                                                                </strong>
+
+                                                                                <small>
+                                                                                    {assignment
+                                                                                        .user
+                                                                                        ?.email ||
+                                                                                        "No email"}
+                                                                                </small>
+                                                                            </div>
+
+                                                                            <div className="project-status completed">
+                                                                                CREATOR
+                                                                                ACCESS
+                                                                            </div>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                className="action-btn"
+                                                                                disabled={
+                                                                                    creatorAssignmentUpdatingUserId ===
+                                                                                    assignment
+                                                                                        .user
+                                                                                        ?.id
+                                                                                }
+                                                                                onClick={() =>
+                                                                                    unassignEditorFromCreator(
+                                                                                        selectedCreator.id,
+                                                                                        assignment
+                                                                                            .user
+                                                                                            .id
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                {creatorAssignmentUpdatingUserId ===
+                                                                                assignment
+                                                                                    .user
+                                                                                    ?.id
+                                                                                    ? "REMOVING…"
+                                                                                    : "REMOVE"}
+                                                                            </button>
+                                                                        </div>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                    {!creatorAssignmentsLoading &&
+                                                        creatorAssignments.length ===
+                                                            0 && (
+                                                            <p className="text-link">
+                                                                No
+                                                                Editors
+                                                                currently
+                                                                have
+                                                                Creator-wide
+                                                                access.
+                                                            </p>
+                                                        )}
+
+                                                    <div
+                                                        style={{
+                                                            marginTop:
+                                                                "22px",
+                                                        }}
+                                                    >
+                                                        <div className="panel-header">
+                                                            <h3>
+                                                                AVAILABLE
+                                                                EDITORS
+                                                            </h3>
+
+                                                            <span className="graph-tag">
+                                                                {
+                                                                    creatorAvailableEditors.length
+                                                                }{" "}
+                                                                AVAILABLE
+                                                            </span>
+                                                        </div>
+
+                                                        {!creatorAssignmentsLoading &&
+                                                            creatorAvailableEditors.length ===
+                                                                0 && (
+                                                                <p className="text-link">
+                                                                    No
+                                                                    additional
+                                                                    Editors
+                                                                    are
+                                                                    available
+                                                                    to
+                                                                    assign.
+                                                                </p>
+                                                            )}
+
+                                                        {!creatorAssignmentsLoading &&
+                                                            creatorAvailableEditors.length >
+                                                                0 && (
+                                                                <div className="project-list">
+                                                                    {creatorAvailableEditors.map(
+                                                                        (
+                                                                            editor
+                                                                        ) => (
+                                                                            <div
+                                                                                className="project-item"
+                                                                                key={
+                                                                                    editor.id
+                                                                                }
+                                                                            >
+                                                                                <div className="project-info">
+                                                                                    <strong>
+                                                                                        {editor.name ||
+                                                                                            editor.email ||
+                                                                                            "Editor"}
+                                                                                    </strong>
+
+                                                                                    <small>
+                                                                                        {editor.email ||
+                                                                                            "No email"}
+                                                                                    </small>
+                                                                                </div>
+
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="action-btn active"
+                                                                                    disabled={
+                                                                                        creatorAssignmentUpdatingUserId ===
+                                                                                        editor.id
+                                                                                    }
+                                                                                    onClick={() =>
+                                                                                        assignEditorToCreator(
+                                                                                            selectedCreator.id,
+                                                                                            editor.id
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    {creatorAssignmentUpdatingUserId ===
+                                                                                    editor.id
+                                                                                        ? "ASSIGNING…"
+                                                                                        : "+ ASSIGN CREATOR"}
+                                                                                </button>
+                                                                            </div>
+                                                                        )
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                         <div className="panel">
                                             <div className="panel-header">
@@ -1850,6 +2792,1040 @@ export default function CreatorDashboard({ user }) {
                                                     </span>
                                                 </div>
                                             </div>
+
+                                            {/* PRODUCTION TASKS */}
+                                            <div
+                                                className="panel"
+                                                style={{
+                                                    marginTop:
+                                                        "20px",
+                                                }}
+                                            >
+                                                <div className="panel-header">
+                                                    <div>
+                                                        <span className="status-tag">
+                                                            PRODUCTION
+                                                            TASKS
+                                                        </span>
+
+                                                        <h3>
+                                                            PROJECT
+                                                            TASKS
+                                                        </h3>
+                                                    </div>
+
+                                                    <span className="graph-tag">
+                                                        {
+                                                            tasks.length
+                                                        }{" "}
+                                                        TASK
+                                                        {tasks.length ===
+                                                        1
+                                                            ? ""
+                                                            : "S"}
+                                                    </span>
+                                                </div>
+
+                                                {tasksLoading && (
+                                                    <p className="text-link">
+                                                        Loading
+                                                        tasks…
+                                                    </p>
+                                                )}
+
+                                                {!tasksLoading &&
+                                                    tasksError && (
+                                                        <p className="brief-error-msg active">
+                                                            {
+                                                                tasksError
+                                                            }
+                                                        </p>
+                                                    )}
+
+                                                {isEditor &&
+                                                    canManageAssignments && (
+                                                        <form
+                                                            onSubmit={
+                                                                createTask
+                                                            }
+                                                            style={{
+                                                                marginTop:
+                                                                    "18px",
+                                                                padding:
+                                                                    "16px",
+                                                                border:
+                                                                    "1px solid var(--line)",
+                                                                borderRadius:
+                                                                    "8px",
+                                                            }}
+                                                        >
+                                                            <div className="panel-header">
+                                                                <h3>
+                                                                    CREATE
+                                                                    TASK
+                                                                </h3>
+
+                                                                <span className="graph-tag">
+                                                                    MANAGER
+                                                                    CONTROL
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="form-row">
+                                                                <div className="form-field">
+                                                                    <label htmlFor="newTaskTitle">
+                                                                        TASK
+                                                                        TITLE
+                                                                    </label>
+
+                                                                    <input
+                                                                        id="newTaskTitle"
+                                                                        type="text"
+                                                                        className="dash-input"
+                                                                        value={
+                                                                            newTask.title
+                                                                        }
+                                                                        onChange={(
+                                                                            e
+                                                                        ) =>
+                                                                            setNewTask(
+                                                                                (
+                                                                                    current
+                                                                                ) => ({
+                                                                                    ...current,
+                                                                                    title: e
+                                                                                        .target
+                                                                                        .value,
+                                                                                })
+                                                                            )
+                                                                        }
+                                                                        placeholder="e.g. Edit main video"
+                                                                        required
+                                                                    />
+                                                                </div>
+
+                                                                <div className="form-field">
+                                                                    <label htmlFor="newTaskPriority">
+                                                                        PRIORITY
+                                                                    </label>
+
+                                                                    <select
+                                                                        id="newTaskPriority"
+                                                                        className="dash-input"
+                                                                        value={
+                                                                            newTask.priority
+                                                                        }
+                                                                        onChange={(
+                                                                            e
+                                                                        ) =>
+                                                                            setNewTask(
+                                                                                (
+                                                                                    current
+                                                                                ) => ({
+                                                                                    ...current,
+                                                                                    priority:
+                                                                                        e
+                                                                                            .target
+                                                                                            .value,
+                                                                                })
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {[
+                                                                            "LOW",
+                                                                            "MEDIUM",
+                                                                            "HIGH",
+                                                                            "URGENT",
+                                                                        ].map(
+                                                                            (
+                                                                                priority
+                                                                            ) => (
+                                                                                <option
+                                                                                    key={
+                                                                                        priority
+                                                                                    }
+                                                                                    value={
+                                                                                        priority
+                                                                                    }
+                                                                                >
+                                                                                    {displayTaskPriority(
+                                                                                        priority
+                                                                                    )}
+                                                                                </option>
+                                                                            )
+                                                                        )}
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="form-row">
+                                                                <div className="form-field">
+                                                                    <label htmlFor="newTaskAssignee">
+                                                                        ASSIGNED
+                                                                        EDITOR
+                                                                    </label>
+
+                                                                    <select
+                                                                        id="newTaskAssignee"
+                                                                        className="dash-input"
+                                                                        value={
+                                                                            newTask.assignedToId
+                                                                        }
+                                                                        onChange={(
+                                                                            e
+                                                                        ) =>
+                                                                            setNewTask(
+                                                                                (
+                                                                                    current
+                                                                                ) => ({
+                                                                                    ...current,
+                                                                                    assignedToId:
+                                                                                        e
+                                                                                            .target
+                                                                                            .value,
+                                                                                })
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <option value="">
+                                                                            UNASSIGNED
+                                                                        </option>
+
+                                                                        {taskAssignableEditors.map(
+                                                                            (
+                                                                                editor
+                                                                            ) => (
+                                                                                <option
+                                                                                    key={
+                                                                                        editor.id
+                                                                                    }
+                                                                                    value={
+                                                                                        editor.id
+                                                                                    }
+                                                                                >
+                                                                                    {editor.name ||
+                                                                                        editor.email ||
+                                                                                        "Editor"}
+                                                                                </option>
+                                                                            )
+                                                                        )}
+                                                                    </select>
+                                                                </div>
+
+                                                                <div className="form-field">
+                                                                    <label htmlFor="newTaskDueDate">
+                                                                        DUE
+                                                                        DATE
+                                                                    </label>
+
+                                                                    <input
+                                                                        id="newTaskDueDate"
+                                                                        type="date"
+                                                                        className="dash-input"
+                                                                        value={
+                                                                            newTask.dueDate
+                                                                        }
+                                                                        onChange={(
+                                                                            e
+                                                                        ) =>
+                                                                            setNewTask(
+                                                                                (
+                                                                                    current
+                                                                                ) => ({
+                                                                                    ...current,
+                                                                                    dueDate:
+                                                                                        e
+                                                                                            .target
+                                                                                            .value,
+                                                                                })
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="form-field">
+                                                                <label htmlFor="newTaskDescription">
+                                                                    DESCRIPTION
+                                                                </label>
+
+                                                                <textarea
+                                                                    id="newTaskDescription"
+                                                                    className="dash-input"
+                                                                    rows={
+                                                                        3
+                                                                    }
+                                                                    value={
+                                                                        newTask.description
+                                                                    }
+                                                                    onChange={(
+                                                                        e
+                                                                    ) =>
+                                                                        setNewTask(
+                                                                            (
+                                                                                current
+                                                                            ) => ({
+                                                                                ...current,
+                                                                                description:
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                    placeholder="Optional production notes..."
+                                                                />
+                                                            </div>
+
+                                                            <button
+                                                                type="submit"
+                                                                className="button button-primary"
+                                                                disabled={
+                                                                    taskCreating ||
+                                                                    !newTask.title.trim()
+                                                                }
+                                                                style={{
+                                                                    marginTop:
+                                                                        "14px",
+                                                                }}
+                                                            >
+                                                                {taskCreating
+                                                                    ? "CREATING…"
+                                                                    : "+ CREATE TASK"}
+                                                            </button>
+                                                        </form>
+                                                    )}
+
+                                                {!tasksLoading &&
+                                                    !tasksError &&
+                                                    tasks.length ===
+                                                        0 && (
+                                                        <p
+                                                            className="text-link"
+                                                            style={{
+                                                                marginTop:
+                                                                    "16px",
+                                                            }}
+                                                        >
+                                                            No
+                                                            production
+                                                            tasks have
+                                                            been created
+                                                            for this
+                                                            project yet.
+                                                        </p>
+                                                    )}
+
+                                                {!tasksLoading &&
+                                                    tasks.length >
+                                                        0 && (
+                                                        <div
+                                                            style={{
+                                                                display:
+                                                                    "grid",
+                                                                gap: "14px",
+                                                                marginTop:
+                                                                    "18px",
+                                                            }}
+                                                        >
+                                                            {tasks.map(
+                                                                (
+                                                                    task
+                                                                ) => {
+                                                                    const draft =
+                                                                        taskDrafts[
+                                                                            task
+                                                                                .id
+                                                                        ] ||
+                                                                        toTaskDraft(
+                                                                            task
+                                                                        );
+
+                                                                    return (
+                                                                        <div
+                                                                            key={
+                                                                                task.id
+                                                                            }
+                                                                            style={{
+                                                                                padding:
+                                                                                    "16px",
+                                                                                border:
+                                                                                    "1px solid var(--line)",
+                                                                                borderRadius:
+                                                                                    "8px",
+                                                                            }}
+                                                                        >
+                                                                            <div className="panel-header">
+                                                                                <div>
+                                                                                    <span className="status-tag">
+                                                                                        {displayTaskPriority(
+                                                                                            draft.priority
+                                                                                        )}{" "}
+                                                                                        PRIORITY
+                                                                                    </span>
+
+                                                                                    <h3>
+                                                                                        {task.title}
+                                                                                    </h3>
+                                                                                </div>
+
+                                                                                <span
+                                                                                    className={`project-status ${draft.status}`}
+                                                                                >
+                                                                                    {displayTaskStatus(
+                                                                                        draft.status
+                                                                                    )}
+                                                                                </span>
+                                                                            </div>
+
+                                                                            <div className="form-row">
+                                                                                <div className="form-field">
+                                                                                    <label>
+                                                                                        TASK
+                                                                                        TITLE
+                                                                                    </label>
+
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        className="dash-input"
+                                                                                        value={
+                                                                                            draft.title
+                                                                                        }
+                                                                                        readOnly={
+                                                                                            !canManageAssignments
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            e
+                                                                                        ) =>
+                                                                                            updateTaskDraft(
+                                                                                                task.id,
+                                                                                                "title",
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value
+                                                                                            )
+                                                                                        }
+                                                                                    />
+                                                                                </div>
+
+                                                                                <div className="form-field">
+                                                                                    <label>
+                                                                                        STATUS
+                                                                                    </label>
+
+                                                                                    <select
+                                                                                        className="dash-input"
+                                                                                        value={
+                                                                                            draft.status
+                                                                                        }
+                                                                                        disabled={
+                                                                                            !isEditor ||
+                                                                                            taskUpdatingId ===
+                                                                                                task.id
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            e
+                                                                                        ) =>
+                                                                                            updateTaskDraft(
+                                                                                                task.id,
+                                                                                                "status",
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        {[
+                                                                                            "TODO",
+                                                                                            "IN_PROGRESS",
+                                                                                            "IN_REVIEW",
+                                                                                            "COMPLETED",
+                                                                                        ].map(
+                                                                                            (
+                                                                                                status
+                                                                                            ) => (
+                                                                                                <option
+                                                                                                    key={
+                                                                                                        status
+                                                                                                    }
+                                                                                                    value={
+                                                                                                        status
+                                                                                                    }
+                                                                                                >
+                                                                                                    {displayTaskStatus(
+                                                                                                        status
+                                                                                                    )}
+                                                                                                </option>
+                                                                                            )
+                                                                                        )}
+                                                                                    </select>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="form-row">
+                                                                                <div className="form-field">
+                                                                                    <label>
+                                                                                        PRIORITY
+                                                                                    </label>
+
+                                                                                    <select
+                                                                                        className="dash-input"
+                                                                                        value={
+                                                                                            draft.priority
+                                                                                        }
+                                                                                        disabled={
+                                                                                            !canManageAssignments
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            e
+                                                                                        ) =>
+                                                                                            updateTaskDraft(
+                                                                                                task.id,
+                                                                                                "priority",
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        {[
+                                                                                            "LOW",
+                                                                                            "MEDIUM",
+                                                                                            "HIGH",
+                                                                                            "URGENT",
+                                                                                        ].map(
+                                                                                            (
+                                                                                                priority
+                                                                                            ) => (
+                                                                                                <option
+                                                                                                    key={
+                                                                                                        priority
+                                                                                                    }
+                                                                                                    value={
+                                                                                                        priority
+                                                                                                    }
+                                                                                                >
+                                                                                                    {displayTaskPriority(
+                                                                                                        priority
+                                                                                                    )}
+                                                                                                </option>
+                                                                                            )
+                                                                                        )}
+                                                                                    </select>
+                                                                                </div>
+
+                                                                                <div className="form-field">
+                                                                                    <label>
+                                                                                        DUE
+                                                                                        DATE
+                                                                                    </label>
+
+                                                                                    <input
+                                                                                        type="date"
+                                                                                        className="dash-input"
+                                                                                        value={
+                                                                                            draft.dueDate
+                                                                                        }
+                                                                                        readOnly={
+                                                                                            !canManageAssignments
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            e
+                                                                                        ) =>
+                                                                                            updateTaskDraft(
+                                                                                                task.id,
+                                                                                                "dueDate",
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value
+                                                                                            )
+                                                                                        }
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="form-field">
+                                                                                <label>
+                                                                                    ASSIGNED
+                                                                                    EDITOR
+                                                                                </label>
+
+                                                                                {canManageAssignments ? (
+                                                                                    <select
+                                                                                        className="dash-input"
+                                                                                        value={
+                                                                                            draft.assignedToId
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            e
+                                                                                        ) =>
+                                                                                            updateTaskDraft(
+                                                                                                task.id,
+                                                                                                "assignedToId",
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        <option value="">
+                                                                                            UNASSIGNED
+                                                                                        </option>
+
+                                                                                        {taskAssignableEditors.map(
+                                                                                            (
+                                                                                                editor
+                                                                                            ) => (
+                                                                                                <option
+                                                                                                    key={
+                                                                                                        editor.id
+                                                                                                    }
+                                                                                                    value={
+                                                                                                        editor.id
+                                                                                                    }
+                                                                                                >
+                                                                                                    {editor.name ||
+                                                                                                        editor.email ||
+                                                                                                        "Editor"}
+                                                                                                </option>
+                                                                                            )
+                                                                                        )}
+                                                                                    </select>
+                                                                                ) : (
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        className="dash-input"
+                                                                                        readOnly
+                                                                                        value={
+                                                                                            task
+                                                                                                .assignedTo
+                                                                                                ?.name ||
+                                                                                            task
+                                                                                                .assignedTo
+                                                                                                ?.email ||
+                                                                                            "UNASSIGNED"
+                                                                                        }
+                                                                                    />
+                                                                                )}
+                                                                            </div>
+
+                                                                            <div className="form-field">
+                                                                                <label>
+                                                                                    DESCRIPTION
+                                                                                </label>
+
+                                                                                <textarea
+                                                                                    className="dash-input"
+                                                                                    rows={
+                                                                                        3
+                                                                                    }
+                                                                                    value={
+                                                                                        draft.description
+                                                                                    }
+                                                                                    readOnly={
+                                                                                        !canManageAssignments
+                                                                                    }
+                                                                                    onChange={(
+                                                                                        e
+                                                                                    ) =>
+                                                                                        updateTaskDraft(
+                                                                                            task.id,
+                                                                                            "description",
+                                                                                            e
+                                                                                                .target
+                                                                                                .value
+                                                                                        )
+                                                                                    }
+                                                                                    placeholder="No description"
+                                                                                />
+                                                                            </div>
+
+                                                                            {isEditor && (
+                                                                                <div
+                                                                                    style={{
+                                                                                        display:
+                                                                                            "flex",
+                                                                                        gap: "10px",
+                                                                                        flexWrap:
+                                                                                            "wrap",
+                                                                                        marginTop:
+                                                                                            "14px",
+                                                                                    }}
+                                                                                >
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="button button-primary"
+                                                                                        disabled={
+                                                                                            taskUpdatingId ===
+                                                                                            task.id
+                                                                                        }
+                                                                                        onClick={() =>
+                                                                                            saveTask(
+                                                                                                task.id
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        {taskUpdatingId ===
+                                                                                        task.id
+                                                                                            ? "SAVING…"
+                                                                                            : canManageAssignments
+                                                                                                ? "SAVE TASK"
+                                                                                                : "SAVE STATUS"}
+                                                                                    </button>
+
+                                                                                    {canManageAssignments && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            className="action-btn"
+                                                                                            disabled={
+                                                                                                taskDeletingId ===
+                                                                                                task.id
+                                                                                            }
+                                                                                            onClick={() =>
+                                                                                                deleteTask(
+                                                                                                    task.id
+                                                                                                )
+                                                                                            }
+                                                                                        >
+                                                                                            {taskDeletingId ===
+                                                                                            task.id
+                                                                                                ? "DELETING…"
+                                                                                                : "DELETE TASK"}
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                            )}
+                                                        </div>
+                                                    )}
+                                            </div>
+
+                                            {/* PROJECT ASSIGNMENTS */}
+                                            {isEditor &&
+                                                canManageAssignments && (
+                                                    <div
+                                                        className="panel"
+                                                        style={{
+                                                            marginTop:
+                                                                "20px",
+                                                        }}
+                                                    >
+                                                        <div className="panel-header">
+                                                            <div>
+                                                                <span className="status-tag">
+                                                                    PROJECT
+                                                                    ACCESS
+                                                                </span>
+
+                                                                <h3>
+                                                                    ASSIGNED
+                                                                    EDITORS
+                                                                </h3>
+                                                            </div>
+
+                                                            <span className="graph-tag">
+                                                                {
+                                                                    projectAssignments.length
+                                                                }{" "}
+                                                                DIRECT
+                                                            </span>
+                                                        </div>
+
+                                                        <p className="text-link">
+                                                            Editors
+                                                            assigned here
+                                                            only receive
+                                                            access to
+                                                            this project.
+                                                        </p>
+
+                                                        {assignmentsLoading && (
+                                                            <p className="text-link">
+                                                                Loading
+                                                                assignments…
+                                                            </p>
+                                                        )}
+
+                                                        {!assignmentsLoading &&
+                                                            assignmentsError && (
+                                                                <p className="brief-error-msg active">
+                                                                    {
+                                                                        assignmentsError
+                                                                    }
+                                                                </p>
+                                                            )}
+
+                                                        {!assignmentsLoading &&
+                                                            inheritedProjectEditors.length >
+                                                                0 && (
+                                                                <div
+                                                                    style={{
+                                                                        marginTop:
+                                                                            "18px",
+                                                                    }}
+                                                                >
+                                                                    <div className="panel-header">
+                                                                        <h3>
+                                                                            CREATOR
+                                                                            ACCESS
+                                                                        </h3>
+
+                                                                        <span className="graph-tag">
+                                                                            {
+                                                                                inheritedProjectEditors.length
+                                                                            }{" "}
+                                                                            INHERITED
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="project-list">
+                                                                        {inheritedProjectEditors.map(
+                                                                            (
+                                                                                assignment
+                                                                            ) => (
+                                                                                <div
+                                                                                    className="project-item"
+                                                                                    key={`creator-${assignment.assignmentId}`}
+                                                                                >
+                                                                                    <div className="project-info">
+                                                                                        <strong>
+                                                                                            {assignment
+                                                                                                .user
+                                                                                                ?.name ||
+                                                                                                assignment
+                                                                                                    .user
+                                                                                                    ?.email ||
+                                                                                                "Editor"}
+                                                                                        </strong>
+
+                                                                                        <small>
+                                                                                            {assignment
+                                                                                                .user
+                                                                                                ?.email ||
+                                                                                                "No email"}
+                                                                                        </small>
+                                                                                    </div>
+
+                                                                                    <div className="project-status completed">
+                                                                                        CREATOR
+                                                                                        ACCESS
+                                                                                    </div>
+                                                                                </div>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+
+                                                                    <p className="text-link">
+                                                                        Remove
+                                                                        Creator-wide
+                                                                        access
+                                                                        from the
+                                                                        Creator
+                                                                        Workspace.
+                                                                    </p>
+                                                                </div>
+                                                            )}
+
+                                                        <div
+                                                            style={{
+                                                                marginTop:
+                                                                    "18px",
+                                                            }}
+                                                        >
+                                                            <div className="panel-header">
+                                                                <h3>
+                                                                    PROJECT
+                                                                    ACCESS
+                                                                </h3>
+
+                                                                <span className="graph-tag">
+                                                                    {
+                                                                        projectAssignments.length
+                                                                    }{" "}
+                                                                    ASSIGNED
+                                                                </span>
+                                                            </div>
+
+                                                            {!assignmentsLoading &&
+                                                                projectAssignments.length ===
+                                                                    0 && (
+                                                                    <p className="text-link">
+                                                                        No
+                                                                        Editors
+                                                                        are
+                                                                        directly
+                                                                        assigned
+                                                                        to this
+                                                                        project
+                                                                        yet.
+                                                                    </p>
+                                                                )}
+
+                                                            {!assignmentsLoading &&
+                                                                projectAssignments.length >
+                                                                    0 && (
+                                                                    <div className="project-list">
+                                                                        {projectAssignments.map(
+                                                                            (
+                                                                                assignment
+                                                                            ) => (
+                                                                                <div
+                                                                                    className="project-item"
+                                                                                    key={
+                                                                                        assignment.assignmentId
+                                                                                    }
+                                                                                >
+                                                                                    <div className="project-info">
+                                                                                        <strong>
+                                                                                            {assignment
+                                                                                                .user
+                                                                                                ?.name ||
+                                                                                                assignment
+                                                                                                    .user
+                                                                                                    ?.email ||
+                                                                                                "Editor"}
+                                                                                        </strong>
+
+                                                                                        <small>
+                                                                                            {assignment
+                                                                                                .user
+                                                                                                ?.email ||
+                                                                                                "No email"}
+                                                                                        </small>
+                                                                                    </div>
+
+                                                                                    <div className="project-status completed">
+                                                                                        PROJECT
+                                                                                        ACCESS
+                                                                                    </div>
+
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="action-btn"
+                                                                                        disabled={
+                                                                                            assignmentUpdatingUserId ===
+                                                                                            assignment
+                                                                                                .user
+                                                                                                ?.id
+                                                                                        }
+                                                                                        onClick={() =>
+                                                                                            unassignEditorFromProject(
+                                                                                                selectedProject
+                                                                                                    .content
+                                                                                                    .id,
+                                                                                                assignment
+                                                                                                    .user
+                                                                                                    .id
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        {assignmentUpdatingUserId ===
+                                                                                        assignment
+                                                                                            .user
+                                                                                            ?.id
+                                                                                            ? "REMOVING…"
+                                                                                            : "REMOVE"}
+                                                                                    </button>
+                                                                                </div>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                        </div>
+
+                                                        <div
+                                                            style={{
+                                                                marginTop:
+                                                                    "22px",
+                                                            }}
+                                                        >
+                                                            <div className="panel-header">
+                                                                <h3>
+                                                                    AVAILABLE
+                                                                    EDITORS
+                                                                </h3>
+
+                                                                <span className="graph-tag">
+                                                                    {
+                                                                        availableEditors.length
+                                                                    }{" "}
+                                                                    AVAILABLE
+                                                                </span>
+                                                            </div>
+
+                                                            {!assignmentsLoading &&
+                                                                availableEditors.length ===
+                                                                    0 && (
+                                                                    <p className="text-link">
+                                                                        No
+                                                                        additional
+                                                                        Editors
+                                                                        are
+                                                                        available
+                                                                        to
+                                                                        assign.
+                                                                    </p>
+                                                                )}
+
+                                                            {!assignmentsLoading &&
+                                                                availableEditors.length >
+                                                                    0 && (
+                                                                    <div className="project-list">
+                                                                        {availableEditors.map(
+                                                                            (
+                                                                                editor
+                                                                            ) => (
+                                                                                <div
+                                                                                    className="project-item"
+                                                                                    key={
+                                                                                        editor.id
+                                                                                    }
+                                                                                >
+                                                                                    <div className="project-info">
+                                                                                        <strong>
+                                                                                            {editor.name ||
+                                                                                                editor.email ||
+                                                                                                "Editor"}
+                                                                                        </strong>
+
+                                                                                        <small>
+                                                                                            {editor.email ||
+                                                                                                "No email"}
+                                                                                        </small>
+                                                                                    </div>
+
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="action-btn active"
+                                                                                        disabled={
+                                                                                            assignmentUpdatingUserId ===
+                                                                                            editor.id
+                                                                                        }
+                                                                                        onClick={() =>
+                                                                                            assignEditorToProject(
+                                                                                                selectedProject
+                                                                                                    .content
+                                                                                                    .id,
+                                                                                                editor.id
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        {assignmentUpdatingUserId ===
+                                                                                        editor.id
+                                                                                            ? "ASSIGNING…"
+                                                                                            : "+ ASSIGN PROJECT"}
+                                                                                    </button>
+                                                                                </div>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                             {/* RAW FOOTAGE */}
                                             <div
@@ -2258,7 +4234,7 @@ export default function CreatorDashboard({ user }) {
                                                                         try {
                                                                             const res =
                                                                                 await fetch(
-                                                                                    `/api/projects/${selectedProject.project.id}`,
+                                                                                    `/api/projects/${selectedProject.content.id}`,
                                                                                     {
                                                                                         method: "PATCH",
                                                                                         headers: {
@@ -2290,7 +4266,7 @@ export default function CreatorDashboard({ user }) {
 
                                                                             await loadProjectDetails(
                                                                                 selectedProject
-                                                                                    .project
+                                                                                    .content
                                                                                     .id
                                                                             );
 
@@ -2347,7 +4323,7 @@ export default function CreatorDashboard({ user }) {
                                                                         try {
                                                                             const res =
                                                                                 await fetch(
-                                                                                    `/api/projects/${selectedProject.project.id}`,
+                                                                                    `/api/projects/${selectedProject.content.id}`,
                                                                                     {
                                                                                         method: "PATCH",
                                                                                         headers: {
@@ -2379,7 +4355,7 @@ export default function CreatorDashboard({ user }) {
 
                                                                             await loadProjectDetails(
                                                                                 selectedProject
-                                                                                    .project
+                                                                                    .content
                                                                                     .id
                                                                             );
 

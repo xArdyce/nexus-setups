@@ -30,6 +30,7 @@ const ETA_LABELS: Record<string, string> = {
 function toDisplayItem(
   item: {
     id: string;
+    projectId: string;
     title: string;
     contentType: string;
     status: string;
@@ -46,6 +47,7 @@ function toDisplayItem(
 
   return {
     id: item.id,
+    projectId: item.projectId,
     title: item.title,
     type: item.contentType,
     status: uiStatus,
@@ -207,35 +209,48 @@ export async function GET(request: Request) {
    * EDITOR / ADMIN / MANAGER ACCESS
    * ============================================================
    *
-   * Internal users can see all projects within organizations
-   * they belong to.
-   *
-   * If creatorId is supplied, the results are restricted to
-   * that creator within the selected organization.
+   * ADMIN and MANAGER can see every project in their organization.
+   * EDITOR can only see projects explicitly assigned to them.
    */
-  const organizationIds = user.memberships.map(
-    (membership) => membership.organizationId
-  );
-
-  if (organizationIds.length === 0) {
+  if (user.memberships.length === 0) {
     return NextResponse.json({
       projects: [],
     });
   }
 
-  /*
-   * Determine the target organization BEFORE using it.
-   */
-  const targetOrganizationId =
-    requestedOrganizationId &&
-      organizationIds.includes(requestedOrganizationId)
-      ? requestedOrganizationId
-      : organizationIds[0];
+  const targetMembership = requestedOrganizationId
+    ? user.memberships.find(
+        (membership) =>
+          membership.organizationId === requestedOrganizationId
+      )
+    : user.memberships[0];
 
-  /*
-   * If a creator was requested, verify that the creator
-   * actually belongs to the selected organization.
-   */
+  if (!targetMembership) {
+    return NextResponse.json(
+      {
+        error: "You do not have access to this organization.",
+      },
+      { status: 403 }
+    );
+  }
+
+  const targetOrganizationId =
+    targetMembership.organizationId;
+
+  const canSeeAllProjects =
+    targetMembership.role === "ADMIN" ||
+    targetMembership.role === "MANAGER";
+
+  const isEditor =
+    targetMembership.role === "EDITOR";
+
+  if (!canSeeAllProjects && !isEditor) {
+    return NextResponse.json({
+      projects: [],
+      organizationId: targetOrganizationId,
+    });
+  }
+
   if (requestedCreatorId) {
     const creator = await prisma.creator.findFirst({
       where: {
@@ -257,22 +272,42 @@ export async function GET(request: Request) {
     }
   }
 
-  /*
-   * Fetch content for the organization.
-   *
-   * When creatorId exists, only that creator's projects
-   * are returned.
-   */
   const contentItems = await prisma.contentItem.findMany({
     where: {
       project: {
         organizationId: targetOrganizationId,
+
         ...(requestedCreatorId
           ? {
-            creatorId: requestedCreatorId,
-          }
+              creatorId: requestedCreatorId,
+            }
           : {}),
       },
+
+      ...(isEditor
+        ? {
+            OR: [
+              {
+                editorAssignments: {
+                  some: {
+                    userId: user.id,
+                  },
+                },
+              },
+              {
+                project: {
+                  creator: {
+                    editorAssignments: {
+                      some: {
+                        userId: user.id,
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     },
     orderBy: {
       createdAt: "desc",

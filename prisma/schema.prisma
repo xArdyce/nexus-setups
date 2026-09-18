@@ -74,15 +74,17 @@ model User {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  memberships      OrganizationMember[]
-  creatorProfile   Creator?
-  createdProjects  Project[]             @relation("ProjectCreator")
-  assignedTasks    Task[]                @relation("TaskAssignee")
-  uploadedAssets   Asset[]               @relation("AssetUploader")
-  reviews          Review[]              @relation("ReviewAuthor")
-  reviewComments   ReviewComment[]
-  notifications    Notification[]
-  auditLogs        AuditLog[]
+  memberships        OrganizationMember[]
+  creatorProfile     Creator?
+  createdProjects    Project[]            @relation("ProjectCreator")
+  creatorAssignments CreatorAssignment[]
+  contentAssignments ContentAssignment[]
+  assignedTasks      Task[]               @relation("TaskAssignee")
+  uploadedAssets     Asset[]              @relation("AssetUploader")
+  reviews            Review[]             @relation("ReviewAuthor")
+  reviewComments     ReviewComment[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
 }
 
 model Organization {
@@ -119,9 +121,10 @@ model Creator {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  projects      Project[]
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user              User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projects          Project[]
+  editorAssignments CreatorAssignment[]
 
   @@index([organizationId])
 }
@@ -150,6 +153,34 @@ model Project {
   @@index([status])
 }
 
+model CreatorAssignment {
+  id        String   @id @default(cuid())
+  creatorId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, userId])
+  @@index([creatorId])
+  @@index([userId])
+}
+
+model ContentAssignment {
+  id        String   @id @default(cuid())
+  contentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, userId])
+  @@index([contentId])
+  @@index([userId])
+}
+
 model ContentItem {
   id          String        @id @default(cuid())
   title       String
@@ -164,9 +195,10 @@ model ContentItem {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  tasks   Task[]
-  assets  Asset[]
-  reviews Review[]
+  editorAssignments ContentAssignment[]
+  tasks             Task[]
+  assets            Asset[]
+  reviews           Review[]
 
   @@index([projectId])
   @@index([status])
@@ -184,8 +216,8 @@ model Task {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  content   ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  assignedTo User?      @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  content    ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  assignedTo User?       @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([contentId])
   @@index([assignedToId])
@@ -204,7 +236,7 @@ model Asset {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  content   ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  content    ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
   uploadedBy User        @relation("AssetUploader", fields: [uploadedById], references: [id])
 
   versions AssetVersion[]
@@ -214,14 +246,14 @@ model Asset {
 }
 
 model AssetVersion {
-  id        String   @id @default(cuid())
-  version   Int
+  id         String   @id @default(cuid())
+  version    Int
   storageKey String
-  fileName  String
-  fileSize  BigInt?
-  mimeType  String?
-  assetId   String
-  createdAt DateTime @default(now())
+  fileName   String
+  fileSize   BigInt?
+  mimeType   String?
+  assetId    String
+  createdAt  DateTime @default(now())
 
   asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
@@ -230,13 +262,13 @@ model AssetVersion {
 }
 
 model Review {
-  id          String       @id @default(cuid())
-  status      ReviewStatus @default(PENDING)
-  notes       String?
-  contentId   String
-  authorId    String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id        String       @id @default(cuid())
+  status    ReviewStatus @default(PENDING)
+  notes     String?
+  contentId String
+  authorId  String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
   author  User        @relation("ReviewAuthor", fields: [authorId], references: [id])

@@ -120,7 +120,7 @@ async function getAccessibleContent(
 
         return prisma.contentItem.findFirst({
             where: {
-                projectId,
+                id: projectId,
                 project: {
                     organizationId: user.creatorProfile.organizationId,
                     creatorId: user.creatorProfile.id,
@@ -130,23 +130,85 @@ async function getAccessibleContent(
         });
     }
 
-    const organizationIds = user.memberships.map(
-        (membership) => membership.organizationId
-    );
+    const fullAccessOrganizationIds = user.memberships
+        .filter(
+            (membership) =>
+                membership.role === "ADMIN" ||
+                membership.role === "MANAGER"
+        )
+        .map((membership) => membership.organizationId);
 
-    if (organizationIds.length === 0) {
+    const editorOrganizationIds = user.memberships
+        .filter(
+            (membership) =>
+                membership.role === "EDITOR"
+        )
+        .map((membership) => membership.organizationId);
+
+    if (
+        fullAccessOrganizationIds.length === 0 &&
+        editorOrganizationIds.length === 0
+    ) {
         return null;
     }
 
     return prisma.contentItem.findFirst({
         where: {
-            projectId,
-            project: {
-                organizationId: {
-                    in: organizationIds,
-                },
-            },
+            id: projectId,
+
+            OR: [
+                ...(fullAccessOrganizationIds.length > 0
+                    ? [
+                          {
+                              project: {
+                                  organizationId: {
+                                      in: fullAccessOrganizationIds,
+                                  },
+                              },
+                          },
+                      ]
+                    : []),
+
+                ...(editorOrganizationIds.length > 0
+                    ? [
+                          {
+                              AND: [
+                                  {
+                                      project: {
+                                          organizationId: {
+                                              in: editorOrganizationIds,
+                                          },
+                                      },
+                                  },
+                                  {
+                                      OR: [
+                                          {
+                                              editorAssignments: {
+                                                  some: {
+                                                      userId: user.id,
+                                                  },
+                                              },
+                                          },
+                                          {
+                                              project: {
+                                                  creator: {
+                                                      editorAssignments: {
+                                                          some: {
+                                                              userId: user.id,
+                                                          },
+                                                      },
+                                                  },
+                                              },
+                                          },
+                                      ],
+                                  },
+                              ],
+                          },
+                      ]
+                    : []),
+            ],
         },
+
         include: includeData,
     });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -7,54 +8,222 @@ type RouteContext = {
     }>;
 };
 
-export async function GET(
-    request: Request,
-    context: RouteContext
-) {
-    try {
-        const { assetId } = await context.params;
+async function getAuthenticatedUser() {
+    const session = await auth();
 
-        const asset = await prisma.asset.findUnique({
-            where: {
-                id: assetId,
+    if (!session?.user?.email) {
+        return null;
+    }
+
+    return prisma.user.findUnique({
+        where: {
+            email: session.user.email,
+        },
+        select: {
+            id: true,
+            accountType: true,
+
+            creatorProfile: {
+                select: {
+                    id: true,
+                    organizationId: true,
+                },
             },
-            include: {
-                content: {
+
+            memberships: {
+                select: {
+                    organizationId: true,
+                    role: true,
+                },
+            },
+        },
+    });
+}
+
+async function getAccessibleAsset(
+    assetId: string,
+    user: NonNullable<
+        Awaited<ReturnType<typeof getAuthenticatedUser>>
+    >
+) {
+    const includeData = {
+        content: {
+            select: {
+                id: true,
+                title: true,
+                contentType: true,
+
+                project: {
                     select: {
                         id: true,
-                        title: true,
-                        contentType: true,
+                        name: true,
+                        organizationId: true,
+                        creatorId: true,
+                    },
+                },
+            },
+        },
 
+        uploadedBy: {
+            select: {
+                id: true,
+                name: true,
+                email: true,
+            },
+        },
+
+        versions: {
+            orderBy: {
+                version: "desc" as const,
+            },
+        },
+    };
+
+    /*
+     * Creator accounts may only access assets belonging to
+     * their own creator profile.
+     */
+    if (user.accountType === "CREATOR") {
+        if (!user.creatorProfile) {
+            return null;
+        }
+
+        return prisma.asset.findFirst({
+            where: {
+                id: assetId,
+
+                content: {
+                    project: {
+                        organizationId:
+                            user.creatorProfile.organizationId,
+                        creatorId:
+                            user.creatorProfile.id,
+                    },
+                },
+            },
+
+            include: includeData,
+        });
+    }
+
+    /*
+     * ADMIN / MANAGER have organization-wide access.
+     */
+    const fullAccessOrganizationIds =
+        user.memberships
+            .filter(
+                (membership) =>
+                    membership.role === "ADMIN" ||
+                    membership.role === "MANAGER"
+            )
+            .map(
+                (membership) =>
+                    membership.organizationId
+            );
+
+    if (fullAccessOrganizationIds.length > 0) {
+        const asset =
+            await prisma.asset.findFirst({
+                where: {
+                    id: assetId,
+
+                    content: {
                         project: {
-                            select: {
-                                id: true,
-                                name: true,
-                                organizationId: true,
+                            organizationId: {
+                                in: fullAccessOrganizationIds,
                             },
                         },
                     },
                 },
 
-                uploadedBy: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
+                include: includeData,
+            });
+
+        if (asset) {
+            return asset;
+        }
+    }
+
+    /*
+     * EDITOR access is limited to assigned projects.
+     */
+    const editorOrganizationIds =
+        user.memberships
+            .filter(
+                (membership) =>
+                    membership.role === "EDITOR"
+            )
+            .map(
+                (membership) =>
+                    membership.organizationId
+            );
+
+    if (editorOrganizationIds.length === 0) {
+        return null;
+    }
+
+    return prisma.asset.findFirst({
+        where: {
+            id: assetId,
+
+            content: {
+                project: {
+                    organizationId: {
+                        in: editorOrganizationIds,
                     },
                 },
 
-                versions: {
-                    orderBy: {
-                        version: "desc",
+                OR: [
+                    {
+                        editorAssignments: {
+                            some: {
+                                userId: user.id,
+                            },
+                        },
                     },
-                },
+                    {
+                        project: {
+                            creator: {
+                                editorAssignments: {
+                                    some: {
+                                        userId: user.id,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                ],
             },
-        });
+        },
+
+        include: includeData,
+    });
+}
+
+export async function GET(
+    request: Request,
+    context: RouteContext
+) {
+    try {
+        const user = await getAuthenticatedUser();
+
+        if (!user) {
+            return NextResponse.json(
+                { error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+
+        const { assetId } = await context.params;
+
+        const asset =
+            await getAccessibleAsset(assetId, user);
 
         if (!asset) {
             return NextResponse.json(
                 {
-                    error: "Asset not found.",
+                    error:
+                        "Asset not found or access denied.",
                 },
                 { status: 404 }
             );
@@ -63,13 +232,17 @@ export async function GET(
         return NextResponse.json({
             asset: {
                 ...asset,
-                fileSize: asset.fileSize?.toString() ?? null,
+                fileSize:
+                    asset.fileSize?.toString() ?? null,
 
-                versions: asset.versions.map((version) => ({
-                    ...version,
-                    fileSize:
-                        version.fileSize?.toString() ?? null,
-                })),
+                versions: asset.versions.map(
+                    (version) => ({
+                        ...version,
+                        fileSize:
+                            version.fileSize?.toString() ??
+                            null,
+                    })
+                ),
             },
         });
     } catch (error) {
@@ -92,30 +265,25 @@ export async function DELETE(
     context: RouteContext
 ) {
     try {
+        const user = await getAuthenticatedUser();
+
+        if (!user) {
+            return NextResponse.json(
+                { error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+
         const { assetId } = await context.params;
 
-        const asset = await prisma.asset.findUnique({
-            where: {
-                id: assetId,
-            },
-
-            include: {
-                content: {
-                    select: {
-                        project: {
-                            select: {
-                                organizationId: true,
-                            },
-                        },
-                    },
-                },
-            },
-        });
+        const asset =
+            await getAccessibleAsset(assetId, user);
 
         if (!asset) {
             return NextResponse.json(
                 {
-                    error: "Asset not found.",
+                    error:
+                        "Asset not found or access denied.",
                 },
                 { status: 404 }
             );

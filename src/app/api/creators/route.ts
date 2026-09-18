@@ -4,10 +4,14 @@ import { prisma } from "@/lib/prisma";
 
 // GET /api/creators
 //
-// Editors/Admins/Managers:
+// ADMIN / MANAGER:
 //   Returns all creators in the selected organization.
 //
-// Creators:
+// EDITOR:
+//   Returns creators assigned directly to the Editor, plus
+//   creators with at least one individually assigned content item.
+//
+// CREATOR:
 //   Returns only their own creator profile.
 export async function GET(request: Request) {
   const session = await auth();
@@ -93,10 +97,10 @@ export async function GET(request: Request) {
   }
 
   /*
-   * EDITOR / ADMIN / MANAGER
+   * INTERNAL ACCESS
    *
-   * These users can view all creators belonging to an
-   * organization they are members of.
+   * The membership role determines how much data the user can
+   * see inside the selected organization.
    */
   const memberships = user.memberships;
 
@@ -106,19 +110,68 @@ export async function GET(request: Request) {
     });
   }
 
-  const organizationIds = memberships.map(
-    (membership) => membership.organizationId
-  );
+  const targetMembership = organizationId
+    ? memberships.find(
+        (membership) =>
+          membership.organizationId === organizationId
+      )
+    : memberships[0];
+
+  if (!targetMembership) {
+    return NextResponse.json(
+      {
+        error: "You do not have access to this organization.",
+      },
+      { status: 403 }
+    );
+  }
 
   const targetOrganizationId =
-    organizationId &&
-    organizationIds.includes(organizationId)
-      ? organizationId
-      : organizationIds[0];
+    targetMembership.organizationId;
+
+  if (
+    targetMembership.role !== "ADMIN" &&
+    targetMembership.role !== "MANAGER" &&
+    targetMembership.role !== "EDITOR"
+  ) {
+    return NextResponse.json({
+      creators: [],
+      organizationId: targetOrganizationId,
+    });
+  }
 
   const creators = await prisma.creator.findMany({
     where: {
       organizationId: targetOrganizationId,
+
+      ...(targetMembership.role === "EDITOR"
+        ? {
+            OR: [
+              {
+                editorAssignments: {
+                  some: {
+                    userId: user.id,
+                  },
+                },
+              },
+              {
+                projects: {
+                  some: {
+                    contentItems: {
+                      some: {
+                        editorAssignments: {
+                          some: {
+                            userId: user.id,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     },
     select: {
       id: true,
@@ -176,15 +229,11 @@ export async function POST(request: Request) {
     );
   }
 
-  /*
-   * Only internal/editor-side accounts can create Creator
-   * profiles.
-   */
   if (user.accountType !== "EDITOR") {
     return NextResponse.json(
       {
         error:
-          "Only editor accounts can create creator profiles.",
+          "Only internal accounts can create creator profiles.",
       },
       { status: 403 }
     );
@@ -218,15 +267,15 @@ export async function POST(request: Request) {
   if (!name || !organizationId) {
     return NextResponse.json(
       {
-        error:
-          "name and organizationId are required",
+        error: "name and organizationId are required",
       },
       { status: 400 }
     );
   }
 
   /*
-   * Verify the editor belongs to the organization.
+   * Only ADMIN / MANAGER members can create Creator profiles.
+   * A normal EDITOR cannot create a new client/creator.
    */
   const membership = user.memberships.find(
     (membership) =>
@@ -238,6 +287,19 @@ export async function POST(request: Request) {
       {
         error:
           "You do not have access to this organization.",
+      },
+      { status: 403 }
+    );
+  }
+
+  if (
+    membership.role !== "ADMIN" &&
+    membership.role !== "MANAGER"
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Only admins and managers can create creator profiles.",
       },
       { status: 403 }
     );

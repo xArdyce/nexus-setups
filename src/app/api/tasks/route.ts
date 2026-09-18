@@ -16,11 +16,201 @@ const allowedPriorities = [
   "URGENT",
 ] as const;
 
+async function getAuthenticatedUser() {
+  const session = await auth();
+
+  if (!session?.user?.email) {
+    return null;
+  }
+
+  return prisma.user.findUnique({
+    where: {
+      email: session.user.email,
+    },
+    select: {
+      id: true,
+      accountType: true,
+      creatorProfile: {
+        select: {
+          id: true,
+          organizationId: true,
+        },
+      },
+      memberships: {
+        select: {
+          organizationId: true,
+          role: true,
+        },
+      },
+    },
+  });
+}
+
+async function getContent(contentId: string) {
+  return prisma.contentItem.findUnique({
+    where: {
+      id: contentId,
+    },
+    select: {
+      id: true,
+      project: {
+        select: {
+          organizationId: true,
+          creatorId: true,
+        },
+      },
+    },
+  });
+}
+
+async function getContentPermission(
+  user: NonNullable<
+    Awaited<ReturnType<typeof getAuthenticatedUser>>
+  >,
+  content: NonNullable<
+    Awaited<ReturnType<typeof getContent>>
+  >
+) {
+  if (
+    user.accountType === "CREATOR" &&
+    user.creatorProfile?.id === content.project.creatorId
+  ) {
+    return {
+      canView: true,
+      canManageTasks: false,
+      role: "CREATOR" as const,
+    };
+  }
+
+  const membership = user.memberships.find(
+    (member) =>
+      member.organizationId ===
+      content.project.organizationId
+  );
+
+  if (!membership) {
+    return {
+      canView: false,
+      canManageTasks: false,
+      role: null,
+    };
+  }
+
+  if (
+    membership.role === "ADMIN" ||
+    membership.role === "MANAGER"
+  ) {
+    return {
+      canView: true,
+      canManageTasks: true,
+      role: membership.role,
+    };
+  }
+
+  if (membership.role !== "EDITOR") {
+    return {
+      canView: false,
+      canManageTasks: false,
+      role: membership.role,
+    };
+  }
+
+  const accessibleContent =
+    await prisma.contentItem.findFirst({
+      where: {
+        id: content.id,
+        OR: [
+          {
+            editorAssignments: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+          {
+            project: {
+              creator: {
+                editorAssignments: {
+                  some: {
+                    userId: user.id,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  return {
+    canView: Boolean(accessibleContent),
+    canManageTasks: Boolean(accessibleContent),
+    role: membership.role,
+  };
+}
+
+async function editorCanAccessContent(
+  editorUserId: string,
+  organizationId: string,
+  contentId: string
+) {
+  const membership =
+    await prisma.organizationMember.findFirst({
+      where: {
+        userId: editorUserId,
+        organizationId,
+        role: "EDITOR",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  if (!membership) {
+    return false;
+  }
+
+  const accessibleContent =
+    await prisma.contentItem.findFirst({
+      where: {
+        id: contentId,
+        OR: [
+          {
+            editorAssignments: {
+              some: {
+                userId: editorUserId,
+              },
+            },
+          },
+          {
+            project: {
+              creator: {
+                editorAssignments: {
+                  some: {
+                    userId: editorUserId,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  return Boolean(accessibleContent);
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
+    const user = await getAuthenticatedUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -37,31 +227,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
-      include: {
-        memberships: true,
-        creatorProfile: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const content = await prisma.contentItem.findUnique({
-      where: {
-        id: contentId,
-      },
-      include: {
-        project: true,
-      },
-    });
+    const content = await getContent(contentId);
 
     if (!content) {
       return NextResponse.json(
@@ -70,15 +236,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const hasOrganizationAccess = user.memberships.some(
-      (membership) =>
-        membership.organizationId === content.project.organizationId
+    const permission = await getContentPermission(
+      user,
+      content
     );
 
-    const isCreator =
-      user.creatorProfile?.id === content.project.creatorId;
-
-    if (!hasOrganizationAccess && !isCreator) {
+    if (!permission.canView) {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 }
@@ -125,9 +288,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const user = await getAuthenticatedUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -146,14 +309,20 @@ export async function POST(request: NextRequest) {
       assignedToId,
     } = body;
 
-    if (!title?.trim()) {
+    if (
+      typeof title !== "string" ||
+      !title.trim()
+    ) {
       return NextResponse.json(
         { error: "Task title is required" },
         { status: 400 }
       );
     }
 
-    if (!contentId) {
+    if (
+      typeof contentId !== "string" ||
+      !contentId.trim()
+    ) {
       return NextResponse.json(
         { error: "contentId is required" },
         { status: 400 }
@@ -180,31 +349,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
-      include: {
-        memberships: true,
-        creatorProfile: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const content = await prisma.contentItem.findUnique({
-      where: {
-        id: contentId,
-      },
-      include: {
-        project: true,
-      },
-    });
+    const content = await getContent(contentId);
 
     if (!content) {
       return NextResponse.json(
@@ -213,63 +358,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const membership = user.memberships.find(
-      (member) =>
-        member.organizationId ===
-        content.project.organizationId
+    const permission = await getContentPermission(
+      user,
+      content
     );
 
-    if (!membership) {
+    if (!permission.canManageTasks) {
       return NextResponse.json(
         {
           error:
-            "You do not have access to this organization",
-        },
-        { status: 403 }
-      );
-    }
-
-    if (
-      membership.role === "CREATOR"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Creators cannot create production tasks",
+            permission.role === "CREATOR"
+              ? "Creators cannot create production tasks"
+              : "You do not have access to manage tasks for this content",
         },
         { status: 403 }
       );
     }
 
     if (assignedToId) {
-      const assignedUser = await prisma.user.findUnique({
-        where: {
-          id: assignedToId,
-        },
-        include: {
-          memberships: true,
-        },
-      });
-
-      if (!assignedUser) {
+      if (typeof assignedToId !== "string") {
         return NextResponse.json(
-          { error: "Assigned user not found" },
-          { status: 404 }
+          { error: "Invalid assignedToId" },
+          { status: 400 }
         );
       }
 
-      const belongsToOrganization =
-        assignedUser.memberships.some(
-          (member) =>
-            member.organizationId ===
-            content.project.organizationId
+      const canAccess =
+        await editorCanAccessContent(
+          assignedToId,
+          content.project.organizationId,
+          content.id
         );
 
-      if (!belongsToOrganization) {
+      if (!canAccess) {
         return NextResponse.json(
           {
             error:
-              "Assigned user does not belong to this organization",
+              "Tasks can only be assigned to an Editor who already has access to this project or Creator",
           },
           { status: 400 }
         );
@@ -280,7 +405,10 @@ export async function POST(request: NextRequest) {
       data: {
         title: title.trim(),
         description:
-          description?.trim() || null,
+          typeof description === "string" &&
+          description.trim()
+            ? description.trim()
+            : null,
         status: status || "TODO",
         priority: priority || "MEDIUM",
         dueDate: dueDate

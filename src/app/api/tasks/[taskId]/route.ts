@@ -16,6 +16,210 @@ const allowedPriorities = [
   "URGENT",
 ] as const;
 
+async function getAuthenticatedUser() {
+  const session = await auth();
+
+  if (!session?.user?.email) {
+    return null;
+  }
+
+  return prisma.user.findUnique({
+    where: {
+      email: session.user.email,
+    },
+    select: {
+      id: true,
+      accountType: true,
+      creatorProfile: {
+        select: {
+          id: true,
+          organizationId: true,
+        },
+      },
+      memberships: {
+        select: {
+          organizationId: true,
+          role: true,
+        },
+      },
+    },
+  });
+}
+
+async function getTask(taskId: string) {
+  return prisma.task.findUnique({
+    where: {
+      id: taskId,
+    },
+    select: {
+      id: true,
+      contentId: true,
+      content: {
+        select: {
+          id: true,
+          project: {
+            select: {
+              organizationId: true,
+              creatorId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+async function getContentPermission(
+  user: NonNullable<
+    Awaited<ReturnType<typeof getAuthenticatedUser>>
+  >,
+  task: NonNullable<
+    Awaited<ReturnType<typeof getTask>>
+  >
+) {
+  if (
+    user.accountType === "CREATOR" &&
+    user.creatorProfile?.id ===
+      task.content.project.creatorId
+  ) {
+    return {
+      canView: true,
+      canManageTasks: false,
+      canDeleteTasks: false,
+      role: "CREATOR" as const,
+    };
+  }
+
+  const membership = user.memberships.find(
+    (member) =>
+      member.organizationId ===
+      task.content.project.organizationId
+  );
+
+  if (!membership) {
+    return {
+      canView: false,
+      canManageTasks: false,
+      canDeleteTasks: false,
+      role: null,
+    };
+  }
+
+  if (
+    membership.role === "ADMIN" ||
+    membership.role === "MANAGER"
+  ) {
+    return {
+      canView: true,
+      canManageTasks: true,
+      canDeleteTasks: true,
+      role: membership.role,
+    };
+  }
+
+  if (membership.role !== "EDITOR") {
+    return {
+      canView: false,
+      canManageTasks: false,
+      canDeleteTasks: false,
+      role: membership.role,
+    };
+  }
+
+  const accessibleContent =
+    await prisma.contentItem.findFirst({
+      where: {
+        id: task.content.id,
+        OR: [
+          {
+            editorAssignments: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+          {
+            project: {
+              creator: {
+                editorAssignments: {
+                  some: {
+                    userId: user.id,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  const hasAccess = Boolean(accessibleContent);
+
+  return {
+    canView: hasAccess,
+    canManageTasks: hasAccess,
+    canDeleteTasks: false,
+    role: membership.role,
+  };
+}
+
+async function editorCanAccessContent(
+  editorUserId: string,
+  organizationId: string,
+  contentId: string
+) {
+  const membership =
+    await prisma.organizationMember.findFirst({
+      where: {
+        userId: editorUserId,
+        organizationId,
+        role: "EDITOR",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  if (!membership) {
+    return false;
+  }
+
+  const accessibleContent =
+    await prisma.contentItem.findFirst({
+      where: {
+        id: contentId,
+        OR: [
+          {
+            editorAssignments: {
+              some: {
+                userId: editorUserId,
+              },
+            },
+          },
+          {
+            project: {
+              creator: {
+                editorAssignments: {
+                  some: {
+                    userId: editorUserId,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  return Boolean(accessibleContent);
+}
+
 export async function PATCH(
   request: NextRequest,
   context: {
@@ -23,9 +227,9 @@ export async function PATCH(
   }
 ) {
   try {
-    const session = await auth();
+    const user = await getAuthenticatedUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -35,18 +239,7 @@ export async function PATCH(
     const { taskId } = await context.params;
     const body = await request.json();
 
-    const task = await prisma.task.findUnique({
-      where: {
-        id: taskId,
-      },
-      include: {
-        content: {
-          include: {
-            project: true,
-          },
-        },
-      },
-    });
+    const task = await getTask(taskId);
 
     if (!task) {
       return NextResponse.json(
@@ -55,41 +248,18 @@ export async function PATCH(
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
-      include: {
-        memberships: true,
-        creatorProfile: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const membership = user.memberships.find(
-      (member) =>
-        member.organizationId ===
-        task.content.project.organizationId
+    const permission = await getContentPermission(
+      user,
+      task
     );
 
-    if (!membership) {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
-    }
-
-    if (membership.role === "CREATOR") {
+    if (!permission.canManageTasks) {
       return NextResponse.json(
         {
           error:
-            "Creators cannot modify production tasks",
+            permission.role === "CREATOR"
+              ? "Creators cannot modify production tasks"
+              : "Forbidden",
         },
         { status: 403 }
       );
@@ -103,6 +273,19 @@ export async function PATCH(
       dueDate,
       assignedToId,
     } = body;
+
+    if (
+      title !== undefined &&
+      (
+        typeof title !== "string" ||
+        !title.trim()
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Task title cannot be empty" },
+        { status: 400 }
+      );
+    }
 
     if (
       status !== undefined &&
@@ -124,35 +307,29 @@ export async function PATCH(
       );
     }
 
-    if (assignedToId !== undefined && assignedToId !== null) {
-      const assignedUser = await prisma.user.findUnique({
-        where: {
-          id: assignedToId,
-        },
-        include: {
-          memberships: true,
-        },
-      });
-
-      if (!assignedUser) {
+    if (
+      assignedToId !== undefined &&
+      assignedToId !== null
+    ) {
+      if (typeof assignedToId !== "string") {
         return NextResponse.json(
-          { error: "Assigned user not found" },
-          { status: 404 }
+          { error: "Invalid assignedToId" },
+          { status: 400 }
         );
       }
 
-      const belongsToOrganization =
-        assignedUser.memberships.some(
-          (member) =>
-            member.organizationId ===
-            task.content.project.organizationId
+      const canAccess =
+        await editorCanAccessContent(
+          assignedToId,
+          task.content.project.organizationId,
+          task.content.id
         );
 
-      if (!belongsToOrganization) {
+      if (!canAccess) {
         return NextResponse.json(
           {
             error:
-              "Assigned user does not belong to this organization",
+              "Tasks can only be assigned to an Editor who already has access to this project or Creator",
           },
           { status: 400 }
         );
@@ -169,7 +346,10 @@ export async function PATCH(
         }),
         ...(description !== undefined && {
           description:
-            description?.trim() || null,
+            typeof description === "string" &&
+            description.trim()
+              ? description.trim()
+              : null,
         }),
         ...(status !== undefined && {
           status,
@@ -219,9 +399,9 @@ export async function DELETE(
   }
 ) {
   try {
-    const session = await auth();
+    const user = await getAuthenticatedUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -230,18 +410,7 @@ export async function DELETE(
 
     const { taskId } = await context.params;
 
-    const task = await prisma.task.findUnique({
-      where: {
-        id: taskId,
-      },
-      include: {
-        content: {
-          include: {
-            project: true,
-          },
-        },
-      },
-    });
+    const task = await getTask(taskId);
 
     if (!task) {
       return NextResponse.json(
@@ -250,40 +419,12 @@ export async function DELETE(
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
-      include: {
-        memberships: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const membership = user.memberships.find(
-      (member) =>
-        member.organizationId ===
-        task.content.project.organizationId
+    const permission = await getContentPermission(
+      user,
+      task
     );
 
-    if (!membership) {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
-    }
-
-    if (
-      !["ADMIN", "MANAGER"].includes(
-        membership.role
-      )
-    ) {
+    if (!permission.canDeleteTasks) {
       return NextResponse.json(
         {
           error:

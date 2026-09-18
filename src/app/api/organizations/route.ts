@@ -17,6 +17,7 @@ async function getAuthenticatedUser() {
       id: true,
       name: true,
       email: true,
+      accountType: true,
     },
   });
 }
@@ -54,14 +55,168 @@ export async function GET() {
     },
   });
 
+  /*
+   * Editors should not automatically inherit every workspace
+   * just because they are an OrganizationMember.
+   *
+   * ADMIN / MANAGER:
+   *   Can see the organization normally.
+   *
+   * EDITOR:
+   *   Can see an organization when they have either:
+   *   - a CreatorAssignment in that organization, or
+   *   - a ContentAssignment under a creator/project there.
+   *
+   * CREATOR:
+   *   Keeps normal membership visibility.
+   */
+  /*
+   * AccountType EDITOR is shared by ADMIN, MANAGER and EDITOR
+   * accounts. Assignment-scoped queries must therefore be based
+   * on OrganizationMember.role, not accountType.
+   */
+  const editorOrganizationIds = memberships
+    .filter((membership) => membership.role === "EDITOR")
+    .map((membership) => membership.organizationId);
+
+  const [editorAccessibleContent, editorCreatorAssignments] =
+    editorOrganizationIds.length > 0
+      ? await Promise.all([
+          prisma.contentItem.findMany({
+            where: {
+              project: {
+                organizationId: {
+                  in: editorOrganizationIds,
+                },
+              },
+
+              OR: [
+                {
+                  editorAssignments: {
+                    some: {
+                      userId: user.id,
+                    },
+                  },
+                },
+                {
+                  project: {
+                    creator: {
+                      editorAssignments: {
+                        some: {
+                          userId: user.id,
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+            select: {
+              id: true,
+              project: {
+                select: {
+                  organizationId: true,
+                  creatorId: true,
+                },
+              },
+            },
+          }),
+
+          prisma.creatorAssignment.findMany({
+            where: {
+              userId: user.id,
+              creator: {
+                organizationId: {
+                  in: editorOrganizationIds,
+                },
+              },
+            },
+            select: {
+              creator: {
+                select: {
+                  id: true,
+                  organizationId: true,
+                },
+              },
+            },
+          }),
+        ])
+      : [[], []];
+
+  const assignedOrganizationIds = new Set([
+    ...editorAccessibleContent.map(
+      (content) => content.project.organizationId
+    ),
+    ...editorCreatorAssignments.map(
+      (assignment) =>
+        assignment.creator.organizationId
+    ),
+  ]);
+
+  const visibleMemberships = memberships.filter((membership) => {
+    if (
+      membership.role === "ADMIN" ||
+      membership.role === "MANAGER"
+    ) {
+      return true;
+    }
+
+    if (membership.role === "EDITOR") {
+      return assignedOrganizationIds.has(
+        membership.organizationId
+      );
+    }
+
+    return true;
+  });
+
   return NextResponse.json({
-    organizations: memberships.map((membership) => ({
-      id: membership.organization.id,
-      name: membership.organization.name,
-      role: membership.role,
-      createdAt: membership.organization.createdAt,
-      counts: membership.organization._count,
-    })),
+    organizations: visibleMemberships.map((membership) => {
+      if (membership.role !== "EDITOR") {
+        return {
+          id: membership.organization.id,
+          name: membership.organization.name,
+          role: membership.role,
+          createdAt: membership.organization.createdAt,
+          counts: membership.organization._count,
+        };
+      }
+
+      const accessibleContentInOrganization =
+        editorAccessibleContent.filter(
+          (content) =>
+            content.project.organizationId ===
+            membership.organizationId
+        );
+
+      const creatorIds = new Set([
+        ...accessibleContentInOrganization
+          .map((content) => content.project.creatorId)
+          .filter((creatorId): creatorId is string =>
+            Boolean(creatorId)
+          ),
+
+        ...editorCreatorAssignments
+          .filter(
+            (assignment) =>
+              assignment.creator.organizationId ===
+              membership.organizationId
+          )
+          .map((assignment) => assignment.creator.id),
+      ]);
+
+      return {
+        id: membership.organization.id,
+        name: membership.organization.name,
+        role: membership.role,
+        createdAt: membership.organization.createdAt,
+        counts: {
+          members: 1,
+          creators: creatorIds.size,
+          projects: accessibleContentInOrganization.length,
+        },
+      };
+    }),
   });
 }
 
