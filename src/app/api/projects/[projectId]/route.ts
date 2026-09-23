@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import {
+    getAssignedEditorUserIds,
+    getCreatorAccountUserId,
+    getManagementUserIds,
+    notifyUsers,
+} from "@/lib/notifications";
 
 const CONTENT_STATUSES = [
     "REQUESTED",
@@ -344,7 +350,6 @@ export async function PATCH(
     }
 
     const { projectId } = await params;
-
     const content = await getAccessibleContent(projectId, user);
 
     if (!content) {
@@ -354,15 +359,27 @@ export async function PATCH(
         );
     }
 
-    const body = await request.json();
+    let body: {
+        status?: unknown;
+        reviewNotes?: unknown;
+    };
+
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json(
+            { error: "Invalid JSON body." },
+            { status: 400 }
+        );
+    }
 
     const requestedStatus =
-        typeof body?.status === "string"
+        typeof body.status === "string"
             ? (body.status as ContentStatusValue)
             : undefined;
 
     const reviewNotes =
-        typeof body?.reviewNotes === "string"
+        typeof body.reviewNotes === "string"
             ? body.reviewNotes.trim()
             : "";
 
@@ -387,13 +404,19 @@ export async function PATCH(
         return NextResponse.json(
             {
                 error:
-                    "Creator accounts cannot change production status.",
+                    "Creator accounts cannot directly change production status.",
             },
             { status: 403 }
         );
     }
 
-    if (!canManageProduction(user)) {
+    const membership = user.memberships.find(
+        (item) =>
+            item.organizationId ===
+            content.project.organizationId
+    );
+
+    if (!membership) {
         return NextResponse.json(
             {
                 error:
@@ -403,12 +426,58 @@ export async function PATCH(
         );
     }
 
-    /*
-     * Prevent duplicate status transitions from unnecessarily
-     * creating duplicate review records.
-     */
+    if (membership.role === "EDITOR") {
+        const allowedEditorTransitions: Record<
+            string,
+            ContentStatusValue[]
+        > = {
+            REQUESTED: ["IN_PRODUCTION"],
+            IN_PRODUCTION: ["IN_REVIEW"],
+            REVISION: ["IN_PRODUCTION", "IN_REVIEW"],
+            IN_REVIEW: [],
+            APPROVED: [],
+            SCHEDULED: [],
+            PUBLISHED: [],
+        };
+
+        const allowedNextStatuses =
+            allowedEditorTransitions[content.status] || [];
+
+        if (!allowedNextStatuses.includes(requestedStatus)) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Editors can only move assigned work through production and submit it for review.",
+                },
+                { status: 403 }
+            );
+        }
+    } else if (
+        membership.role !== "ADMIN" &&
+        membership.role !== "MANAGER"
+    ) {
+        return NextResponse.json(
+            {
+                error:
+                    "You do not have permission to change production status.",
+            },
+            { status: 403 }
+        );
+    }
+
     const statusChanged =
         content.status !== requestedStatus;
+
+    if (!statusChanged) {
+        return NextResponse.json({
+            success: true,
+            content: {
+                id: content.id,
+                status: content.status,
+                updatedAt: content.updatedAt,
+            },
+        });
+    }
 
     const updatedContent = await prisma.$transaction(
         async (tx) => {
@@ -421,19 +490,15 @@ export async function PATCH(
                 },
             });
 
-            /*
-             * Entering IN_REVIEW creates a pending review
-             * if one does not already exist.
-             */
-            if (
-                requestedStatus === "IN_REVIEW" &&
-                statusChanged
-            ) {
+            if (requestedStatus === "IN_REVIEW") {
                 const existingPendingReview =
                     await tx.review.findFirst({
                         where: {
                             contentId: content.id,
                             status: "PENDING",
+                        },
+                        orderBy: {
+                            createdAt: "desc",
                         },
                     });
 
@@ -449,63 +514,137 @@ export async function PATCH(
                 }
             }
 
-            /*
-             * APPROVED creates the final approval review.
-             */
             if (
-                requestedStatus === "APPROVED" &&
-                statusChanged
+                requestedStatus === "APPROVED" ||
+                requestedStatus === "REVISION"
             ) {
-                await tx.review.create({
-                    data: {
-                        contentId: content.id,
-                        authorId: user.id,
-                        status: "APPROVED",
-                        notes: reviewNotes || null,
-                    },
-                });
+                const pendingReview =
+                    await tx.review.findFirst({
+                        where: {
+                            contentId: content.id,
+                            status: "PENDING",
+                        },
+                        orderBy: {
+                            createdAt: "desc",
+                        },
+                    });
+
+                const reviewStatus =
+                    requestedStatus === "APPROVED"
+                        ? "APPROVED"
+                        : "REVISION_REQUESTED";
+
+                if (pendingReview) {
+                    await tx.review.update({
+                        where: {
+                            id: pendingReview.id,
+                        },
+                        data: {
+                            status: reviewStatus,
+                            ...(reviewNotes
+                                ? { notes: reviewNotes }
+                                : {}),
+                        },
+                    });
+                } else {
+                    await tx.review.create({
+                        data: {
+                            contentId: content.id,
+                            authorId: user.id,
+                            status: reviewStatus,
+                            notes: reviewNotes || null,
+                        },
+                    });
+                }
             }
 
-            /*
-             * REVISION creates a revision-requested review.
-             */
-            if (
-                requestedStatus === "REVISION" &&
-                statusChanged
-            ) {
-                await tx.review.create({
-                    data: {
-                        contentId: content.id,
-                        authorId: user.id,
-                        status: "REVISION_REQUESTED",
-                        notes: reviewNotes || null,
+            await tx.auditLog.create({
+                data: {
+                    action: "CONTENT_STATUS_CHANGED",
+                    resource: "ContentItem",
+                    resourceId: content.id,
+                    userId: user.id,
+                    metadata: {
+                        title: content.title,
+                        previousStatus: content.status,
+                        newStatus: requestedStatus,
+                        organizationId:
+                            content.project.organizationId,
+                        creatorId:
+                            content.project.creator?.id ?? null,
                     },
-                });
-            }
-            if (statusChanged) {
-                await tx.auditLog.create({
-                    data: {
-                        action: "CONTENT_STATUS_CHANGED",
-                        resource: "ContentItem",
-                        resourceId: content.id,
-                        userId: user.id,
-                        metadata: {
-                            title: content.title,
-                            previousStatus: content.status,
-                            newStatus: requestedStatus,
-                            organizationId: content.project.organizationId,
-                            creatorId: content.project.creator?.id ?? null,
-                        },
-                    },
-                });
-            }
+                },
+            });
+
             return updated;
         }
     );
 
+    const creatorId =
+        content.project.creator?.id ?? null;
+
+    const creatorUserId =
+        await getCreatorAccountUserId(creatorId);
+
+    if (requestedStatus === "IN_REVIEW") {
+        await notifyUsers(
+            [creatorUserId],
+            "Project ready for review",
+            `${content.title} is ready for your review.`,
+            user.id
+        );
+    }
+
+    if (
+        requestedStatus === "SCHEDULED" ||
+        requestedStatus === "PUBLISHED"
+    ) {
+        await notifyUsers(
+            [creatorUserId],
+            requestedStatus === "SCHEDULED"
+                ? "Project scheduled"
+                : "Project published",
+            requestedStatus === "SCHEDULED"
+                ? `${content.title} has been scheduled.`
+                : `${content.title} has been published.`,
+            user.id
+        );
+    }
+
+    if (
+        requestedStatus === "APPROVED" ||
+        requestedStatus === "REVISION"
+    ) {
+        const assignedEditorUserIds =
+            await getAssignedEditorUserIds(
+                content.id
+            );
+
+        const managementUserIds =
+            requestedStatus === "APPROVED"
+                ? await getManagementUserIds(
+                      content.project.organizationId
+                  )
+                : [];
+
+        await notifyUsers(
+            [
+                ...assignedEditorUserIds,
+                ...managementUserIds,
+                creatorUserId,
+            ],
+            requestedStatus === "APPROVED"
+                ? "Project approved"
+                : "Revision requested",
+            requestedStatus === "APPROVED"
+                ? `${content.title} was approved.`
+                : `${content.title} needs another revision.`,
+            user.id
+        );
+    }
+
     return NextResponse.json({
         success: true,
-
         content: {
             id: updatedContent.id,
             status: updatedContent.status,

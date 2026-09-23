@@ -50,6 +50,11 @@ export default function CreatorDashboard({ user }) {
     const [projectDetailsError, setProjectDetailsError] = useState(null);
     const [projectStatusUpdating, setProjectStatusUpdating] = useState(false);
     const [reviewNote, setReviewNote] = useState("");
+    const [reviewComment, setReviewComment] = useState("");
+    const [reviewTimestamp, setReviewTimestamp] = useState("");
+    const [reviewCommentSubmitting, setReviewCommentSubmitting] =
+        useState(false);
+    const [reviewError, setReviewError] = useState(null);
 
     const [selectedCreator, setSelectedCreator] = useState(null);
 
@@ -86,6 +91,8 @@ export default function CreatorDashboard({ user }) {
     const [taskCreating, setTaskCreating] = useState(false);
     const [taskUpdatingId, setTaskUpdatingId] = useState(null);
     const [taskDeletingId, setTaskDeletingId] = useState(null);
+    const [expandedCompletedTasks, setExpandedCompletedTasks] =
+        useState({});
     const [newTask, setNewTask] = useState({
         title: "",
         description: "",
@@ -97,6 +104,66 @@ export default function CreatorDashboard({ user }) {
     const [assets, setAssets] = useState([]);
     const [assetsLoading, setAssetsLoading] = useState(true);
     const [assetsError, setAssetsError] = useState(null);
+    const [assetUploadContentId, setAssetUploadContentId] =
+        useState("");
+    const [assetUploadFile, setAssetUploadFile] =
+        useState(null);
+    const [assetUploadType, setAssetUploadType] =
+        useState("OTHER");
+    const [assetUploadProgress, setAssetUploadProgress] =
+        useState(0);
+    const [assetUploading, setAssetUploading] =
+        useState(false);
+    const [assetUploadError, setAssetUploadError] =
+        useState(null);
+    const [assetDeletingId, setAssetDeletingId] =
+        useState(null);
+
+    const [activity, setActivity] = useState([]);
+    const [activityLoading, setActivityLoading] = useState(true);
+    const [activityError, setActivityError] = useState(null);
+
+    const [notifications, setNotifications] = useState([]);
+    const [unreadNotificationCount, setUnreadNotificationCount] =
+        useState(0);
+    const [notificationsLoading, setNotificationsLoading] =
+        useState(true);
+    const [notificationsError, setNotificationsError] =
+        useState(null);
+    const [notificationMenuOpen, setNotificationMenuOpen] =
+        useState(false);
+    const [notificationUpdatingId, setNotificationUpdatingId] =
+        useState(null);
+    const [markingAllNotificationsRead, setMarkingAllNotificationsRead] =
+        useState(false);
+
+    const [settingsProfile, setSettingsProfile] =
+        useState(null);
+    const [settingsLoading, setSettingsLoading] =
+        useState(true);
+    const [settingsError, setSettingsError] =
+        useState(null);
+    const [settingsSuccess, setSettingsSuccess] =
+        useState(null);
+    const [settingsSaving, setSettingsSaving] =
+        useState(null);
+
+    const [profileDraft, setProfileDraft] =
+        useState({
+            name: user?.name || "",
+            email: user?.email || "",
+            currentPassword: "",
+        });
+
+    const [passwordDraft, setPasswordDraft] =
+        useState({
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
+        });
+
+    const [workspaceNameDraft, setWorkspaceNameDraft] =
+        useState("");
 
     // =========================
     // PROJECT STATUS HELPERS
@@ -152,6 +219,177 @@ export default function CreatorDashboard({ user }) {
         };
 
         return labels[priority] || priority || "MEDIUM";
+    };
+
+    const isGoogleDriveFolderUrl = (value) => {
+        try {
+            const url = new URL(String(value || "").trim());
+
+            return (
+                url.protocol === "https:" &&
+                url.hostname === "drive.google.com" &&
+                /^\/drive\/(?:u\/\d+\/)?folders\/[^/]+\/?$/.test(
+                    url.pathname
+                )
+            );
+        } catch {
+            return false;
+        }
+    };
+
+    const parseReviewTimestamp = (value) => {
+        const raw = String(value || "").trim();
+
+        if (!raw) {
+            return null;
+        }
+
+        if (/^\d+$/.test(raw)) {
+            return Number(raw);
+        }
+
+        const parts = raw.split(":").map(Number);
+
+        if (
+            parts.some((part) => !Number.isFinite(part) || part < 0) ||
+            parts.length < 2 ||
+            parts.length > 3
+        ) {
+            return Number.NaN;
+        }
+
+        if (parts.some((part, index) => index > 0 && part >= 60)) {
+            return Number.NaN;
+        }
+
+        if (parts.length === 2) {
+            return parts[0] * 60 + parts[1];
+        }
+
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    };
+
+    const formatReviewTimestamp = (value) => {
+        if (value === null || value === undefined) {
+            return null;
+        }
+
+        const totalSeconds = Math.max(0, Math.floor(Number(value) || 0));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return `${hours}:${String(minutes).padStart(2, "0")}:${String(
+                seconds
+            ).padStart(2, "0")}`;
+        }
+
+        return `${minutes}:${String(seconds).padStart(2, "0")}`;
+    };
+
+    const formatActivityTime = (value) => {
+        if (!value) {
+            return "";
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return "";
+        }
+
+        return date.toLocaleString([], {
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    };
+
+    const formatActivityDescription = (entry) => {
+        const actor = entry?.actorName || "Nexus user";
+        const metadata = entry?.metadata || {};
+        const title =
+            metadata.contentTitle ||
+            metadata.title ||
+            "project";
+
+        switch (entry?.action) {
+            case "CONTENT_SUBMITTED":
+                return `${actor} submitted ${title}.`;
+
+            case "CONTENT_STATUS_CHANGED":
+                return `${actor} moved ${title} from ${displayStatus(
+                    metadata.previousStatus
+                )} to ${displayStatus(metadata.newStatus)}.`;
+
+            case "EDITOR_ASSIGNED_TO_CONTENT":
+                return `${actor} assigned ${
+                    metadata.editorName || "an Editor"
+                } to ${title}.`;
+
+            case "EDITOR_UNASSIGNED_FROM_CONTENT":
+                return `${actor} removed ${
+                    metadata.editorName || "an Editor"
+                } from ${title}.`;
+
+            case "EDITOR_ASSIGNED_TO_CREATOR":
+                return `${actor} assigned ${
+                    metadata.editorName || "an Editor"
+                } to ${
+                    metadata.creatorName || "a Creator workspace"
+                }.`;
+
+            case "EDITOR_UNASSIGNED_FROM_CREATOR":
+                return `${actor} removed ${
+                    metadata.editorName || "an Editor"
+                } from ${
+                    metadata.creatorName || "a Creator workspace"
+                }.`;
+
+            case "REVIEW_COMMENT_ADDED": {
+                const timestamp =
+                    metadata.timestamp !== null &&
+                    metadata.timestamp !== undefined
+                        ? ` at ${formatReviewTimestamp(
+                              metadata.timestamp
+                          )}`
+                        : "";
+
+                return `${actor} added review feedback to ${title}${timestamp}.`;
+            }
+
+            case "REVIEW_APPROVED":
+                return `${actor} approved ${title}.`;
+
+            case "REVIEW_REVISION_REQUESTED":
+                return `${actor} requested revisions for ${title}.`;
+
+            case "ASSET_UPLOADED":
+                return `${actor} uploaded ${
+                    metadata.fileName || "an asset"
+                } to ${title}.`;
+
+            case "ASSET_DELETED":
+                return `${actor} deleted ${
+                    metadata.fileName || "an asset"
+                } from ${title}.`;
+
+            case "ORGANIZATION_RENAMED":
+                return `${actor} renamed the workspace from ${
+                    metadata.previousName || "the previous name"
+                } to ${
+                    metadata.newName || "a new name"
+                }.`;
+
+            default:
+                return `${actor} ${String(
+                    entry?.action || "updated the workspace"
+                )
+                    .toLowerCase()
+                    .replaceAll("_", " ")}.`;
+        }
     };
 
     // =========================
@@ -327,6 +565,853 @@ export default function CreatorDashboard({ user }) {
             setAssets([]);
         } finally {
             setAssetsLoading(false);
+        }
+    };
+
+    const inferAssetTypeFromFile = (file) => {
+        const mimeType =
+            String(file?.type || "").toLowerCase();
+
+        if (mimeType.startsWith("video/")) {
+            return "VIDEO";
+        }
+
+        if (mimeType.startsWith("image/")) {
+            return "IMAGE";
+        }
+
+        if (mimeType.startsWith("audio/")) {
+            return "AUDIO";
+        }
+
+        if (
+            mimeType.startsWith("text/") ||
+            mimeType.includes("pdf") ||
+            mimeType.includes("document") ||
+            mimeType.includes("spreadsheet") ||
+            mimeType.includes("presentation")
+        ) {
+            return "DOCUMENT";
+        }
+
+        return "OTHER";
+    };
+
+    const uploadFileToSignedUrl = (
+        uploadUrl,
+        file,
+        requiredHeaders
+    ) =>
+        new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+
+            xhr.open("PUT", uploadUrl);
+
+            Object.entries(
+                requiredHeaders || {}
+            ).forEach(([name, value]) => {
+                if (value) {
+                    xhr.setRequestHeader(
+                        name,
+                        value
+                    );
+                }
+            });
+
+            xhr.upload.onprogress = (event) => {
+                if (!event.lengthComputable) {
+                    return;
+                }
+
+                setAssetUploadProgress(
+                    Math.round(
+                        (event.loaded /
+                            event.total) *
+                            100
+                    )
+                );
+            };
+
+            xhr.onload = () => {
+                if (
+                    xhr.status >= 200 &&
+                    xhr.status < 300
+                ) {
+                    resolve();
+                    return;
+                }
+
+                reject(
+                    new Error(
+                        `R2 upload failed with status ${xhr.status}.`
+                    )
+                );
+            };
+
+            xhr.onerror = () => {
+                reject(
+                    new Error(
+                        "The browser could not upload the file to Cloudflare R2. Check the bucket CORS settings."
+                    )
+                );
+            };
+
+            xhr.send(file);
+        });
+
+    const handleAssetFileChange = (
+        event
+    ) => {
+        const file =
+            event.target.files?.[0] || null;
+
+        setAssetUploadFile(file);
+        setAssetUploadError(null);
+        setAssetUploadProgress(0);
+
+        if (file) {
+            setAssetUploadType(
+                inferAssetTypeFromFile(file)
+            );
+        }
+    };
+
+    const uploadAsset = async (event) => {
+        event.preventDefault();
+
+        if (
+            !assetUploadContentId ||
+            !assetUploadFile
+        ) {
+            setAssetUploadError(
+                "Choose a project and a file first."
+            );
+            return;
+        }
+
+        setAssetUploading(true);
+        setAssetUploadProgress(0);
+        setAssetUploadError(null);
+
+        try {
+            const prepareRes = await fetch(
+                "/api/assets/upload-url",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        contentId:
+                            assetUploadContentId,
+                        fileName:
+                            assetUploadFile.name,
+                        fileSize:
+                            assetUploadFile.size,
+                        mimeType:
+                            assetUploadFile.type ||
+                            "application/octet-stream",
+                    }),
+                }
+            );
+
+            const prepareData =
+                await prepareRes.json();
+
+            if (!prepareRes.ok) {
+                throw new Error(
+                    prepareData.error ||
+                        "Failed to prepare upload."
+                );
+            }
+
+            await uploadFileToSignedUrl(
+                prepareData.uploadUrl,
+                assetUploadFile,
+                prepareData.requiredHeaders
+            );
+
+            const finalizeRes =
+                await fetch("/api/assets", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        contentId:
+                            assetUploadContentId,
+                        storageKey:
+                            prepareData.storageKey,
+                        fileName:
+                            assetUploadFile.name,
+                        fileSize:
+                            assetUploadFile.size,
+                        mimeType:
+                            assetUploadFile.type ||
+                            "application/octet-stream",
+                        assetType:
+                            assetUploadType,
+                    }),
+                });
+
+            const finalizeData =
+                await finalizeRes.json();
+
+            if (!finalizeRes.ok) {
+                throw new Error(
+                    finalizeData.error ||
+                        "The file reached R2, but Nexus could not register the asset."
+                );
+            }
+
+            setAssetUploadFile(null);
+            setAssetUploadProgress(100);
+
+            const fileInput =
+                document.getElementById(
+                    "assetUploadFile"
+                );
+
+            if (fileInput) {
+                fileInput.value = "";
+            }
+
+            await Promise.all([
+                loadAssets(
+                    activeOrganizationId
+                ),
+                loadActivity(
+                    activeOrganizationId
+                ),
+            ]);
+        } catch (error) {
+            console.error(
+                "Asset upload failed:",
+                error
+            );
+
+            setAssetUploadError(
+                error.message ||
+                    "Asset upload failed."
+            );
+        } finally {
+            setAssetUploading(false);
+        }
+    };
+
+    const deleteAsset = async (asset) => {
+        if (!asset?.id) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Delete ${asset.fileName}? This removes the file from Cloudflare R2 and Nexus.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setAssetDeletingId(asset.id);
+        setAssetsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/assets/${encodeURIComponent(
+                    asset.id
+                )}`,
+                {
+                    method: "DELETE",
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to delete asset."
+                );
+            }
+
+            await Promise.all([
+                loadAssets(
+                    activeOrganizationId
+                ),
+                loadActivity(
+                    activeOrganizationId
+                ),
+            ]);
+        } catch (error) {
+            console.error(
+                "Failed to delete asset:",
+                error
+            );
+
+            setAssetsError(
+                error.message ||
+                    "Couldn't delete this asset."
+            );
+        } finally {
+            setAssetDeletingId(null);
+        }
+    };
+
+    // =========================
+    // FETCH SYSTEM ACTIVITY
+    // =========================
+    const loadActivity = async (
+        organizationId = activeOrganizationId
+    ) => {
+        if (!organizationId) {
+            setActivity([]);
+            setActivityError(null);
+            setActivityLoading(false);
+            return;
+        }
+
+        setActivityLoading(true);
+        setActivityError(null);
+
+        try {
+            const params = new URLSearchParams({
+                organizationId,
+                limit: "20",
+            });
+
+            const res = await fetch(
+                `/api/activity?${params.toString()}`
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to load system activity."
+                );
+            }
+
+            setActivity(data.activity || []);
+        } catch (error) {
+            console.error(
+                "Failed to load system activity:",
+                error
+            );
+
+            setActivity([]);
+            setActivityError(
+                error.message ||
+                    "Couldn't load system activity."
+            );
+        } finally {
+            setActivityLoading(false);
+        }
+    };
+
+    // =========================
+    // NOTIFICATIONS
+    // =========================
+    const loadNotifications = async ({
+        silent = false,
+    } = {}) => {
+        if (!silent) {
+            setNotificationsLoading(true);
+        }
+
+        setNotificationsError(null);
+
+        try {
+            const res = await fetch(
+                "/api/notifications?limit=20"
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to load notifications."
+                );
+            }
+
+            setNotifications(
+                data.notifications || []
+            );
+            setUnreadNotificationCount(
+                Number(data.unreadCount || 0)
+            );
+        } catch (error) {
+            console.error(
+                "Failed to load notifications:",
+                error
+            );
+
+            if (!silent) {
+                setNotificationsError(
+                    error.message ||
+                        "Couldn't load notifications."
+                );
+            }
+        } finally {
+            if (!silent) {
+                setNotificationsLoading(false);
+            }
+        }
+    };
+
+    const markNotificationRead = async (
+        notificationId
+    ) => {
+        const notification =
+            notifications.find(
+                (item) =>
+                    item.id === notificationId
+            );
+
+        if (!notification || notification.read) {
+            return;
+        }
+
+        setNotificationUpdatingId(notificationId);
+        setNotificationsError(null);
+
+        try {
+            const res = await fetch(
+                "/api/notifications",
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        notificationId,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to update notification."
+                );
+            }
+
+            setNotifications((current) =>
+                current.map((item) =>
+                    item.id === notificationId
+                        ? {
+                              ...item,
+                              read: true,
+                          }
+                        : item
+                )
+            );
+
+            setUnreadNotificationCount(
+                (current) =>
+                    Math.max(0, current - 1)
+            );
+        } catch (error) {
+            console.error(
+                "Failed to mark notification read:",
+                error
+            );
+
+            setNotificationsError(
+                error.message ||
+                    "Couldn't update this notification."
+            );
+        } finally {
+            setNotificationUpdatingId(null);
+        }
+    };
+
+    const markAllNotificationsRead =
+        async () => {
+            if (unreadNotificationCount === 0) {
+                return;
+            }
+
+            setMarkingAllNotificationsRead(true);
+            setNotificationsError(null);
+
+            try {
+                const res = await fetch(
+                    "/api/notifications",
+                    {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                        },
+                        body: JSON.stringify({
+                            markAllRead: true,
+                        }),
+                    }
+                );
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(
+                        data.error ||
+                            "Failed to update notifications."
+                    );
+                }
+
+                setNotifications((current) =>
+                    current.map((item) => ({
+                        ...item,
+                        read: true,
+                    }))
+                );
+
+                setUnreadNotificationCount(0);
+            } catch (error) {
+                console.error(
+                    "Failed to mark all notifications read:",
+                    error
+                );
+
+                setNotificationsError(
+                    error.message ||
+                        "Couldn't update notifications."
+                );
+            } finally {
+                setMarkingAllNotificationsRead(false);
+            }
+        };
+
+    // =========================
+    // ACCOUNT SETTINGS
+    // =========================
+    const loadSettings = async ({
+        silent = false,
+    } = {}) => {
+        if (!silent) {
+            setSettingsLoading(true);
+        }
+
+        setSettingsError(null);
+
+        try {
+            const res = await fetch(
+                "/api/settings"
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to load account settings."
+                );
+            }
+
+            const profile =
+                data.profile || null;
+
+            setSettingsProfile(profile);
+
+            if (profile) {
+                setProfileDraft(
+                    (current) => ({
+                        ...current,
+                        name:
+                            profile.name ||
+                            "",
+                        email:
+                            profile.email ||
+                            "",
+                        currentPassword:
+                            "",
+                    })
+                );
+            }
+        } catch (error) {
+            console.error(
+                "Failed to load account settings:",
+                error
+            );
+
+            setSettingsError(
+                error.message ||
+                    "Couldn't load account settings."
+            );
+        } finally {
+            if (!silent) {
+                setSettingsLoading(false);
+            }
+        }
+    };
+
+    const saveProfileSettings = async (
+        event
+    ) => {
+        event.preventDefault();
+
+        setSettingsSaving("profile");
+        setSettingsError(null);
+        setSettingsSuccess(null);
+
+        try {
+            const res = await fetch(
+                "/api/settings",
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        action: "PROFILE",
+                        name:
+                            profileDraft.name.trim(),
+                        email:
+                            profileDraft.email.trim(),
+                        currentPassword:
+                            profileDraft.currentPassword,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to update profile."
+                );
+            }
+
+            setSettingsProfile(
+                (current) => ({
+                    ...(current || {}),
+                    ...data.profile,
+                })
+            );
+
+            setProfileDraft(
+                (current) => ({
+                    ...current,
+                    name:
+                        data.profile?.name ||
+                        current.name,
+                    email:
+                        data.profile?.email ||
+                        current.email,
+                    currentPassword: "",
+                })
+            );
+
+            setSettingsSuccess(
+                data.emailChanged
+                    ? "Profile and email updated."
+                    : "Profile updated."
+            );
+        } catch (error) {
+            console.error(
+                "Failed to update profile:",
+                error
+            );
+
+            setSettingsError(
+                error.message ||
+                    "Couldn't update your profile."
+            );
+        } finally {
+            setSettingsSaving(null);
+        }
+    };
+
+    const savePasswordSettings = async (
+        event
+    ) => {
+        event.preventDefault();
+
+        setSettingsError(null);
+        setSettingsSuccess(null);
+
+        if (
+            passwordDraft.newPassword !==
+            passwordDraft.confirmPassword
+        ) {
+            setSettingsError(
+                "New passwords do not match."
+            );
+            return;
+        }
+
+        setSettingsSaving("password");
+
+        try {
+            const res = await fetch(
+                "/api/settings",
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        action: "PASSWORD",
+                        currentPassword:
+                            passwordDraft.currentPassword,
+                        newPassword:
+                            passwordDraft.newPassword,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to change password."
+                );
+            }
+
+            setPasswordDraft({
+                currentPassword: "",
+                newPassword: "",
+                confirmPassword: "",
+            });
+
+            setSettingsSuccess(
+                "Password updated successfully."
+            );
+        } catch (error) {
+            console.error(
+                "Failed to change password:",
+                error
+            );
+
+            setSettingsError(
+                error.message ||
+                    "Couldn't change your password."
+            );
+        } finally {
+            setSettingsSaving(null);
+        }
+    };
+
+    const saveWorkspaceSettings = async (
+        event
+    ) => {
+        event.preventDefault();
+
+        if (!activeOrganizationId) {
+            return;
+        }
+
+        setSettingsSaving("workspace");
+        setSettingsError(null);
+        setSettingsSuccess(null);
+
+        try {
+            const res = await fetch(
+                "/api/settings",
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        action: "WORKSPACE",
+                        organizationId:
+                            activeOrganizationId,
+                        name:
+                            workspaceNameDraft.trim(),
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to update workspace."
+                );
+            }
+
+            setOrganizations(
+                (current) =>
+                    current.map(
+                        (organization) =>
+                            organization.id ===
+                            data.workspace.id
+                                ? {
+                                      ...organization,
+                                      name:
+                                          data
+                                              .workspace
+                                              .name,
+                                  }
+                                : organization
+                    )
+            );
+
+            setSettingsProfile(
+                (current) =>
+                    current
+                        ? {
+                              ...current,
+                              workspaces:
+                                  (
+                                      current.workspaces ||
+                                      []
+                                  ).map(
+                                      (
+                                          workspace
+                                      ) =>
+                                          workspace.id ===
+                                          data
+                                              .workspace
+                                              .id
+                                              ? {
+                                                    ...workspace,
+                                                    name:
+                                                        data
+                                                            .workspace
+                                                            .name,
+                                                }
+                                              : workspace
+                                  ),
+                          }
+                        : current
+            );
+
+            setWorkspaceNameDraft(
+                data.workspace.name
+            );
+
+            setSettingsSuccess(
+                "Workspace updated."
+            );
+
+            await loadActivity(
+                activeOrganizationId
+            );
+        } catch (error) {
+            console.error(
+                "Failed to update workspace:",
+                error
+            );
+
+            setSettingsError(
+                error.message ||
+                    "Couldn't update this workspace."
+            );
+        } finally {
+            setSettingsSaving(null);
         }
     };
 
@@ -522,6 +1607,7 @@ export default function CreatorDashboard({ user }) {
             }
 
             await loadProjectAssignments(contentId);
+            await loadActivity(activeOrganizationId);
         } catch (error) {
             console.error(
                 "Failed to assign Editor:",
@@ -575,6 +1661,7 @@ export default function CreatorDashboard({ user }) {
             }
 
             await loadProjectAssignments(contentId);
+            await loadActivity(activeOrganizationId);
         } catch (error) {
             console.error(
                 "Failed to remove Editor:",
@@ -692,6 +1779,7 @@ export default function CreatorDashboard({ user }) {
             }
 
             await loadCreatorAssignments(creatorId);
+            await loadActivity(activeOrganizationId);
         } catch (error) {
             console.error(
                 "Failed to assign Editor to Creator:",
@@ -745,6 +1833,7 @@ export default function CreatorDashboard({ user }) {
             }
 
             await loadCreatorAssignments(creatorId);
+            await loadActivity(activeOrganizationId);
         } catch (error) {
             console.error(
                 "Failed to remove Editor from Creator:",
@@ -938,6 +2027,12 @@ export default function CreatorDashboard({ user }) {
             }
 
             await loadTasks(selectedProject?.content?.id);
+
+            setExpandedCompletedTasks((current) => {
+                const next = { ...current };
+                delete next[taskId];
+                return next;
+            });
         } catch (error) {
             console.error("Failed to update task:", error);
 
@@ -1031,6 +2126,188 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
+    const refreshProjectContext = async () => {
+        const contentId = selectedProject?.content?.id;
+
+        if (!contentId) {
+            return;
+        }
+
+        await loadProjectDetails(contentId);
+
+        if (selectedCreator) {
+            await loadCreatorProjects(selectedCreator.id);
+        } else {
+            await loadProjects(activeOrganizationId);
+        }
+
+        await loadActivity(activeOrganizationId);
+    };
+
+    const updateProductionStatus = async (status) => {
+        const contentId = selectedProject?.content?.id;
+
+        if (!contentId) {
+            return;
+        }
+
+        setProjectStatusUpdating(true);
+        setProjectDetailsError(null);
+        setReviewError(null);
+
+        try {
+            const res = await fetch(
+                `/api/projects/${encodeURIComponent(contentId)}`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        status,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to update project status."
+                );
+            }
+
+            await refreshProjectContext();
+        } catch (error) {
+            console.error("Failed to update project status:", error);
+
+            setProjectDetailsError(
+                error.message || "Failed to update project status."
+            );
+        } finally {
+            setProjectStatusUpdating(false);
+        }
+    };
+
+    const submitReviewComment = async (event, reviewId) => {
+        event.preventDefault();
+
+        const comment = reviewComment.trim();
+
+        if (!reviewId || !comment) {
+            return;
+        }
+
+        const timestamp = parseReviewTimestamp(reviewTimestamp);
+
+        if (Number.isNaN(timestamp)) {
+            setReviewError(
+                "Use a timestamp like 1:23, 01:23:45, or leave it blank."
+            );
+            return;
+        }
+
+        setReviewCommentSubmitting(true);
+        setReviewError(null);
+
+        try {
+            const res = await fetch(
+                `/api/reviews/${encodeURIComponent(
+                    reviewId
+                )}/comments`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        comment,
+                        timestamp,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to add review comment."
+                );
+            }
+
+            setReviewComment("");
+            setReviewTimestamp("");
+            await refreshProjectContext();
+        } catch (error) {
+            console.error("Failed to add review comment:", error);
+
+            setReviewError(
+                error.message || "Failed to add review comment."
+            );
+        } finally {
+            setReviewCommentSubmitting(false);
+        }
+    };
+
+    const submitReviewDecision = async (reviewId, decision) => {
+        if (!reviewId) {
+            return;
+        }
+
+        if (
+            decision === "REQUEST_REVISION" &&
+            !reviewNote.trim()
+        ) {
+            setReviewError(
+                "Add revision notes so the Editor knows what needs to change."
+            );
+            return;
+        }
+
+        setProjectStatusUpdating(true);
+        setProjectDetailsError(null);
+        setReviewError(null);
+
+        try {
+            const res = await fetch(
+                `/api/reviews/${encodeURIComponent(
+                    reviewId
+                )}/decision`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        decision,
+                        notes: reviewNote.trim(),
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to process review decision."
+                );
+            }
+
+            setReviewNote("");
+            setReviewComment("");
+            setReviewTimestamp("");
+            await refreshProjectContext();
+        } catch (error) {
+            console.error("Failed to process review decision:", error);
+
+            setReviewError(
+                error.message || "Failed to process review decision."
+            );
+        } finally {
+            setProjectStatusUpdating(false);
+        }
+    };
+
     const openProjectDetails = async (project) => {
         setSelectedProject(null);
         setProjectDetailsError(null);
@@ -1039,6 +2316,10 @@ export default function CreatorDashboard({ user }) {
         setTasks([]);
         setTaskDrafts({});
         setCanManageAssignments(false);
+        setReviewNote("");
+        setReviewComment("");
+        setReviewTimestamp("");
+        setReviewError(null);
         setCurrentView("project-details");
 
         if (isEditor) {
@@ -1060,6 +2341,26 @@ export default function CreatorDashboard({ user }) {
     // =========================
     useEffect(() => {
         loadOrganizations();
+        loadSettings();
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        loadNotifications();
+
+        const timer = window.setInterval(
+            () => {
+                loadNotifications({
+                    silent: true,
+                });
+            },
+            30000
+        );
+
+        return () => {
+            window.clearInterval(timer);
+        };
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -1069,20 +2370,24 @@ export default function CreatorDashboard({ user }) {
             loadProjects(activeOrganizationId);
             loadCreators(activeOrganizationId);
             loadAssets(activeOrganizationId);
+            loadActivity(activeOrganizationId);
         } else if (!organizationsLoading) {
             // No accessible organization means there is nothing left to
             // fetch, so finish the dependent loading states.
             setProjects([]);
             setCreators([]);
             setAssets([]);
+            setActivity([]);
 
             setProjectsError(null);
             setCreatorsError(null);
             setAssetsError(null);
+            setActivityError(null);
 
             setProjectsLoading(false);
             setCreatorsLoading(false);
             setAssetsLoading(false);
+            setActivityLoading(false);
         }
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1101,6 +2406,44 @@ export default function CreatorDashboard({ user }) {
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [assetSearch, activeOrganizationId]);
+
+    useEffect(() => {
+        if (projects.length === 0) {
+            setAssetUploadContentId("");
+            return;
+        }
+
+        const selectedStillExists =
+            projects.some(
+                (project) =>
+                    project.id ===
+                    assetUploadContentId
+            );
+
+        if (!selectedStillExists) {
+            setAssetUploadContentId(
+                projects[0].id
+            );
+        }
+    }, [projects, assetUploadContentId]);
+
+    useEffect(() => {
+        const workspace =
+            settingsProfile?.workspaces?.find(
+                (item) =>
+                    item.id ===
+                    activeOrganizationId
+            ) ||
+            settingsProfile?.workspaces?.[0] ||
+            null;
+
+        setWorkspaceNameDraft(
+            workspace?.name || ""
+        );
+    }, [
+        settingsProfile,
+        activeOrganizationId,
+    ]);
 
     // =========================
     // THEME INITIALIZATION
@@ -1188,10 +2531,7 @@ export default function CreatorDashboard({ user }) {
             formData.get("briefLink") || ""
         ).trim();
 
-        if (
-            !link.includes("http://") &&
-            !link.includes("https://")
-        ) {
+        if (!isGoogleDriveFolderUrl(link)) {
             setBriefError(true);
             return;
         }
@@ -1221,6 +2561,7 @@ export default function CreatorDashboard({ user }) {
             }
 
             await loadProjects(activeOrganizationId);
+            await loadActivity(activeOrganizationId);
 
             setBriefModalOpen(false);
             setCurrentView("overview");
@@ -1306,6 +2647,42 @@ export default function CreatorDashboard({ user }) {
                 .map((editor) => [editor.id, editor])
         ).values()
     );
+
+    const currentProjectStatus = normalizeProjectStatus(
+        selectedProject?.content?.status
+    );
+
+    const pendingReview =
+        selectedProject?.reviews?.find(
+            (review) => review.status === "PENDING"
+        ) || null;
+
+    const canMakeReviewDecision =
+        Boolean(pendingReview) &&
+        (isCreator || canManageAssignments);
+
+    const settingsWorkspaces =
+        settingsProfile?.workspaces || [];
+
+    const activeSettingsWorkspace =
+        settingsWorkspaces.find(
+            (workspace) =>
+                workspace.id ===
+                activeOrganizationId
+        ) ||
+        settingsWorkspaces[0] ||
+        null;
+
+    const canManageWorkspaceSettings =
+        activeSettingsWorkspace?.role ===
+            "ADMIN" ||
+        activeSettingsWorkspace?.role ===
+            "MANAGER";
+
+    const displayUserName =
+        settingsProfile?.name ||
+        user?.name ||
+        "Nexus Studio";
 
     return (
         <>
@@ -1399,8 +2776,7 @@ export default function CreatorDashboard({ user }) {
 
                     <div className="sidebar-user">
                         <div className="user-avatar">
-                            {(user?.name ||
-                                "Nexus Studio")
+                            {displayUserName
                                 .split(" ")
                                 .map(
                                     (part) =>
@@ -1413,8 +2789,7 @@ export default function CreatorDashboard({ user }) {
 
                         <div className="user-meta">
                             <strong>
-                                {user?.name ||
-                                    "Nexus Studio"}
+                                {displayUserName}
                             </strong>
 
                             <small>
@@ -1509,6 +2884,350 @@ export default function CreatorDashboard({ user }) {
                                             )
                                         )}
                                 </select>
+                            </div>
+
+                            <div
+                                style={{
+                                    position:
+                                        "relative",
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    className="action-btn"
+                                    aria-label="Notifications"
+                                    aria-expanded={
+                                        notificationMenuOpen
+                                    }
+                                    onClick={() => {
+                                        setNotificationMenuOpen(
+                                            (current) =>
+                                                !current
+                                        );
+
+                                        if (
+                                            !notificationMenuOpen
+                                        ) {
+                                            loadNotifications({
+                                                silent: true,
+                                            });
+                                        }
+                                    }}
+                                    style={{
+                                        position:
+                                            "relative",
+                                        minWidth:
+                                            "42px",
+                                        minHeight:
+                                            "42px",
+                                        padding:
+                                            "0 12px",
+                                        display:
+                                            "inline-flex",
+                                        alignItems:
+                                            "center",
+                                        justifyContent:
+                                            "center",
+                                        fontSize:
+                                            "1.05rem",
+                                    }}
+                                >
+                                    🔔
+
+                                    {unreadNotificationCount >
+                                        0 && (
+                                        <span
+                                            style={{
+                                                position:
+                                                    "absolute",
+                                                top: "-6px",
+                                                right:
+                                                    "-6px",
+                                                minWidth:
+                                                    "20px",
+                                                height:
+                                                    "20px",
+                                                padding:
+                                                    "0 5px",
+                                                borderRadius:
+                                                    "999px",
+                                                display:
+                                                    "inline-flex",
+                                                alignItems:
+                                                    "center",
+                                                justifyContent:
+                                                    "center",
+                                                fontSize:
+                                                    "0.68rem",
+                                                fontWeight:
+                                                    800,
+                                                lineHeight:
+                                                    1,
+                                                background:
+                                                    "var(--accent)",
+                                                color:
+                                                    "var(--bg)",
+                                                border:
+                                                    "2px solid var(--bg)",
+                                            }}
+                                        >
+                                            {unreadNotificationCount >
+                                            99
+                                                ? "99+"
+                                                : unreadNotificationCount}
+                                        </span>
+                                    )}
+                                </button>
+
+                                {notificationMenuOpen && (
+                                    <div
+                                        style={{
+                                            position:
+                                                "absolute",
+                                            top:
+                                                "calc(100% + 10px)",
+                                            right: 0,
+                                            width:
+                                                "min(390px, calc(100vw - 32px))",
+                                            maxHeight:
+                                                "520px",
+                                            overflowY:
+                                                "auto",
+                                            zIndex:
+                                                1000,
+                                            padding:
+                                                "14px",
+                                            border:
+                                                "1px solid var(--line)",
+                                            borderRadius:
+                                                "10px",
+                                            background:
+                                                "var(--notification-bg)",
+                                            backdropFilter:
+                                                "blur(16px)",
+                                            WebkitBackdropFilter:
+                                                "blur(16px)",
+                                            boxShadow:
+                                                "var(--notification-shadow)",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                display:
+                                                    "flex",
+                                                justifyContent:
+                                                    "space-between",
+                                                alignItems:
+                                                    "center",
+                                                gap:
+                                                    "12px",
+                                                marginBottom:
+                                                    "12px",
+                                            }}
+                                        >
+                                            <div>
+                                                <strong>
+                                                    NOTIFICATIONS
+                                                </strong>
+
+                                                <p
+                                                    style={{
+                                                        margin:
+                                                            "4px 0 0",
+                                                        fontSize:
+                                                            "0.75rem",
+                                                        color:
+                                                            "var(--notification-muted)",
+                                                    }}
+                                                >
+                                                    {unreadNotificationCount}{" "}
+                                                    unread
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className="text-link"
+                                                disabled={
+                                                    markingAllNotificationsRead ||
+                                                    unreadNotificationCount ===
+                                                        0
+                                                }
+                                                onClick={
+                                                    markAllNotificationsRead
+                                                }
+                                            >
+                                                {markingAllNotificationsRead
+                                                    ? "UPDATING…"
+                                                    : "MARK ALL READ"}
+                                            </button>
+                                        </div>
+
+                                        {notificationsLoading && (
+                                            <p className="text-link">
+                                                Loading
+                                                notifications…
+                                            </p>
+                                        )}
+
+                                        {!notificationsLoading &&
+                                            notificationsError && (
+                                                <p className="brief-error-msg active">
+                                                    {
+                                                        notificationsError
+                                                    }
+                                                </p>
+                                            )}
+
+                                        {!notificationsLoading &&
+                                            !notificationsError &&
+                                            notifications.length ===
+                                                0 && (
+                                                <p
+                                                    style={{
+                                                        color:
+                                                            "var(--notification-muted)",
+                                                        margin:
+                                                            0,
+                                                    }}
+                                                >
+                                                    No
+                                                    notifications
+                                                    yet.
+                                                </p>
+                                            )}
+
+                                        {!notificationsLoading &&
+                                            notifications.length >
+                                                0 && (
+                                                <div
+                                                    style={{
+                                                        display:
+                                                            "grid",
+                                                        gap:
+                                                            "8px",
+                                                    }}
+                                                >
+                                                    {notifications.map(
+                                                        (
+                                                            notification
+                                                        ) => (
+                                                            <button
+                                                                key={
+                                                                    notification.id
+                                                                }
+                                                                type="button"
+                                                                disabled={
+                                                                    notificationUpdatingId ===
+                                                                    notification.id
+                                                                }
+                                                                onClick={() =>
+                                                                    markNotificationRead(
+                                                                        notification.id
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    width:
+                                                                        "100%",
+                                                                    textAlign:
+                                                                        "left",
+                                                                    padding:
+                                                                        "12px",
+                                                                    border:
+                                                                        "1px solid var(--line)",
+                                                                    borderRadius:
+                                                                        "8px",
+                                                                    background:
+                                                                        notification.read
+                                                                            ? "var(--notification-read-bg)"
+                                                                            : "var(--notification-unread-bg)",
+                                                                    color:
+                                                                        "inherit",
+                                                                    cursor:
+                                                                        notification.read
+                                                                            ? "default"
+                                                                            : "pointer",
+                                                                    opacity:
+                                                                        notificationUpdatingId ===
+                                                                        notification.id
+                                                                            ? 0.65
+                                                                            : 1,
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    style={{
+                                                                        display:
+                                                                            "flex",
+                                                                        alignItems:
+                                                                            "center",
+                                                                        justifyContent:
+                                                                            "space-between",
+                                                                        gap:
+                                                                            "10px",
+                                                                    }}
+                                                                >
+                                                                    <strong>
+                                                                        {
+                                                                            notification.title
+                                                                        }
+                                                                    </strong>
+
+                                                                    {!notification.read && (
+                                                                        <span
+                                                                            title="Unread"
+                                                                            style={{
+                                                                                width:
+                                                                                    "8px",
+                                                                                height:
+                                                                                    "8px",
+                                                                                flex:
+                                                                                    "0 0 8px",
+                                                                                borderRadius:
+                                                                                    "999px",
+                                                                                background:
+                                                                                    "var(--accent)",
+                                                                            }}
+                                                                        />
+                                                                    )}
+                                                                </div>
+
+                                                                <p
+                                                                    style={{
+                                                                        margin:
+                                                                            "6px 0 0",
+                                                                        lineHeight:
+                                                                            1.45,
+                                                                        color:
+                                                                            "var(--notification-text)",
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        notification.message
+                                                                    }
+                                                                </p>
+
+                                                                <span
+                                                                    className="text-link"
+                                                                    style={{
+                                                                        display:
+                                                                            "block",
+                                                                        marginTop:
+                                                                            "7px",
+                                                                        fontSize:
+                                                                            "0.72rem",
+                                                                    }}
+                                                                >
+                                                                    {formatActivityTime(
+                                                                        notification.createdAt
+                                                                    )}
+                                                                </span>
+                                                            </button>
+                                                        )
+                                                    )}
+                                                </div>
+                                            )}
+                                    </div>
+                                )}
                             </div>
 
                             <button
@@ -1694,7 +3413,14 @@ export default function CreatorDashboard({ user }) {
                                                         proj
                                                     ) => (
                                                         <div
-                                                            className="project-item"
+                                                            className={`project-item production-queue-item status-row-${normalizeProjectStatus(
+                                                                proj.status
+                                                            )
+                                                                .toLowerCase()
+                                                                .replaceAll(
+                                                                    "_",
+                                                                    "-"
+                                                                )}`}
                                                             key={
                                                                 proj.id
                                                             }
@@ -1718,7 +3444,14 @@ export default function CreatorDashboard({ user }) {
                                                             </div>
 
                                                             <div
-                                                                className={`project-status ${proj.status}`}
+                                                                className={`project-status status-${normalizeProjectStatus(
+                                                                    proj.status
+                                                                )
+                                                                    .toLowerCase()
+                                                                    .replaceAll(
+                                                                        "_",
+                                                                        "-"
+                                                                    )}`}
                                                             >
                                                                 {displayStatus(
                                                                     proj.status
@@ -1739,16 +3472,149 @@ export default function CreatorDashboard({ user }) {
                                 <div className="panel activity-panel">
                                     <div className="panel-header">
                                         <h3>SYSTEM ACTIVITY</h3>
+
+                                        <button
+                                            type="button"
+                                            className="text-link"
+                                            onClick={() =>
+                                                loadActivity(
+                                                    activeOrganizationId
+                                                )
+                                            }
+                                            disabled={
+                                                activityLoading ||
+                                                !activeOrganizationId
+                                            }
+                                        >
+                                            {activityLoading
+                                                ? "LOADING…"
+                                                : "REFRESH ↻"}
+                                        </button>
                                     </div>
 
-                                    <div style={{ padding: "18px 0" }}>
-                                        <strong>NO ACTIVITY YET</strong>
-                                        <p
-                                            className="text-link"
-                                            style={{ marginTop: "8px" }}
+                                    <div className="activity-panel-body">
+                                    {activityLoading && (
+                                        <div
+                                            style={{
+                                                padding: "18px 0",
+                                            }}
                                         >
-                                            Project and account activity will appear here once the activity log is connected.
-                                        </p>
+                                            <p className="text-link">
+                                                Loading system
+                                                activity…
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {!activityLoading &&
+                                        activityError && (
+                                            <div
+                                                style={{
+                                                    padding:
+                                                        "18px 0",
+                                                }}
+                                            >
+                                                <p className="brief-error-msg active">
+                                                    {
+                                                        activityError
+                                                    }
+                                                </p>
+                                            </div>
+                                        )}
+
+                                    {!activityLoading &&
+                                        !activityError &&
+                                        activity.length ===
+                                            0 && (
+                                            <div
+                                                style={{
+                                                    padding:
+                                                        "18px 0",
+                                                }}
+                                            >
+                                                <strong>
+                                                    NO ACTIVITY YET
+                                                </strong>
+
+                                                <p
+                                                    className="text-link"
+                                                    style={{
+                                                        marginTop:
+                                                            "8px",
+                                                    }}
+                                                >
+                                                    Project,
+                                                    assignment,
+                                                    and review
+                                                    activity
+                                                    will appear
+                                                    here.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                    {!activityLoading &&
+                                        !activityError &&
+                                        activity.length >
+                                            0 && (
+                                            <div
+                                                style={{
+                                                    display:
+                                                        "grid",
+                                                }}
+                                            >
+                                                {activity.map(
+                                                    (
+                                                        entry,
+                                                        index
+                                                    ) => (
+                                                        <div
+                                                            key={
+                                                                entry.id
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "14px 0",
+                                                                borderTop:
+                                                                    index ===
+                                                                    0
+                                                                        ? "none"
+                                                                        : "1px solid var(--line)",
+                                                            }}
+                                                        >
+                                                            <p
+                                                                style={{
+                                                                    margin:
+                                                                        0,
+                                                                    lineHeight:
+                                                                        1.5,
+                                                                }}
+                                                            >
+                                                                {formatActivityDescription(
+                                                                    entry
+                                                                )}
+                                                            </p>
+
+                                                            <span
+                                                                className="text-link"
+                                                                style={{
+                                                                    display:
+                                                                        "block",
+                                                                    marginTop:
+                                                                        "5px",
+                                                                    fontSize:
+                                                                        "0.75rem",
+                                                                }}
+                                                            >
+                                                                {formatActivityTime(
+                                                                    entry.createdAt
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </section>
@@ -1882,7 +3748,14 @@ export default function CreatorDashboard({ user }) {
                                                     proj
                                                 ) => (
                                                     <div
-                                                        className="table-row"
+                                                        className={`table-row project-table-row status-row-${normalizeProjectStatus(
+                                                            proj.status
+                                                        )
+                                                            .toLowerCase()
+                                                            .replaceAll(
+                                                                "_",
+                                                                "-"
+                                                            )}`}
                                                         key={
                                                             proj.id
                                                         }
@@ -1909,7 +3782,14 @@ export default function CreatorDashboard({ user }) {
 
                                                         <div>
                                                             <span
-                                                                className={`project-status ${proj.status}`}
+                                                                className={`project-status status-${normalizeProjectStatus(
+                                                                    proj.status
+                                                                )
+                                                                    .toLowerCase()
+                                                                    .replaceAll(
+                                                                        "_",
+                                                                        "-"
+                                                                    )}`}
                                                             >
                                                                 {displayStatus(
                                                                     proj.status
@@ -2023,13 +3903,13 @@ export default function CreatorDashboard({ user }) {
                                     !creatorsError &&
                                     creators.length >
                                     0 && (
-                                        <div className="project-list">
+                                        <div className="project-list creator-list">
                                             {creators.map(
                                                 (
                                                     creator
                                                 ) => (
                                                     <div
-                                                        className="project-item"
+                                                        className="project-item creator-row"
                                                         key={
                                                             creator.id
                                                         }
@@ -2139,7 +4019,7 @@ export default function CreatorDashboard({ user }) {
                                     </p>
                                 ) : (
                                     <>
-                                        <div className="metrics-grid">
+                                        <div className="metrics-grid creator-summary-grid">
                                             <div className="metric-card">
                                                 <span className="metric-label">
                                                     CREATOR
@@ -3141,23 +5021,88 @@ export default function CreatorDashboard({ user }) {
                                                                             task
                                                                         );
 
+                                                                    const priorityClass =
+                                                                        String(
+                                                                            draft.priority ||
+                                                                                "MEDIUM"
+                                                                        ).toLowerCase();
+
+                                                                    /*
+                                                                     * A completed task only collapses after the
+                                                                     * completed status has actually been saved to
+                                                                     * the database. This prevents the card from
+                                                                     * disappearing before SAVE TASK is pressed.
+                                                                     */
+                                                                    if (
+                                                                        task.status ===
+                                                                            "COMPLETED" &&
+                                                                        !expandedCompletedTasks[
+                                                                            task.id
+                                                                        ]
+                                                                    ) {
+                                                                        return (
+                                                                            <div
+                                                                                key={
+                                                                                    task.id
+                                                                                }
+                                                                                className={`task-card task-card-completed task-priority-border-${priorityClass}`}
+                                                                            >
+                                                                                <div className="task-completed-copy">
+                                                                                    <span
+                                                                                        className={`task-priority-label task-priority-${priorityClass}`}
+                                                                                    >
+                                                                                        {displayTaskPriority(
+                                                                                            task.priority
+                                                                                        )}{" "}
+                                                                                        PRIORITY
+                                                                                    </span>
+
+                                                                                    <strong className="task-completed-title">
+                                                                                        {
+                                                                                            task.title
+                                                                                        }
+                                                                                    </strong>
+                                                                                </div>
+
+                                                                                <div className="task-completed-controls">
+                                                                                    <span className="task-completed-status">
+                                                                                        COMPLETED
+                                                                                    </span>
+
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="action-btn task-expand-btn"
+                                                                                        onClick={() =>
+                                                                                            setExpandedCompletedTasks(
+                                                                                                (
+                                                                                                    current
+                                                                                                ) => ({
+                                                                                                    ...current,
+                                                                                                    [task.id]:
+                                                                                                        true,
+                                                                                                })
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        EXPAND ↗
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    }
+
                                                                     return (
                                                                         <div
                                                                             key={
                                                                                 task.id
                                                                             }
-                                                                            style={{
-                                                                                padding:
-                                                                                    "16px",
-                                                                                border:
-                                                                                    "1px solid var(--line)",
-                                                                                borderRadius:
-                                                                                    "8px",
-                                                                            }}
+                                                                            className={`task-card task-priority-border-${priorityClass}`}
                                                                         >
-                                                                            <div className="panel-header">
+                                                                            <div className="panel-header task-card-header">
                                                                                 <div>
-                                                                                    <span className="status-tag">
+                                                                                    <span
+                                                                                        className={`task-priority-label task-priority-${priorityClass}`}
+                                                                                    >
                                                                                         {displayTaskPriority(
                                                                                             draft.priority
                                                                                         )}{" "}
@@ -3170,7 +5115,15 @@ export default function CreatorDashboard({ user }) {
                                                                                 </div>
 
                                                                                 <span
-                                                                                    className={`project-status ${draft.status}`}
+                                                                                    className={`task-status-badge task-status-${String(
+                                                                                        draft.status ||
+                                                                                            "TODO"
+                                                                                    )
+                                                                                        .toLowerCase()
+                                                                                        .replaceAll(
+                                                                                            "_",
+                                                                                            "-"
+                                                                                        )}`}
                                                                                 >
                                                                                     {displayTaskStatus(
                                                                                         draft.status
@@ -3440,18 +5393,39 @@ export default function CreatorDashboard({ user }) {
                                                                                 />
                                                                             </div>
 
+                                                                            {task.status ===
+                                                                                "COMPLETED" &&
+                                                                                expandedCompletedTasks[
+                                                                                    task.id
+                                                                                ] && (
+                                                                                    <div className="task-expanded-toolbar">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            className="action-btn"
+                                                                                            onClick={() =>
+                                                                                                setExpandedCompletedTasks(
+                                                                                                    (
+                                                                                                        current
+                                                                                                    ) => {
+                                                                                                        const next = {
+                                                                                                            ...current,
+                                                                                                        };
+                                                                                                        delete next[
+                                                                                                            task
+                                                                                                                .id
+                                                                                                        ];
+                                                                                                        return next;
+                                                                                                    }
+                                                                                                )
+                                                                                            }
+                                                                                        >
+                                                                                            COLLAPSE
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+
                                                                             {isEditor && (
-                                                                                <div
-                                                                                    style={{
-                                                                                        display:
-                                                                                            "flex",
-                                                                                        gap: "10px",
-                                                                                        flexWrap:
-                                                                                            "wrap",
-                                                                                        marginTop:
-                                                                                            "14px",
-                                                                                    }}
-                                                                                >
+                                                                                <div className="task-actions">
                                                                                     <button
                                                                                         type="button"
                                                                                         className="button button-primary"
@@ -3697,38 +5671,53 @@ export default function CreatorDashboard({ user }) {
                                                                                         </small>
                                                                                     </div>
 
-                                                                                    <div className="project-status completed">
-                                                                                        PROJECT
-                                                                                        ACCESS
-                                                                                    </div>
+                                                                                    <div
+                                                                                        style={{
+                                                                                            marginLeft:
+                                                                                                "auto",
+                                                                                            display:
+                                                                                                "flex",
+                                                                                            alignItems:
+                                                                                                "center",
+                                                                                            justifyContent:
+                                                                                                "flex-end",
+                                                                                            gap:
+                                                                                                "12px",
+                                                                                        }}
+                                                                                    >
+                                                                                        <div className="project-status completed">
+                                                                                            PROJECT
+                                                                                            ACCESS
+                                                                                        </div>
 
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        className="action-btn"
-                                                                                        disabled={
-                                                                                            assignmentUpdatingUserId ===
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            className="action-btn"
+                                                                                            disabled={
+                                                                                                assignmentUpdatingUserId ===
+                                                                                                assignment
+                                                                                                    .user
+                                                                                                    ?.id
+                                                                                            }
+                                                                                            onClick={() =>
+                                                                                                unassignEditorFromProject(
+                                                                                                    selectedProject
+                                                                                                        .content
+                                                                                                        .id,
+                                                                                                    assignment
+                                                                                                        .user
+                                                                                                        .id
+                                                                                                )
+                                                                                            }
+                                                                                        >
+                                                                                            {assignmentUpdatingUserId ===
                                                                                             assignment
                                                                                                 .user
                                                                                                 ?.id
-                                                                                        }
-                                                                                        onClick={() =>
-                                                                                            unassignEditorFromProject(
-                                                                                                selectedProject
-                                                                                                    .content
-                                                                                                    .id,
-                                                                                                assignment
-                                                                                                    .user
-                                                                                                    .id
-                                                                                            )
-                                                                                        }
-                                                                                    >
-                                                                                        {assignmentUpdatingUserId ===
-                                                                                        assignment
-                                                                                            .user
-                                                                                            ?.id
-                                                                                            ? "REMOVING…"
-                                                                                            : "REMOVE"}
-                                                                                    </button>
+                                                                                                ? "REMOVING…"
+                                                                                                : "REMOVE"}
+                                                                                        </button>
+                                                                                    </div>
                                                                                 </div>
                                                                             )
                                                                         )}
@@ -3827,7 +5816,7 @@ export default function CreatorDashboard({ user }) {
                                                     </div>
                                                 )}
 
-                                            {/* RAW FOOTAGE */}
+                                            {/* GOOGLE DRIVE FOOTAGE FOLDER */}
                                             <div
                                                 className="panel"
                                                 style={{
@@ -3837,48 +5826,43 @@ export default function CreatorDashboard({ user }) {
                                             >
                                                 <div className="panel-header">
                                                     <h3>
-                                                        RAW
-                                                        FOOTAGE
+                                                        GOOGLE DRIVE
+                                                        FOOTAGE FOLDER
                                                     </h3>
-
-                                                    {selectedProject
-                                                        .content
-                                                        ?.footageLink && (
-                                                            <a
-                                                                href={
-                                                                    selectedProject
-                                                                        .content
-                                                                        .footageLink
-                                                                }
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="action-btn active"
-                                                            >
-                                                                OPEN
-                                                                FOOTAGE
-                                                                ↗
-                                                            </a>
-                                                        )}
                                                 </div>
 
                                                 {selectedProject
                                                     .content
                                                     ?.footageLink ? (
-                                                    <p className="text-link">
+                                                    <a
+                                                        href={
+                                                            selectedProject
+                                                                .content
+                                                                .footageLink
+                                                        }
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-link"
+                                                        style={{
+                                                            display:
+                                                                "block",
+                                                            overflowWrap:
+                                                                "anywhere",
+                                                        }}
+                                                    >
                                                         {
                                                             selectedProject
                                                                 .content
                                                                 .footageLink
                                                         }
-                                                    </p>
+                                                    </a>
                                                 ) : (
                                                     <p className="text-link">
-                                                        No raw
-                                                        footage
-                                                        link was
-                                                        attached
-                                                        to this
-                                                        project.
+                                                        No Google
+                                                        Drive footage
+                                                        folder was
+                                                        attached to
+                                                        this project.
                                                     </p>
                                                 )}
                                             </div>
@@ -4050,18 +6034,167 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
                                             </div>
 
+                                            {/* PRODUCTION ACTIONS */}
+                                            {isEditor && (
+                                                <div
+                                                    className="panel"
+                                                    style={{
+                                                        marginTop:
+                                                            "20px",
+                                                    }}
+                                                >
+                                                    <div className="panel-header">
+                                                        <div>
+                                                            <span className="status-tag">
+                                                                PRODUCTION
+                                                            </span>
+
+                                                            <h3>
+                                                                NEXT ACTION
+                                                            </h3>
+                                                        </div>
+                                                    </div>
+
+                                                    <div
+                                                        style={{
+                                                            display:
+                                                                "flex",
+                                                            gap: "10px",
+                                                            flexWrap:
+                                                                "wrap",
+                                                        }}
+                                                    >
+                                                        {currentProjectStatus ===
+                                                            "REQUESTED" && (
+                                                            <button
+                                                                type="button"
+                                                                className="button button-primary"
+                                                                disabled={
+                                                                    projectStatusUpdating
+                                                                }
+                                                                onClick={() =>
+                                                                    updateProductionStatus(
+                                                                        "IN_PRODUCTION"
+                                                                    )
+                                                                }
+                                                            >
+                                                                {projectStatusUpdating
+                                                                    ? "UPDATING…"
+                                                                    : "START PRODUCTION"}
+                                                            </button>
+                                                        )}
+
+                                                        {currentProjectStatus ===
+                                                            "REVISION" && (
+                                                            <button
+                                                                type="button"
+                                                                className="button button-primary"
+                                                                disabled={
+                                                                    projectStatusUpdating
+                                                                }
+                                                                onClick={() =>
+                                                                    updateProductionStatus(
+                                                                        "IN_PRODUCTION"
+                                                                    )
+                                                                }
+                                                            >
+                                                                {projectStatusUpdating
+                                                                    ? "UPDATING…"
+                                                                    : "START REVISION"}
+                                                            </button>
+                                                        )}
+
+                                                        {currentProjectStatus ===
+                                                            "IN_PRODUCTION" && (
+                                                            <button
+                                                                type="button"
+                                                                className="button button-primary"
+                                                                disabled={
+                                                                    projectStatusUpdating
+                                                                }
+                                                                onClick={() =>
+                                                                    updateProductionStatus(
+                                                                        "IN_REVIEW"
+                                                                    )
+                                                                }
+                                                            >
+                                                                {projectStatusUpdating
+                                                                    ? "SUBMITTING…"
+                                                                    : "SUBMIT FOR REVIEW"}
+                                                            </button>
+                                                        )}
+
+                                                        {canManageAssignments &&
+                                                            currentProjectStatus ===
+                                                                "APPROVED" && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="button button-primary"
+                                                                    disabled={
+                                                                        projectStatusUpdating
+                                                                    }
+                                                                    onClick={() =>
+                                                                        updateProductionStatus(
+                                                                            "SCHEDULED"
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {projectStatusUpdating
+                                                                        ? "UPDATING…"
+                                                                        : "MARK SCHEDULED"}
+                                                                </button>
+                                                            )}
+
+                                                        {canManageAssignments &&
+                                                            currentProjectStatus ===
+                                                                "SCHEDULED" && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="button button-primary"
+                                                                    disabled={
+                                                                        projectStatusUpdating
+                                                                    }
+                                                                    onClick={() =>
+                                                                        updateProductionStatus(
+                                                                            "PUBLISHED"
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {projectStatusUpdating
+                                                                        ? "UPDATING…"
+                                                                        : "MARK PUBLISHED"}
+                                                                </button>
+                                                            )}
+
+                                                        {![
+                                                            "REQUESTED",
+                                                            "REVISION",
+                                                            "IN_PRODUCTION",
+                                                            "APPROVED",
+                                                            "SCHEDULED",
+                                                        ].includes(
+                                                            currentProjectStatus
+                                                        ) && (
+                                                            <p className="text-link">
+                                                                {currentProjectStatus ===
+                                                                "IN_REVIEW"
+                                                                    ? "This cut is waiting for a review decision."
+                                                                    : currentProjectStatus ===
+                                                                      "PUBLISHED"
+                                                                    ? "This project has been published."
+                                                                    : "No production action is available right now."}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* REVIEW */}
-                                            <div
-                                                className="panel"
-                                                style={{
-                                                    marginTop:
-                                                        "20px",
-                                                }}
-                                            >
-                                                <div className="panel-header">
+                                            <div className="panel review-panel">
+                                                <div className="panel-header review-panel-header">
                                                     <div>
                                                         <span className="status-tag">
-                                                            EDITOR
+                                                            PROJECT
                                                             REVIEW
                                                         </span>
 
@@ -4087,102 +6220,232 @@ export default function CreatorDashboard({ user }) {
                                                     </span>
                                                 </div>
 
-                                                {/* REVIEW HISTORY */}
+                                                {reviewError && (
+                                                    <p className="brief-error-msg active">
+                                                        {
+                                                            reviewError
+                                                        }
+                                                    </p>
+                                                )}
+
                                                 {selectedProject
                                                     .reviews
                                                     ?.length >
-                                                    0 && (
-                                                        <div
-                                                            style={{
-                                                                display:
-                                                                    "grid",
-                                                                gap: "12px",
-                                                                marginBottom:
-                                                                    "20px",
-                                                            }}
-                                                        >
-                                                            {selectedProject.reviews.map(
-                                                                (
-                                                                    review
-                                                                ) => (
-                                                                    <div
-                                                                        key={
-                                                                            review.id
-                                                                        }
-                                                                        style={{
-                                                                            padding:
-                                                                                "14px",
-                                                                            border:
-                                                                                "1px solid var(--line)",
-                                                                            borderRadius:
-                                                                                "8px",
-                                                                        }}
-                                                                    >
-                                                                        <div
-                                                                            style={{
-                                                                                display:
-                                                                                    "flex",
-                                                                                justifyContent:
-                                                                                    "space-between",
-                                                                                gap: "12px",
-                                                                            }}
-                                                                        >
-                                                                            <strong>
-                                                                                {review.status.replaceAll(
-                                                                                    "_",
-                                                                                    " "
-                                                                                )}
-                                                                            </strong>
+                                                0 ? (
+                                                    <div className="review-history-list">
+                                                        {selectedProject.reviews.map(
+                                                            (
+                                                                review
+                                                            ) => (
+                                                                <div
+                                                                    key={
+                                                                        review.id
+                                                                    }
+                                                                    className="review-history-card"
+                                                                >
+                                                                    <div className="review-history-top">
+                                                                        <strong>
+                                                                            {review.status.replaceAll(
+                                                                                "_",
+                                                                                " "
+                                                                            )}
+                                                                        </strong>
 
-                                                                            <small>
-                                                                                {new Date(
-                                                                                    review.createdAt
-                                                                                ).toLocaleString()}
-                                                                            </small>
-                                                                        </div>
+                                                                        <small>
+                                                                            {new Date(
+                                                                                review.createdAt
+                                                                            ).toLocaleString()}
+                                                                        </small>
+                                                                    </div>
 
+                                                                    {review.notes && (
                                                                         <p
                                                                             style={{
                                                                                 marginTop:
                                                                                     "8px",
                                                                             }}
                                                                         >
-                                                                            {review.notes ||
-                                                                                "No review notes."}
+                                                                            {
+                                                                                review.notes
+                                                                            }
                                                                         </p>
+                                                                    )}
 
-                                                                        <small>
-                                                                            By{" "}
-                                                                            {review
+                                                                    <small>
+                                                                        Submitted
+                                                                        by{" "}
+                                                                        {review
+                                                                            .author
+                                                                            ?.name ||
+                                                                            review
                                                                                 .author
-                                                                                ?.name ||
-                                                                                review
-                                                                                    .author
-                                                                                    ?.email ||
-                                                                                "Unknown reviewer"}
-                                                                        </small>
-                                                                    </div>
-                                                                )
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                                                ?.email ||
+                                                                            "Unknown user"}
+                                                                    </small>
 
-                                                {/* EDITOR REVIEW CONTROLS */}
-                                                {isEditor &&
-                                                    [
-                                                        "IN_REVIEW",
-                                                        "REVISION",
-                                                    ].includes(
-                                                        normalizeProjectStatus(
-                                                            selectedProject
-                                                                .content
-                                                                ?.status
-                                                        )
-                                                    ) && (
-                                                        <>
+                                                                    {review
+                                                                        .comments
+                                                                        ?.length >
+                                                                        0 && (
+                                                                        <div className="review-comments-list">
+                                                                            {review.comments.map(
+                                                                                (
+                                                                                    comment
+                                                                                ) => (
+                                                                                    <div
+                                                                                        key={
+                                                                                            comment.id
+                                                                                        }
+                                                                                        className="review-comment-card"
+                                                                                    >
+                                                                                        <div className="review-comment-top">
+                                                                                            <strong>
+                                                                                                {comment
+                                                                                                    .author
+                                                                                                    ?.name ||
+                                                                                                    comment
+                                                                                                        .author
+                                                                                                        ?.email ||
+                                                                                                    "Unknown user"}
+                                                                                            </strong>
+
+                                                                                            <small>
+                                                                                                {comment.timestamp !==
+                                                                                                    null &&
+                                                                                                comment.timestamp !==
+                                                                                                    undefined
+                                                                                                    ? `${formatReviewTimestamp(
+                                                                                                          comment.timestamp
+                                                                                                      )} • `
+                                                                                                    : ""}
+                                                                                                {new Date(
+                                                                                                    comment.createdAt
+                                                                                                ).toLocaleString()}
+                                                                                            </small>
+                                                                                        </div>
+
+                                                                                        <p
+                                                                                            style={{
+                                                                                                marginTop:
+                                                                                                    "6px",
+                                                                                            }}
+                                                                                        >
+                                                                                            {
+                                                                                                comment.comment
+                                                                                            }
+                                                                                        </p>
+                                                                                    </div>
+                                                                                )
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p
+                                                        className="text-link"
+                                                        style={{
+                                                            marginBottom:
+                                                                "20px",
+                                                        }}
+                                                    >
+                                                        No review
+                                                        cycle has
+                                                        started yet.
+                                                    </p>
+                                                )}
+
+                                                {pendingReview && (
+                                                    <form
+                                                        onSubmit={(
+                                                            event
+                                                        ) =>
+                                                            submitReviewComment(
+                                                                event,
+                                                                pendingReview.id
+                                                            )
+                                                        }
+                                                        className="review-comment-form"
+                                                    >
+                                                        <div className="form-field review-comment-main">
+                                                            <label htmlFor="reviewComment">
+                                                                REVIEW
+                                                                COMMENT
+                                                            </label>
+
+                                                            <textarea
+                                                                id="reviewComment"
+                                                                className="dash-input"
+                                                                value={
+                                                                    reviewComment
+                                                                }
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setReviewComment(
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="Add feedback, a question, or a note about the current cut..."
+                                                                rows={
+                                                                    4
+                                                                }
+                                                            />
+                                                        </div>
+
+                                                        <div className="form-field review-timestamp-field">
+                                                            <label htmlFor="reviewTimestamp">
+                                                                TIMESTAMP
+                                                                (OPTIONAL)
+                                                            </label>
+
+                                                            <input
+                                                                id="reviewTimestamp"
+                                                                type="text"
+                                                                className="dash-input"
+                                                                value={
+                                                                    reviewTimestamp
+                                                                }
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setReviewTimestamp(
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="1:23 or 01:23:45"
+                                                            />
+                                                        </div>
+
+                                                        <div className="review-comment-submit">
+                                                            <button
+                                                                type="submit"
+                                                                className="button button-primary"
+                                                                disabled={
+                                                                    reviewCommentSubmitting ||
+                                                                    !reviewComment.trim()
+                                                                }
+                                                            >
+                                                                {reviewCommentSubmitting
+                                                                    ? "ADDING…"
+                                                                    : "ADD COMMENT"}
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                )}
+
+                                                {pendingReview &&
+                                                    canMakeReviewDecision && (
+                                                        <div className="review-decision-card">
                                                             <div className="form-field">
                                                                 <label htmlFor="reviewNote">
-                                                                    REVIEW
+                                                                    DECISION
                                                                     NOTES
                                                                 </label>
 
@@ -4193,230 +6456,98 @@ export default function CreatorDashboard({ user }) {
                                                                         reviewNote
                                                                     }
                                                                     onChange={(
-                                                                        e
+                                                                        event
                                                                     ) =>
                                                                         setReviewNote(
-                                                                            e
+                                                                            event
                                                                                 .target
                                                                                 .value
                                                                         )
                                                                     }
-                                                                    placeholder="Tell the creator what needs to change, or leave notes for approval..."
+                                                                    placeholder="Optional for approval. Required when requesting a revision."
                                                                     rows={
-                                                                        5
+                                                                        4
                                                                     }
                                                                 />
                                                             </div>
 
-                                                            <div
-                                                                style={{
-                                                                    display:
-                                                                        "flex",
-                                                                    gap: "10px",
-                                                                    flexWrap:
-                                                                        "wrap",
-                                                                    marginTop:
-                                                                        "15px",
-                                                                }}
-                                                            >
-                                                                {/* APPROVE */}
+                                                            <div className="review-decision-actions">
                                                                 <button
                                                                     type="button"
                                                                     className="button button-primary"
                                                                     disabled={
                                                                         projectStatusUpdating
                                                                     }
-                                                                    onClick={async () => {
-                                                                        setProjectStatusUpdating(
-                                                                            true
-                                                                        );
-
-                                                                        try {
-                                                                            const res =
-                                                                                await fetch(
-                                                                                    `/api/projects/${selectedProject.content.id}`,
-                                                                                    {
-                                                                                        method: "PATCH",
-                                                                                        headers: {
-                                                                                            "Content-Type":
-                                                                                                "application/json",
-                                                                                        },
-                                                                                        body: JSON.stringify(
-                                                                                            {
-                                                                                                status:
-                                                                                                    "APPROVED",
-                                                                                                reviewNotes:
-                                                                                                    reviewNote,
-                                                                                            }
-                                                                                        ),
-                                                                                    }
-                                                                                );
-
-                                                                            const data =
-                                                                                await res.json();
-
-                                                                            if (
-                                                                                !res.ok
-                                                                            ) {
-                                                                                throw new Error(
-                                                                                    data.error ||
-                                                                                    "Failed to approve project."
-                                                                                );
-                                                                            }
-
-                                                                            await loadProjectDetails(
-                                                                                selectedProject
-                                                                                    .content
-                                                                                    .id
-                                                                            );
-
-                                                                            if (
-                                                                                selectedCreator
-                                                                            ) {
-                                                                                await loadCreatorProjects(
-                                                                                    selectedCreator.id
-                                                                                );
-                                                                            } else {
-                                                                                await loadProjects(
-                                                                                    activeOrganizationId
-                                                                                );
-                                                                            }
-
-                                                                            setReviewNote(
-                                                                                ""
-                                                                            );
-                                                                        } catch (
-                                                                        err
-                                                                        ) {
-                                                                            console.error(
-                                                                                err
-                                                                            );
-
-                                                                            setProjectDetailsError(
-                                                                                err.message ||
-                                                                                "Failed to approve project."
-                                                                            );
-                                                                        } finally {
-                                                                            setProjectStatusUpdating(
-                                                                                false
-                                                                            );
-                                                                        }
-                                                                    }}
+                                                                    onClick={() =>
+                                                                        submitReviewDecision(
+                                                                            pendingReview.id,
+                                                                            "APPROVE"
+                                                                        )
+                                                                    }
                                                                 >
                                                                     {projectStatusUpdating
                                                                         ? "UPDATING…"
                                                                         : "✓ APPROVE CUT"}
                                                                 </button>
 
-                                                                {/* REQUEST REVISION */}
                                                                 <button
                                                                     type="button"
                                                                     className="action-btn active"
                                                                     disabled={
-                                                                        projectStatusUpdating
+                                                                        projectStatusUpdating ||
+                                                                        !reviewNote.trim()
                                                                     }
-                                                                    onClick={async () => {
-                                                                        setProjectStatusUpdating(
-                                                                            true
-                                                                        );
-
-                                                                        try {
-                                                                            const res =
-                                                                                await fetch(
-                                                                                    `/api/projects/${selectedProject.content.id}`,
-                                                                                    {
-                                                                                        method: "PATCH",
-                                                                                        headers: {
-                                                                                            "Content-Type":
-                                                                                                "application/json",
-                                                                                        },
-                                                                                        body: JSON.stringify(
-                                                                                            {
-                                                                                                status:
-                                                                                                    "REVISION",
-                                                                                                reviewNotes:
-                                                                                                    reviewNote,
-                                                                                            }
-                                                                                        ),
-                                                                                    }
-                                                                                );
-
-                                                                            const data =
-                                                                                await res.json();
-
-                                                                            if (
-                                                                                !res.ok
-                                                                            ) {
-                                                                                throw new Error(
-                                                                                    data.error ||
-                                                                                    "Failed to request revision."
-                                                                                );
-                                                                            }
-
-                                                                            await loadProjectDetails(
-                                                                                selectedProject
-                                                                                    .content
-                                                                                    .id
-                                                                            );
-
-                                                                            if (
-                                                                                selectedCreator
-                                                                            ) {
-                                                                                await loadCreatorProjects(
-                                                                                    selectedCreator.id
-                                                                                );
-                                                                            } else {
-                                                                                await loadProjects(
-                                                                                    activeOrganizationId
-                                                                                );
-                                                                            }
-
-                                                                            setReviewNote(
-                                                                                ""
-                                                                            );
-                                                                        } catch (
-                                                                        err
-                                                                        ) {
-                                                                            console.error(
-                                                                                err
-                                                                            );
-
-                                                                            setProjectDetailsError(
-                                                                                err.message ||
-                                                                                "Failed to request revision."
-                                                                            );
-                                                                        } finally {
-                                                                            setProjectStatusUpdating(
-                                                                                false
-                                                                            );
-                                                                        }
-                                                                    }}
+                                                                    onClick={() =>
+                                                                        submitReviewDecision(
+                                                                            pendingReview.id,
+                                                                            "REQUEST_REVISION"
+                                                                        )
+                                                                    }
                                                                 >
                                                                     ↻ REQUEST
                                                                     REVISION
                                                                 </button>
                                                             </div>
-                                                        </>
+                                                        </div>
                                                     )}
 
-                                                {/* NON-REVIEW STATE */}
-                                                {(!isEditor ||
-                                                    ![
-                                                        "IN_REVIEW",
-                                                        "REVISION",
-                                                    ].includes(
-                                                        normalizeProjectStatus(
-                                                            selectedProject
-                                                                .content
-                                                                ?.status
-                                                        )
-                                                    )) && (
-                                                        <p className="text-link">
-                                                            {isEditor
-                                                                ? "This project is not currently awaiting review."
-                                                                : "Review actions are managed by the production team."}
+                                                {pendingReview &&
+                                                    isEditor &&
+                                                    !canManageAssignments && (
+                                                        <p
+                                                            className="text-link"
+                                                            style={{
+                                                                marginTop:
+                                                                    "16px",
+                                                            }}
+                                                        >
+                                                            You can
+                                                            add review
+                                                            comments,
+                                                            but the
+                                                            Creator,
+                                                            Admin, or
+                                                            Manager
+                                                            makes the
+                                                            approval
+                                                            decision.
                                                         </p>
                                                     )}
+
+                                                {!pendingReview && (
+                                                    <p
+                                                        className="text-link"
+                                                        style={{
+                                                            marginTop:
+                                                                "16px",
+                                                        }}
+                                                    >
+                                                        {currentProjectStatus ===
+                                                        "IN_REVIEW"
+                                                            ? "The review is loading or has already been resolved."
+                                                            : "There is no active review awaiting a decision."}
+                                                    </p>
+                                                )}
                                             </div>
                                         </>
                                     )}
@@ -4434,16 +6565,22 @@ export default function CreatorDashboard({ user }) {
                             }`}
                     >
                         <div className="panel-scroll-container">
-                            <div className="panel">
-                                <div className="panel-header">
-                                    <h3>
-                                        CREATOR ASSET VAULT
-                                    </h3>
+                            <div className="panel asset-vault-panel">
+                                <div className="panel-header asset-vault-header">
+                                    <div>
+                                        <span className="status-tag">
+                                            CLOUDFLARE R2
+                                        </span>
+
+                                        <h3>
+                                            CREATOR ASSET VAULT
+                                        </h3>
+                                    </div>
 
                                     <input
                                         type="text"
-                                        className="dash-input"
-                                        placeholder="Search 3D models, footage, overlays..."
+                                        className="dash-input asset-search-input"
+                                        placeholder="Search assets..."
                                         value={
                                             assetSearch
                                         }
@@ -4455,137 +6592,338 @@ export default function CreatorDashboard({ user }) {
                                     />
                                 </div>
 
-                                <div className="asset-grid">
-                                    {assetsLoading ? (
-                                        <div
-                                            style={{
-                                                gridColumn: "1 / -1",
-                                                padding: "30px",
-                                                textAlign: "center",
-                                                color: "var(--muted)",
-                                            }}
+                                <div className="asset-vault-surface">
+                                    <form
+                                        onSubmit={uploadAsset}
+                                        className="asset-upload-card"
+                                    >
+                                    <div className="asset-upload-card-header">
+                                        <div>
+                                            <span className="asset-upload-kicker">
+                                                PRIVATE STORAGE
+                                            </span>
+                                            <strong>
+                                                UPLOAD NEW ASSET
+                                            </strong>
+                                        </div>
+
+                                        <span className="asset-upload-limit">
+                                            MAX 5 GiB
+                                        </span>
+                                    </div>
+
+                                    <div className="asset-upload-grid">
+                                        <div className="form-field">
+                                            <label htmlFor="assetUploadProject">
+                                                PROJECT
+                                            </label>
+
+                                            <select
+                                                id="assetUploadProject"
+                                                className="dash-input"
+                                                value={
+                                                    assetUploadContentId
+                                                }
+                                                onChange={(e) =>
+                                                    setAssetUploadContentId(
+                                                        e.target.value
+                                                    )
+                                                }
+                                                disabled={
+                                                    assetUploading ||
+                                                    projects.length ===
+                                                        0
+                                                }
+                                                required
+                                            >
+                                                {projects.length ===
+                                                0 ? (
+                                                    <option value="">
+                                                        NO ACCESSIBLE
+                                                        PROJECTS
+                                                    </option>
+                                                ) : (
+                                                    projects.map(
+                                                        (
+                                                            project
+                                                        ) => (
+                                                            <option
+                                                                key={
+                                                                    project.id
+                                                                }
+                                                                value={
+                                                                    project.id
+                                                                }
+                                                            >
+                                                                {
+                                                                    project.title
+                                                                }
+                                                            </option>
+                                                        )
+                                                    )
+                                                )}
+                                            </select>
+                                        </div>
+
+                                        <div className="form-field asset-file-field">
+                                            <label htmlFor="assetUploadFile">
+                                                FILE
+                                            </label>
+
+                                            <input
+                                                id="assetUploadFile"
+                                                type="file"
+                                                className="dash-input asset-file-input"
+                                                onChange={
+                                                    handleAssetFileChange
+                                                }
+                                                disabled={
+                                                    assetUploading
+                                                }
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="form-field">
+                                            <label htmlFor="assetUploadType">
+                                                TYPE
+                                            </label>
+
+                                            <select
+                                                id="assetUploadType"
+                                                className="dash-input"
+                                                value={
+                                                    assetUploadType
+                                                }
+                                                onChange={(e) =>
+                                                    setAssetUploadType(
+                                                        e.target.value
+                                                    )
+                                                }
+                                                disabled={
+                                                    assetUploading
+                                                }
+                                            >
+                                                <option value="VIDEO">
+                                                    VIDEO
+                                                </option>
+                                                <option value="IMAGE">
+                                                    IMAGE
+                                                </option>
+                                                <option value="AUDIO">
+                                                    AUDIO
+                                                </option>
+                                                <option value="DOCUMENT">
+                                                    DOCUMENT
+                                                </option>
+                                                <option value="OTHER">
+                                                    OTHER
+                                                </option>
+                                            </select>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            className="button button-primary asset-upload-button"
+                                            disabled={
+                                                assetUploading ||
+                                                !assetUploadFile ||
+                                                !assetUploadContentId
+                                            }
                                         >
-                                            LOADING ASSETS...
+                                            {assetUploading
+                                                ? `UPLOADING ${assetUploadProgress}%`
+                                                : "UPLOAD ASSET ↗"}
+                                        </button>
+                                    </div>
+
+                                    {(assetUploading ||
+                                        assetUploadProgress >
+                                            0) && (
+                                        <div className="asset-upload-progress">
+                                            <div
+                                                className="asset-upload-progress-fill"
+                                                style={{
+                                                    width: `${assetUploadProgress}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {assetUploadError && (
+                                        <p className="brief-error-msg active asset-upload-error">
+                                            {
+                                                assetUploadError
+                                            }
+                                        </p>
+                                    )}
+
+                                    <div className="asset-upload-footer">
+                                        <span>
+                                            Files upload directly
+                                            from your browser to
+                                            private Cloudflare R2.
+                                        </span>
+
+                                        <span>
+                                            Deliverables and
+                                            supporting files only
+                                        </span>
+                                    </div>
+                                </form>
+
+                                    <div className="asset-grid">
+                                    {assetsLoading ? (
+                                        <div className="asset-state-card">
+                                            <span className="asset-state-icon">
+                                                ◌
+                                            </span>
+                                            <strong>
+                                                LOADING ASSETS...
+                                            </strong>
                                         </div>
                                     ) : assetsError ? (
-                                        <div
-                                            style={{
-                                                gridColumn: "1 / -1",
-                                                padding: "30px",
-                                                textAlign: "center",
-                                                color: "var(--muted)",
-                                            }}
-                                        >
-                                            <p>{assetsError}</p>
+                                        <div className="asset-state-card asset-state-error">
+                                            <p>
+                                                {
+                                                    assetsError
+                                                }
+                                            </p>
 
                                             <button
                                                 type="button"
-                                                className="action-btn active"
-                                                style={{ marginTop: "12px" }}
+                                                className="action-btn active asset-state-action"
                                                 onClick={() =>
-                                                    loadAssets(activeOrganizationId)
+                                                    loadAssets(
+                                                        activeOrganizationId
+                                                    )
                                                 }
                                             >
                                                 RETRY
                                             </button>
                                         </div>
-                                    ) : assets.length === 0 ? (
-                                        <div
-                                            style={{
-                                                gridColumn: "1 / -1",
-                                                padding: "40px 20px",
-                                                textAlign: "center",
-                                                color: "var(--muted)",
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    fontSize: "28px",
-                                                    marginBottom: "10px",
-                                                }}
-                                            >
+                                    ) : assets.length ===
+                                      0 ? (
+                                        <div className="asset-empty-state">
+                                            <div className="asset-empty-icon">
                                                 📁
                                             </div>
 
-                                            <strong>
-                                                {assetSearch.trim()
-                                                    ? "NO ASSETS FOUND"
-                                                    : "ASSET VAULT EMPTY"}
-                                            </strong>
+                                            <div>
+                                                <strong>
+                                                    {assetSearch.trim()
+                                                        ? "NO ASSETS FOUND"
+                                                        : "ASSET VAULT EMPTY"}
+                                                </strong>
 
-                                            <p
-                                                style={{
-                                                    marginTop: "8px",
-                                                    fontSize: "13px",
-                                                }}
-                                            >
-                                                {assetSearch.trim()
-                                                    ? "Try a different search."
-                                                    : "Uploaded project assets will appear here."}
-                                            </p>
+                                                <p>
+                                                    {assetSearch.trim()
+                                                        ? "Try another file name or clear the search."
+                                                        : "Upload a finished deliverable, thumbnail, document, audio file, or other supporting asset."}
+                                                </p>
+                                            </div>
                                         </div>
                                     ) : (
-                                        assets.map((asset) => (
-                                            <div
-                                                className="asset-card"
-                                                key={asset.id}
-                                            >
-                                                <div className="asset-icon">
-                                                    {assetIcon(asset.assetType)}
-                                                </div>
-
-                                                <div className="asset-details">
-                                                    <strong>
-                                                        {asset.fileName}
-                                                    </strong>
-
-                                                    <small>
-                                                        {assetMeta(asset)}
-                                                    </small>
-
-                                                    {asset.content?.title && (
-                                                        <small
-                                                            style={{
-                                                                display: "block",
-                                                                marginTop: "4px",
-                                                            }}
-                                                        >
-                                                            {asset.content.title}
-                                                        </small>
-                                                    )}
-                                                </div>
-
+                                        assets.map(
+                                            (asset) => (
                                                 <div
-                                                    style={{
-                                                        display: "flex",
-                                                        gap: "6px",
-                                                    }}
+                                                    className="asset-card"
+                                                    key={
+                                                        asset.id
+                                                    }
                                                 >
-                                                    {asset.storageKey ? (
+                                                    <div className="asset-icon">
+                                                        {assetIcon(
+                                                            asset.assetType
+                                                        )}
+                                                    </div>
+
+                                                    <div className="asset-details">
+                                                        <strong>
+                                                            {
+                                                                asset.fileName
+                                                            }
+                                                        </strong>
+
+                                                        <small>
+                                                            {assetMeta(
+                                                                asset
+                                                            )}
+                                                        </small>
+
+                                                        {asset
+                                                            .content
+                                                            ?.title && (
+                                                            <small
+                                                                style={{
+                                                                    display:
+                                                                        "block",
+                                                                    marginTop:
+                                                                        "4px",
+                                                                }}
+                                                            >
+                                                                {
+                                                                    asset
+                                                                        .content
+                                                                        .title
+                                                                }
+                                                            </small>
+                                                        )}
+                                                    </div>
+
+                                                    <div
+                                                        style={{
+                                                            display:
+                                                                "flex",
+                                                            gap:
+                                                                "6px",
+                                                            flexWrap:
+                                                                "wrap",
+                                                        }}
+                                                    >
                                                         <a
                                                             className="asset-action"
-                                                            href={asset.storageKey}
+                                                            href={`/api/assets/${encodeURIComponent(
+                                                                asset.id
+                                                            )}/download?mode=${
+                                                                asset.assetType ===
+                                                                "VIDEO"
+                                                                    ? "inline"
+                                                                    : "attachment"
+                                                            }`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            download={
-                                                                asset.assetType === "VIDEO"
-                                                                    ? undefined
-                                                                    : asset.fileName
-                                                            }
                                                         >
-                                                            {asset.assetType === "VIDEO"
+                                                            {asset.assetType ===
+                                                            "VIDEO"
                                                                 ? "STREAM"
                                                                 : "DOWNLOAD"}
                                                         </a>
-                                                    ) : (
-                                                        <span className="asset-action">
-                                                            UNAVAILABLE
-                                                        </span>
-                                                    )}
+
+                                                        <button
+                                                            type="button"
+                                                            className="asset-action"
+                                                            disabled={
+                                                                assetDeletingId ===
+                                                                asset.id
+                                                            }
+                                                            onClick={() =>
+                                                                deleteAsset(
+                                                                    asset
+                                                                )
+                                                            }
+                                                        >
+                                                            {assetDeletingId ===
+                                                            asset.id
+                                                                ? "DELETING…"
+                                                                : "DELETE"}
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            )
+                                        )
                                     )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4644,69 +6982,630 @@ export default function CreatorDashboard({ user }) {
                     >
                         <div className="panel-scroll-container">
                             <div className="panel settings-panel">
-                                <h3>ACCOUNT & WORKSPACE</h3>
-
-                                <div className="settings-form">
-                                    <div className="form-row">
-                                        <div className="form-field">
-                                            <label htmlFor="stgName">ACCOUNT NAME</label>
-                                            <input
-                                                type="text"
-                                                id="stgName"
-                                                className="dash-input"
-                                                value={user?.name || ""}
-                                                readOnly
-                                            />
-                                        </div>
-
-                                        <div className="form-field">
-                                            <label htmlFor="stgEmail">PRIMARY EMAIL</label>
-                                            <input
-                                                type="email"
-                                                id="stgEmail"
-                                                className="dash-input"
-                                                value={user?.email || ""}
-                                                readOnly
-                                            />
-                                        </div>
+                                <div className="panel-header">
+                                    <div>
+                                        <span className="status-tag">
+                                            ACCOUNT CONTROL
+                                        </span>
+                                        <h3>
+                                            ACCOUNT & WORKSPACE
+                                        </h3>
                                     </div>
 
-                                    <div className="form-row">
-                                        <div className="form-field">
-                                            <label htmlFor="stgAccountType">ACCOUNT TYPE</label>
-                                            <input
-                                                type="text"
-                                                id="stgAccountType"
-                                                className="dash-input"
-                                                value={accountType}
-                                                readOnly
-                                            />
-                                        </div>
-
-                                        <div className="form-field">
-                                            <label htmlFor="stgWorkspace">WORKSPACE</label>
-                                            <input
-                                                type="text"
-                                                id="stgWorkspace"
-                                                className="dash-input"
-                                                value={
-                                                    organizations.find(
-                                                        (organization) =>
-                                                            organization.id === activeOrganizationId
-                                                    )?.name || ""
-                                                }
-                                                readOnly
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <p className="text-link">
-                                        Editable account preferences will be enabled when the settings API is connected.
-                                    </p>
+                                    <button
+                                        type="button"
+                                        className="text-link"
+                                        onClick={() =>
+                                            loadSettings()
+                                        }
+                                        disabled={
+                                            settingsLoading
+                                        }
+                                    >
+                                        {settingsLoading
+                                            ? "LOADING…"
+                                            : "REFRESH ↻"}
+                                    </button>
                                 </div>
+
+                                {settingsError && (
+                                    <p className="brief-error-msg active">
+                                        {settingsError}
+                                    </p>
+                                )}
+
+                                {settingsSuccess && (
+                                    <div
+                                        style={{
+                                            marginBottom:
+                                                "16px",
+                                            padding:
+                                                "12px 14px",
+                                            border:
+                                                "1px solid var(--accent)",
+                                            borderRadius:
+                                                "8px",
+                                        }}
+                                    >
+                                        <strong>
+                                            {
+                                                settingsSuccess
+                                            }
+                                        </strong>
+                                    </div>
+                                )}
+
+                                {settingsLoading ? (
+                                    <p className="text-link">
+                                        Loading account
+                                        settings…
+                                    </p>
+                                ) : (
+                                    <div className="settings-grid">
+                                        {/* PROFILE */}
+                                        <form
+                                            className="settings-form settings-card"
+                                            onSubmit={
+                                                saveProfileSettings
+                                            }
+                                        >
+                                            <div
+                                                style={{
+                                                    marginBottom:
+                                                        "16px",
+                                                }}
+                                            >
+                                                <strong>
+                                                    PROFILE
+                                                </strong>
+                                                <p
+                                                    className="text-link"
+                                                    style={{
+                                                        marginTop:
+                                                            "5px",
+                                                    }}
+                                                >
+                                                    Update your
+                                                    account
+                                                    identity.
+                                                    Changing your
+                                                    email requires
+                                                    your current
+                                                    password.
+                                                </p>
+                                            </div>
+
+                                            <div className="form-row">
+                                                <div className="form-field">
+                                                    <label htmlFor="stgName">
+                                                        ACCOUNT
+                                                        NAME
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="stgName"
+                                                        className="dash-input"
+                                                        value={
+                                                            profileDraft.name
+                                                        }
+                                                        onChange={(
+                                                            e
+                                                        ) =>
+                                                            setProfileDraft(
+                                                                (
+                                                                    current
+                                                                ) => ({
+                                                                    ...current,
+                                                                    name:
+                                                                        e
+                                                                            .target
+                                                                            .value,
+                                                                })
+                                                            )
+                                                        }
+                                                        required
+                                                    />
+                                                </div>
+
+                                                <div className="form-field">
+                                                    <label htmlFor="stgEmail">
+                                                        PRIMARY
+                                                        EMAIL
+                                                    </label>
+                                                    <input
+                                                        type="email"
+                                                        id="stgEmail"
+                                                        className="dash-input"
+                                                        value={
+                                                            profileDraft.email
+                                                        }
+                                                        onChange={(
+                                                            e
+                                                        ) =>
+                                                            setProfileDraft(
+                                                                (
+                                                                    current
+                                                                ) => ({
+                                                                    ...current,
+                                                                    email:
+                                                                        e
+                                                                            .target
+                                                                            .value,
+                                                                })
+                                                            )
+                                                        }
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-row">
+                                                <div className="form-field">
+                                                    <label htmlFor="stgAccountType">
+                                                        ACCOUNT
+                                                        TYPE
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="stgAccountType"
+                                                        className="dash-input"
+                                                        value={
+                                                            settingsProfile?.accountType ||
+                                                            accountType
+                                                        }
+                                                        readOnly
+                                                    />
+                                                </div>
+
+                                                <div className="form-field">
+                                                    <label htmlFor="stgRole">
+                                                        WORKSPACE
+                                                        ROLE
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="stgRole"
+                                                        className="dash-input"
+                                                        value={
+                                                            activeSettingsWorkspace?.role ||
+                                                            "NO ACTIVE ROLE"
+                                                        }
+                                                        readOnly
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-field">
+                                                <label htmlFor="stgProfilePassword">
+                                                    CURRENT
+                                                    PASSWORD
+                                                    (ONLY NEEDED
+                                                    TO CHANGE
+                                                    EMAIL)
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    id="stgProfilePassword"
+                                                    className="dash-input"
+                                                    autoComplete="current-password"
+                                                    value={
+                                                        profileDraft.currentPassword
+                                                    }
+                                                    onChange={(
+                                                        e
+                                                    ) =>
+                                                        setProfileDraft(
+                                                            (
+                                                                current
+                                                            ) => ({
+                                                                ...current,
+                                                                currentPassword:
+                                                                    e
+                                                                        .target
+                                                                        .value,
+                                                            })
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+
+                                            <button
+                                                type="submit"
+                                                className="button button-primary"
+                                                disabled={
+                                                    settingsSaving ===
+                                                    "profile"
+                                                }
+                                            >
+                                                {settingsSaving ===
+                                                "profile"
+                                                    ? "SAVING…"
+                                                    : "SAVE PROFILE"}
+                                            </button>
+                                        </form>
+
+                                        {/* WORKSPACE */}
+                                        <form
+                                            className="settings-form settings-card"
+                                            onSubmit={
+                                                saveWorkspaceSettings
+                                            }
+                                        >
+                                            <div
+                                                style={{
+                                                    marginBottom:
+                                                        "16px",
+                                                }}
+                                            >
+                                                <strong>
+                                                    WORKSPACE
+                                                </strong>
+                                                <p
+                                                    className="text-link"
+                                                    style={{
+                                                        marginTop:
+                                                            "5px",
+                                                    }}
+                                                >
+                                                    Workspace
+                                                    names can be
+                                                    changed by
+                                                    Admins and
+                                                    Managers.
+                                                </p>
+                                            </div>
+
+                                            <div className="form-row">
+                                                <div className="form-field">
+                                                    <label htmlFor="stgWorkspace">
+                                                        ACTIVE
+                                                        WORKSPACE
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="stgWorkspace"
+                                                        className="dash-input"
+                                                        value={
+                                                            activeSettingsWorkspace?.name ||
+                                                            ""
+                                                        }
+                                                        readOnly
+                                                    />
+                                                </div>
+
+                                                <div className="form-field">
+                                                    <label htmlFor="stgWorkspaceRole">
+                                                        YOUR ROLE
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="stgWorkspaceRole"
+                                                        className="dash-input"
+                                                        value={
+                                                            activeSettingsWorkspace?.role ||
+                                                            ""
+                                                        }
+                                                        readOnly
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-field">
+                                                <label htmlFor="stgWorkspaceName">
+                                                    WORKSPACE
+                                                    NAME
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    id="stgWorkspaceName"
+                                                    className="dash-input"
+                                                    value={
+                                                        workspaceNameDraft
+                                                    }
+                                                    onChange={(
+                                                        e
+                                                    ) =>
+                                                        setWorkspaceNameDraft(
+                                                            e
+                                                                .target
+                                                                .value
+                                                        )
+                                                    }
+                                                    readOnly={
+                                                        !canManageWorkspaceSettings
+                                                    }
+                                                    required
+                                                />
+                                            </div>
+
+                                            {canManageWorkspaceSettings ? (
+                                                <button
+                                                    type="submit"
+                                                    className="button button-primary"
+                                                    disabled={
+                                                        settingsSaving ===
+                                                        "workspace" ||
+                                                        !activeSettingsWorkspace
+                                                    }
+                                                >
+                                                    {settingsSaving ===
+                                                    "workspace"
+                                                        ? "SAVING…"
+                                                        : "SAVE WORKSPACE"}
+                                                </button>
+                                            ) : (
+                                                <p className="text-link">
+                                                    Your role
+                                                    has
+                                                    read-only
+                                                    workspace
+                                                    settings.
+                                                </p>
+                                            )}
+                                        </form>
+
+                                        {/* SECURITY */}
+                                        <form
+                                            className="settings-form settings-card"
+                                            onSubmit={
+                                                savePasswordSettings
+                                            }
+                                        >
+                                            <div
+                                                style={{
+                                                    marginBottom:
+                                                        "16px",
+                                                }}
+                                            >
+                                                <strong>
+                                                    SECURITY
+                                                </strong>
+                                                <p
+                                                    className="text-link"
+                                                    style={{
+                                                        marginTop:
+                                                            "5px",
+                                                    }}
+                                                >
+                                                    Change the
+                                                    password used
+                                                    for your Nexus
+                                                    credentials
+                                                    login.
+                                                </p>
+                                            </div>
+
+                                            <div className="form-row">
+                                                <div className="form-field">
+                                                    <label htmlFor="stgCurrentPassword">
+                                                        CURRENT
+                                                        PASSWORD
+                                                    </label>
+                                                    <input
+                                                        type="password"
+                                                        id="stgCurrentPassword"
+                                                        className="dash-input"
+                                                        autoComplete="current-password"
+                                                        value={
+                                                            passwordDraft.currentPassword
+                                                        }
+                                                        onChange={(
+                                                            e
+                                                        ) =>
+                                                            setPasswordDraft(
+                                                                (
+                                                                    current
+                                                                ) => ({
+                                                                    ...current,
+                                                                    currentPassword:
+                                                                        e
+                                                                            .target
+                                                                            .value,
+                                                                })
+                                                            )
+                                                        }
+                                                        required
+                                                    />
+                                                </div>
+
+                                                <div className="form-field">
+                                                    <label htmlFor="stgNewPassword">
+                                                        NEW
+                                                        PASSWORD
+                                                    </label>
+                                                    <input
+                                                        type="password"
+                                                        id="stgNewPassword"
+                                                        className="dash-input"
+                                                        autoComplete="new-password"
+                                                        minLength={
+                                                            8
+                                                        }
+                                                        value={
+                                                            passwordDraft.newPassword
+                                                        }
+                                                        onChange={(
+                                                            e
+                                                        ) =>
+                                                            setPasswordDraft(
+                                                                (
+                                                                    current
+                                                                ) => ({
+                                                                    ...current,
+                                                                    newPassword:
+                                                                        e
+                                                                            .target
+                                                                            .value,
+                                                                })
+                                                            )
+                                                        }
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-field">
+                                                <label htmlFor="stgConfirmPassword">
+                                                    CONFIRM NEW
+                                                    PASSWORD
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    id="stgConfirmPassword"
+                                                    className="dash-input"
+                                                    autoComplete="new-password"
+                                                    minLength={
+                                                        8
+                                                    }
+                                                    value={
+                                                        passwordDraft.confirmPassword
+                                                    }
+                                                    onChange={(
+                                                        e
+                                                    ) =>
+                                                        setPasswordDraft(
+                                                            (
+                                                                current
+                                                            ) => ({
+                                                                ...current,
+                                                                confirmPassword:
+                                                                    e
+                                                                        .target
+                                                                        .value,
+                                                            })
+                                                        )
+                                                    }
+                                                    required
+                                                />
+                                            </div>
+
+                                            <button
+                                                type="submit"
+                                                className="button button-primary"
+                                                disabled={
+                                                    settingsSaving ===
+                                                    "password" ||
+                                                    !settingsProfile?.hasPassword
+                                                }
+                                            >
+                                                {settingsSaving ===
+                                                "password"
+                                                    ? "UPDATING…"
+                                                    : "CHANGE PASSWORD"}
+                                            </button>
+
+                                            {!settingsProfile?.hasPassword && (
+                                                <p
+                                                    className="text-link"
+                                                    style={{
+                                                        marginTop:
+                                                            "10px",
+                                                    }}
+                                                >
+                                                    This account
+                                                    does not
+                                                    currently use
+                                                    password
+                                                    authentication.
+                                                </p>
+                                            )}
+                                        </form>
+
+                                        {/* APPEARANCE + SESSION */}
+                                        <div
+                                            className="settings-form settings-card"
+                                        >
+                                            <strong>
+                                                APPEARANCE &
+                                                SESSION
+                                            </strong>
+
+                                            <div
+                                                style={{
+                                                    display:
+                                                        "flex",
+                                                    gap: "10px",
+                                                    flexWrap:
+                                                        "wrap",
+                                                    marginTop:
+                                                        "14px",
+                                                }}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className={`action-btn ${
+                                                        theme ===
+                                                        "dark"
+                                                            ? "active"
+                                                            : ""
+                                                    }`}
+                                                    onClick={() => {
+                                                        if (
+                                                            theme !==
+                                                            "dark"
+                                                        ) {
+                                                            toggleTheme();
+                                                        }
+                                                    }}
+                                                >
+                                                    DARK
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    className={`action-btn ${
+                                                        theme ===
+                                                        "light"
+                                                            ? "active"
+                                                            : ""
+                                                    }`}
+                                                    onClick={() => {
+                                                        if (
+                                                            theme !==
+                                                            "light"
+                                                        ) {
+                                                            toggleTheme();
+                                                        }
+                                                    }}
+                                                >
+                                                    LIGHT
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    className="action-btn"
+                                                    onClick={() =>
+                                                        signOut({
+                                                            callbackUrl:
+                                                                "/",
+                                                        })
+                                                    }
+                                                >
+                                                    SIGN OUT ↗
+                                                </button>
+                                            </div>
+
+                                            <p
+                                                className="text-link"
+                                                style={{
+                                                    marginTop:
+                                                        "12px",
+                                                }}
+                                            >
+                                                Theme preference
+                                                is stored on this
+                                                browser.
+                                                Account deletion
+                                                is not enabled in
+                                                this version.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
+
                 </main>
             </div>
 
@@ -4802,16 +7701,16 @@ export default function CreatorDashboard({ user }) {
 
                         <div className="form-field">
                             <label htmlFor="briefLink">
-                                RAW FOOTAGE LINK /
-                                DRIVE
+                                GOOGLE DRIVE
+                                FOOTAGE FOLDER
                             </label>
 
                             <input
-                                type="text"
+                                type="url"
                                 id="briefLink"
                                 name="briefLink"
                                 className="dash-input"
-                                placeholder="https://youtube.com/... or https://drive.google.com/..."
+                                placeholder="https://drive.google.com/drive/folders/..."
                                 required
                             />
 
@@ -4821,10 +7720,10 @@ export default function CreatorDashboard({ user }) {
                                     : ""
                                     }`}
                             >
-                                Please enter a valid
-                                URL, or check your
-                                connection and try
-                                again.
+                                Please paste a valid
+                                Google Drive folder
+                                link. Individual file
+                                links are not accepted.
                             </p>
                         </div>
 

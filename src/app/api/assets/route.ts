@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { HeadObjectCommand } from "@aws-sdk/client-s3";
+import { getR2BucketName, getR2Client } from "@/lib/r2";
 
 function serializeAsset(asset: {
     id: string;
@@ -381,3 +383,439 @@ export async function GET(request: Request) {
         );
     }
 }
+
+const ASSET_TYPES = [
+    "VIDEO",
+    "IMAGE",
+    "AUDIO",
+    "DOCUMENT",
+    "OTHER",
+] as const;
+
+type AssetTypeValue =
+    (typeof ASSET_TYPES)[number];
+
+async function getUploadableContent(
+    contentId: string,
+    user: NonNullable<
+        Awaited<
+            ReturnType<
+                typeof getAuthenticatedUser
+            >
+        >
+    >
+) {
+    if (user.accountType === "CREATOR") {
+        if (!user.creatorProfile) {
+            return null;
+        }
+
+        return prisma.contentItem.findFirst({
+            where: {
+                id: contentId,
+                project: {
+                    organizationId:
+                        user.creatorProfile
+                            .organizationId,
+                    creatorId:
+                        user.creatorProfile.id,
+                },
+            },
+            select: {
+                id: true,
+                title: true,
+                project: {
+                    select: {
+                        organizationId: true,
+                        creatorId: true,
+                    },
+                },
+            },
+        });
+    }
+
+    const fullAccessOrganizationIds =
+        user.memberships
+            .filter(
+                (membership) =>
+                    membership.role === "ADMIN" ||
+                    membership.role === "MANAGER"
+            )
+            .map(
+                (membership) =>
+                    membership.organizationId
+            );
+
+    const editorOrganizationIds =
+        user.memberships
+            .filter(
+                (membership) =>
+                    membership.role === "EDITOR"
+            )
+            .map(
+                (membership) =>
+                    membership.organizationId
+            );
+
+    return prisma.contentItem.findFirst({
+        where: {
+            id: contentId,
+
+            OR: [
+                ...(fullAccessOrganizationIds.length >
+                0
+                    ? [
+                          {
+                              project: {
+                                  organizationId: {
+                                      in: fullAccessOrganizationIds,
+                                  },
+                              },
+                          },
+                      ]
+                    : []),
+
+                ...(editorOrganizationIds.length >
+                0
+                    ? [
+                          {
+                              AND: [
+                                  {
+                                      project: {
+                                          organizationId:
+                                              {
+                                                  in: editorOrganizationIds,
+                                              },
+                                      },
+                                  },
+                                  {
+                                      OR: [
+                                          {
+                                              editorAssignments:
+                                                  {
+                                                      some: {
+                                                          userId:
+                                                              user.id,
+                                                      },
+                                                  },
+                                          },
+                                          {
+                                              project: {
+                                                  creator:
+                                                      {
+                                                          editorAssignments:
+                                                              {
+                                                                  some: {
+                                                                      userId:
+                                                                          user.id,
+                                                                  },
+                                                              },
+                                                      },
+                                              },
+                                          },
+                                      ],
+                                  },
+                              ],
+                          },
+                      ]
+                    : []),
+            ],
+        },
+
+        select: {
+            id: true,
+            title: true,
+            project: {
+                select: {
+                    organizationId: true,
+                    creatorId: true,
+                },
+            },
+        },
+    });
+}
+
+// POST /api/assets
+//
+// Finalizes an object already uploaded directly to R2.
+export async function POST(request: Request) {
+    try {
+        const user =
+            await getAuthenticatedUser();
+
+        if (!user) {
+            return NextResponse.json(
+                { error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+
+        let body: {
+            contentId?: unknown;
+            storageKey?: unknown;
+            fileName?: unknown;
+            fileSize?: unknown;
+            mimeType?: unknown;
+            assetType?: unknown;
+        };
+
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json(
+                {
+                    error:
+                        "Invalid JSON body.",
+                },
+                { status: 400 }
+            );
+        }
+
+        const contentId = String(
+            body.contentId || ""
+        ).trim();
+
+        const storageKey = String(
+            body.storageKey || ""
+        ).trim();
+
+        const fileName = String(
+            body.fileName || ""
+        ).trim();
+
+        const mimeType =
+            String(
+                body.mimeType ||
+                    "application/octet-stream"
+            ).trim() ||
+            "application/octet-stream";
+
+        const assetType = String(
+            body.assetType || ""
+        ).trim() as AssetTypeValue;
+
+        const requestedFileSize =
+            Number(body.fileSize);
+
+        if (
+            !contentId ||
+            !storageKey ||
+            !fileName ||
+            !ASSET_TYPES.includes(
+                assetType
+            )
+        ) {
+            return NextResponse.json(
+                {
+                    error:
+                        "contentId, storageKey, fileName, and a valid assetType are required.",
+                },
+                { status: 400 }
+            );
+        }
+
+        const content =
+            await getUploadableContent(
+                contentId,
+                user
+            );
+
+        if (!content) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Project not found or access denied.",
+                },
+                { status: 404 }
+            );
+        }
+
+        const requiredPrefix = [
+            "organizations",
+            content.project.organizationId,
+            "content",
+            content.id,
+            "",
+        ].join("/");
+
+        if (
+            !storageKey.startsWith(
+                requiredPrefix
+            )
+        ) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Invalid R2 storage key for this project.",
+                },
+                { status: 400 }
+            );
+        }
+
+        const existing =
+            await prisma.asset.findUnique({
+                where: {
+                    storageKey,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (existing) {
+            return NextResponse.json(
+                {
+                    error:
+                        "This uploaded object has already been registered.",
+                },
+                { status: 409 }
+            );
+        }
+
+        const head =
+            await getR2Client().send(
+                new HeadObjectCommand({
+                    Bucket:
+                        getR2BucketName(),
+                    Key: storageKey,
+                })
+            );
+
+        const actualFileSize =
+            typeof head.ContentLength ===
+            "number"
+                ? head.ContentLength
+                : Number.isFinite(
+                      requestedFileSize
+                  )
+                ? requestedFileSize
+                : null;
+
+        const actualMimeType =
+            head.ContentType ||
+            mimeType ||
+            null;
+
+        const created =
+            await prisma.$transaction(
+                async (tx) => {
+                    const asset =
+                        await tx.asset.create({
+                            data: {
+                                fileName,
+                                fileSize:
+                                    actualFileSize !==
+                                    null
+                                        ? BigInt(
+                                              actualFileSize
+                                          )
+                                        : null,
+                                mimeType:
+                                    actualMimeType,
+                                storageKey,
+                                assetType,
+                                contentId:
+                                    content.id,
+                                uploadedById:
+                                    user.id,
+                            },
+
+                            include: {
+                                content: {
+                                    select: {
+                                        id: true,
+                                        title: true,
+                                        contentType:
+                                            true,
+
+                                        project: {
+                                            select: {
+                                                id: true,
+                                                name: true,
+                                                organizationId:
+                                                    true,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        });
+
+                    await tx.assetVersion.create({
+                        data: {
+                            version: 1,
+                            storageKey,
+                            fileName,
+                            fileSize:
+                                actualFileSize !==
+                                null
+                                    ? BigInt(
+                                          actualFileSize
+                                      )
+                                    : null,
+                            mimeType:
+                                actualMimeType,
+                            assetId:
+                                asset.id,
+                        },
+                    });
+
+                    await tx.auditLog.create({
+                        data: {
+                            action:
+                                "ASSET_UPLOADED",
+                            resource:
+                                "Asset",
+                            resourceId:
+                                asset.id,
+                            userId: user.id,
+                            metadata: {
+                                organizationId:
+                                    content.project
+                                        .organizationId,
+                                creatorId:
+                                    content.project
+                                        .creatorId,
+                                contentId:
+                                    content.id,
+                                contentTitle:
+                                    content.title,
+                                assetId:
+                                    asset.id,
+                                fileName,
+                                assetType,
+                                fileSize:
+                                    actualFileSize,
+                            },
+                        },
+                    });
+
+                    return asset;
+                }
+            );
+
+        return NextResponse.json(
+            {
+                asset:
+                    serializeAsset(
+                        created
+                    ),
+            },
+            { status: 201 }
+        );
+    } catch (error) {
+        console.error(
+            "POST /api/assets failed:",
+            error
+        );
+
+        return NextResponse.json(
+            {
+                error:
+                    "Failed to register the uploaded asset.",
+            },
+            { status: 500 }
+        );
+    }
+}
+

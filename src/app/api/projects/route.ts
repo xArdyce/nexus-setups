@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  getManagementUserIds,
+  notifyUsers,
+} from "@/lib/notifications";
 
 const CONTENT_TYPES = [
   "Short-form",
@@ -26,6 +30,22 @@ const ETA_LABELS: Record<string, string> = {
   SCHEDULED: "Scheduled",
   PUBLISHED: "Published",
 };
+
+function isGoogleDriveFolderUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "drive.google.com" &&
+      /^\/drive\/(?:u\/\d+\/)?folders\/[^/]+\/?$/.test(
+        url.pathname
+      )
+    );
+  } catch {
+    return false;
+  }
+}
 
 function toDisplayItem(
   item: {
@@ -372,6 +392,7 @@ export async function POST(request: Request) {
   const title = String(body.title || "").trim();
   const type = String(body.type || "").trim();
   const footageLink = String(body.footageLink || "").trim();
+
   const organizationId = String(
     body.organizationId || ""
   ).trim();
@@ -390,12 +411,12 @@ export async function POST(request: Request) {
     );
   }
 
-  if (
-    !footageLink.startsWith("http://") &&
-    !footageLink.startsWith("https://")
-  ) {
+  if (!isGoogleDriveFolderUrl(footageLink)) {
     return NextResponse.json(
-      { error: "footageLink must be a valid URL" },
+      {
+        error:
+          "footageLink must be a Google Drive folder URL",
+      },
       { status: 400 }
     );
   }
@@ -465,6 +486,7 @@ export async function POST(request: Request) {
         data: {
           title,
           contentType: type,
+          footageLink,
           status: "REQUESTED",
           projectId: project.id,
         },
@@ -489,6 +511,18 @@ export async function POST(request: Request) {
       return created;
     });
 
+    const managementUserIds =
+      await getManagementUserIds(
+        creator.organizationId
+      );
+
+    await notifyUsers(
+      managementUserIds,
+      "New project submitted",
+      `${contentItem.title} was submitted and is waiting in the production queue.`,
+      user.id
+    );
+
     return NextResponse.json(
       {
         project: toDisplayItem(
@@ -503,8 +537,11 @@ export async function POST(request: Request) {
 
   /*
    * ============================================================
-   * EDITOR / ADMIN / MANAGER SUBMISSION
+   * ADMIN / MANAGER SUBMISSION
    * ============================================================
+   *
+   * Editors can work on assigned content, but cannot create new
+   * project submissions through this endpoint.
    */
 
   const membership = user.memberships.find(
@@ -517,6 +554,19 @@ export async function POST(request: Request) {
       {
         error:
           "You do not have access to this organization.",
+      },
+      { status: 403 }
+    );
+  }
+
+  if (
+    membership.role !== "ADMIN" &&
+    membership.role !== "MANAGER"
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Only Creators, Admins, and Managers can create new projects.",
       },
       { status: 403 }
     );
@@ -546,6 +596,7 @@ export async function POST(request: Request) {
       data: {
         title,
         contentType: type,
+        footageLink,
         status: "REQUESTED",
         projectId: project.id,
       },

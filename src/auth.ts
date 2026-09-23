@@ -54,6 +54,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.accountType = user.accountType;
+        token.name = user.name;
+        token.email = user.email;
+      }
+
+      /*
+       * Keep JWT profile fields synchronized with the database.
+       * The stable token.sub user ID lets account settings safely
+       * change the user's name or email without breaking API auth.
+       */
+      if (token.sub) {
+        const currentUser = await prisma.user.findUnique({
+          where: {
+            id: token.sub,
+          },
+          select: {
+            name: true,
+            email: true,
+            accountType: true,
+          },
+        });
+
+        if (currentUser) {
+          token.name = currentUser.name;
+          token.email = currentUser.email;
+          token.accountType = currentUser.accountType;
+        }
       }
 
       return token;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyUsers } from "@/lib/notifications";
 
 type RouteContext = {
     params: Promise<{
@@ -420,6 +421,13 @@ export async function POST(
                 return created;
             });
 
+        await notifyUsers(
+            [editorUserId],
+            "Project assigned",
+            `You were assigned to ${content.title}.`,
+            user.id
+        );
+
         return NextResponse.json(
             {
                 assignment,
@@ -555,6 +563,13 @@ export async function DELETE(
                 },
             });
         });
+
+        await notifyUsers(
+            [editorUserId],
+            "Project assignment removed",
+            `You were removed from ${content.title}.`,
+            user.id
+        );
 
         return NextResponse.json({
             success: true,

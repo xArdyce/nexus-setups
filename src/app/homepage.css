@@ -3018,3 +3018,594 @@ footer {
         min-height: 76px;
     }
 }
+
+/* =========================================================
+   RESPONSIVE SYSTEM
+   Homepage: desktop -> laptop -> tablet -> mobile
+========================================================= */
+
+@media (max-width: 1180px) {
+    :root {
+        --pad: clamp(22px, 3vw, 40px);
+    }
+
+    .site-header {
+        gap: 18px;
+    }
+
+    .desktop-nav {
+        gap: 16px;
+    }
+
+    .desktop-nav a {
+        font-size: 13px;
+    }
+
+    .hero-content {
+        width: min(900px, 100%);
+        padding-left: var(--pad);
+        padding-right: var(--pad);
+    }
+
+    .section-shell {
+        width: min(var(--max), calc(100% - (var(--pad) * 2)));
+    }
+}
+
+@media (max-width: 900px) {
+    .desktop-nav {
+        display: none;
+    }
+
+    .menu-toggle {
+        display: block;
+    }
+
+    .cursor-glow {
+        display: none;
+    }
+
+    .hero-content {
+        padding-left: var(--pad);
+        padding-right: var(--pad);
+    }
+
+    .hero h1 {
+        font-size: clamp(50px, 11vw, 84px);
+    }
+
+    .work-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .work-large {
+        grid-row: auto;
+    }
+
+    .work-large .work-visual {
+        height: 235px;
+    }
+
+    .pricing-grid {
+        gap: 12px;
+    }
+
+    .footer-top {
+        grid-template-columns: 1.3fr 1fr 1fr;
+    }
+
+    .footer-column:last-child {
+        grid-column: 2 / -1;
+    }
+}
+
+@media (max-width: 700px) {
+    :root {
+        --pad: 18px;
+    }
+
+    .site-header {
+        height: 72px;
+        padding-left: var(--pad);
+        padding-right: var(--pad);
+    }
+
+    .brand {
+        font-size: 18px;
+    }
+
+    .brand b {
+        font-size: 12px;
+    }
+
+    .header-actions {
+        gap: 8px;
+    }
+
+    .nav-login {
+        display: none;
+    }
+
+    .toggle-track {
+        width: 60px;
+        height: 30px;
+    }
+
+    .toggle-thumb {
+        width: 24px;
+        height: 24px;
+    }
+
+    [data-theme="light"] .toggle-thumb {
+        transform: translateX(30px);
+    }
+
+    .mobile-menu {
+        inset: 72px 0 auto;
+        max-height: calc(100dvh - 72px);
+        overflow-y: auto;
+        padding: 18px var(--pad) calc(24px + env(safe-area-inset-bottom));
+    }
+
+    .mobile-menu a {
+        padding: 13px 0;
+        font-size: 18px;
+    }
+
+    .hero {
+        min-height: 100svh;
+        padding-top: 112px;
+        padding-bottom: 64px;
+        padding-left: var(--pad);
+        padding-right: var(--pad);
+    }
+
+    .hero-content {
+        width: 100%;
+        padding: 0;
+    }
+
+    .hero h1 {
+        font-size: clamp(42px, 12vw, 68px);
+        line-height: 1.02;
+        letter-spacing: -.065em;
+    }
+
+    .solid-banner,
+    .solid-banner-sm {
+        max-width: 100%;
+    }
+
+    .hero-copy {
+        max-width: 560px;
+        font-size: 15px;
+        line-height: 1.65;
+    }
+
+    .hero-bottom {
+        width: 100%;
+        grid-template-columns: 1fr;
+        gap: 18px;
+        margin-top: 48px;
+    }
+
+    .hero-bottom > div {
+        max-width: 100%;
+    }
+
+    .hero-status {
+        justify-self: start;
+    }
+
+    .manifesto,
+    .services,
+    .work,
+    .process,
+    .pricing,
+    .booking,
+    .faq {
+        padding-top: 88px;
+        padding-bottom: 88px;
+    }
+
+    .manifesto h2,
+    .section-heading-row h2,
+    .process-intro h2,
+    .pricing-heading h2,
+    .booking-copy h2,
+    .faq-heading h2,
+    .final-cta h2 {
+        font-size: clamp(36px, 10vw, 50px);
+    }
+
+    .section-description,
+    .process-intro > p,
+    .large-copy,
+    .booking-copy > p:not(.section-kicker) {
+        font-size: 15px;
+        line-height: 1.7;
+    }
+
+    .service-card {
+        padding: 24px;
+    }
+
+    .service-main h3 {
+        font-size: clamp(23px, 7vw, 30px);
+        line-height: 1.08;
+    }
+
+    .work-tabs {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 3px;
+        overscroll-behavior-x: contain;
+    }
+
+    .work-tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
+    .work-grid,
+    .pricing-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .work-card,
+    .work-large {
+        min-height: 0;
+    }
+
+    .work-visual,
+    .work-large .work-visual {
+        height: 210px;
+    }
+
+    .pricing-grid,
+    .enterprise-row,
+    .faq-list,
+    .booking-grid {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .price-card {
+        min-height: 0;
+        padding: 24px;
+    }
+
+    .price-value {
+        margin-top: 30px;
+    }
+
+    .price-card ul {
+        margin-top: 30px;
+    }
+
+    .enterprise-row {
+        padding: 22px;
+    }
+
+    .booking-grid {
+        grid-template-columns: 1fr;
+        gap: 36px;
+    }
+
+    .booking-copy {
+        padding-top: 0;
+    }
+
+    .booking-note {
+        max-width: 100%;
+        margin-top: 30px;
+    }
+
+    .booking-card {
+        padding: 22px;
+    }
+
+    .faq-question {
+        gap: 16px;
+        font-size: 16px;
+    }
+
+    .final-cta {
+        min-height: 440px;
+        padding-left: var(--pad);
+        padding-right: var(--pad);
+    }
+
+    .site-footer {
+        padding-top: 52px;
+    }
+
+    .footer-top {
+        grid-template-columns: 1fr 1fr;
+        gap: 32px 24px;
+    }
+
+    .footer-brand {
+        grid-column: 1 / -1;
+    }
+
+    .footer-column:last-child {
+        grid-column: auto;
+    }
+
+    .footer-bottom {
+        margin-top: 42px;
+    }
+
+    .modal-overlay {
+        padding: 12px;
+    }
+
+    .auth-card {
+        width: min(430px, 100%);
+        max-height: calc(100dvh - 24px);
+        padding: 28px 22px 24px;
+        overflow-y: auto;
+    }
+}
+
+@media (max-width: 520px) {
+    .hero {
+        min-height: 100svh;
+        padding-top: 104px;
+        padding-bottom: 54px;
+    }
+
+    .eyebrow {
+        max-width: 100%;
+        padding: 8px 10px;
+        font-size: 9px;
+        line-height: 1.45;
+    }
+
+    .hero h1 {
+        font-size: clamp(39px, 12.5vw, 58px);
+    }
+
+    .hero-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+    }
+
+    .hero-actions .button {
+        width: 100%;
+    }
+
+    .section-number {
+        margin-bottom: 22px;
+    }
+
+    .manifesto,
+    .services,
+    .work,
+    .process,
+    .pricing,
+    .booking,
+    .faq {
+        padding-top: 76px;
+        padding-bottom: 76px;
+    }
+
+    .service-card {
+        padding: 20px;
+    }
+
+    .service-index {
+        margin-bottom: 14px;
+    }
+
+    .service-icon {
+        margin-bottom: 18px;
+    }
+
+    .service-tag {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .metric-strip {
+        grid-template-columns: 1fr;
+    }
+
+    .metric-strip div {
+        padding: 16px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .metric-strip div:last-child {
+        border-bottom: 0;
+    }
+
+    .process-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .process-grid article,
+    .process-grid article:not(:first-child) {
+        min-height: 0;
+        padding: 22px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .process-grid article:last-child {
+        border-bottom: 0;
+    }
+
+    .price-number {
+        font-size: clamp(48px, 15vw, 66px);
+    }
+
+    .popular-label {
+        position: static;
+        width: fit-content;
+        margin-bottom: 18px;
+    }
+
+    .enterprise-row {
+        display: block;
+    }
+
+    .enterprise-row .text-link {
+        margin-top: 18px;
+    }
+
+    .form-two {
+        grid-template-columns: 1fr;
+    }
+
+    .booking-card-top {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .faq-question {
+        min-height: 64px;
+    }
+
+    .footer-top {
+        grid-template-columns: 1fr;
+    }
+
+    .footer-brand,
+    .footer-column:last-child {
+        grid-column: auto;
+    }
+
+    .footer-column a,
+    .footer-column p,
+    .footer-brand p {
+        overflow-wrap: anywhere;
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        gap: 8px;
+        line-height: 1.6;
+    }
+
+    .social-auth-grid,
+    .account-type-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-tabs {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .auth-card {
+        padding: 24px 16px 20px;
+    }
+
+    .auth-header h3 {
+        font-size: 21px;
+    }
+
+    .auth-tab {
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 380px) {
+    :root {
+        --pad: 14px;
+    }
+
+    .site-header {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .brand {
+        font-size: 17px;
+    }
+
+    .theme-toggle .toggle-track {
+        width: 54px;
+    }
+
+    .theme-toggle .toggle-thumb {
+        width: 22px;
+        height: 22px;
+        top: 4px;
+    }
+
+    [data-theme="light"] .theme-toggle .toggle-thumb {
+        transform: translateX(26px);
+    }
+
+    .hero h1 {
+        font-size: clamp(36px, 12vw, 50px);
+    }
+
+    .solid-banner {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .solid-banner-sm {
+        padding-left: 9px;
+        padding-right: 9px;
+    }
+
+    .button {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .booking-card,
+    .price-card,
+    .service-card {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}
+
+@media (max-height: 620px) and (orientation: landscape) {
+    .site-header {
+        height: 64px;
+    }
+
+    .mobile-menu {
+        inset: 64px 0 auto;
+        max-height: calc(100dvh - 64px);
+    }
+
+    .hero {
+        min-height: 680px;
+        padding-top: 96px;
+    }
+
+    .modal-overlay {
+        align-items: flex-start;
+        overflow-y: auto;
+    }
+
+    .auth-card {
+        margin-top: 6px;
+        margin-bottom: 6px;
+    }
+}
+
+@media (hover: none), (pointer: coarse) {
+    .service-card:hover,
+    .work-card:hover,
+    .button:hover,
+    .text-link:hover,
+    .social-auth-btn:hover {
+        transform: none;
+    }
+
+    .cursor-glow {
+        display: none;
+    }
+}

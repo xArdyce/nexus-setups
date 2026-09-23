@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { getR2BucketName, getR2Client } from "@/lib/r2";
 
 type RouteContext = {
     params: Promise<{
@@ -289,11 +291,75 @@ export async function DELETE(
             );
         }
 
-        await prisma.asset.delete({
-            where: {
-                id: assetId,
-            },
-        });
+        const storageKeys = Array.from(
+            new Set([
+                asset.storageKey,
+                ...asset.versions.map(
+                    (version) =>
+                        version.storageKey
+                ),
+            ])
+        ).filter(Boolean);
+
+        if (storageKeys.length > 0) {
+            await getR2Client().send(
+                new DeleteObjectsCommand({
+                    Bucket:
+                        getR2BucketName(),
+                    Delete: {
+                        Objects:
+                            storageKeys.map(
+                                (Key) => ({
+                                    Key,
+                                })
+                            ),
+                        Quiet: true,
+                    },
+                })
+            );
+        }
+
+        await prisma.$transaction(
+            async (tx) => {
+                await tx.auditLog.create({
+                    data: {
+                        action:
+                            "ASSET_DELETED",
+                        resource:
+                            "Asset",
+                        resourceId:
+                            asset.id,
+                        userId: user.id,
+                        metadata: {
+                            organizationId:
+                                asset.content
+                                    .project
+                                    .organizationId,
+                            creatorId:
+                                asset.content
+                                    .project
+                                    .creatorId,
+                            contentId:
+                                asset.content.id,
+                            contentTitle:
+                                asset.content.title,
+                            assetId:
+                                asset.id,
+                            fileName:
+                                asset.fileName,
+                            assetType:
+                                asset.assetType,
+                        },
+                    },
+                });
+
+                await tx.asset.delete({
+                    where: {
+                        id: assetId,
+                    },
+                });
+            }
+        );
 
         return NextResponse.json({
             success: true,

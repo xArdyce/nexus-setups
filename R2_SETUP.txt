@@ -1,0 +1,47 @@
+NEXUS SETUPS - CLOUDFLARE R2 ASSET VAULT
+
+1. Install dependencies:
+   npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+
+2. Create a Cloudflare R2 bucket, for example:
+   nexus-setups-assets
+
+3. Create an R2 API token with Object Read & Write access
+   restricted to that bucket when possible.
+
+4. Add these values to .env:
+
+   R2_ACCOUNT_ID=YOUR_CLOUDFLARE_ACCOUNT_ID
+   R2_ACCESS_KEY_ID=YOUR_ACCESS_KEY_ID
+   R2_SECRET_ACCESS_KEY=YOUR_SECRET_ACCESS_KEY
+   R2_BUCKET_NAME=nexus-setups-assets
+
+   Do NOT use NEXT_PUBLIC_ for these values.
+
+5. In the R2 bucket CORS settings, paste the contents of R2_CORS.json.
+
+   If you use another development origin, add it to AllowedOrigins.
+   Examples:
+   http://localhost:3000
+   http://YOUR-LAN-IP:3000
+
+6. Merge the src folder from this package into the project root.
+
+7. Run:
+   npm run build
+
+8. Then:
+   npm run dev
+
+UPLOAD FLOW
+- Browser requests a short-lived presigned PUT URL from Nexus.
+- Browser uploads directly to private R2 storage.
+- Nexus checks the uploaded object exists with HeadObject.
+- Nexus creates Asset + AssetVersion(version 1) database records.
+- Downloads/streams use authenticated Nexus routes that redirect to
+  short-lived presigned R2 GET URLs.
+- Deleting an asset removes R2 objects first, then deletes the DB record.
+
+CURRENT LIMIT
+Single PUT uploads are limited to 5 GiB.
+Multipart uploads can be added later for larger files.

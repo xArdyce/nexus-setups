@@ -1,0 +1,41 @@
+NEXUS SETUPS - ACCOUNT SETTINGS
+
+Files:
+- src/app/dashboard/DashboardClient.jsx
+- src/app/api/settings/route.ts
+- src/auth.ts
+
+No Prisma schema change is required.
+No new npm package is required (bcryptjs is already installed).
+
+Implemented:
+- Edit account name
+- Edit account email
+- Current-password verification for email changes
+- Creator profile name/email synchronization
+- Display account type
+- Display per-workspace role
+- Admin/Manager workspace rename
+- Change password with current-password verification
+- Dark/light preference using the existing localStorage theme system
+- Sign out
+- Workspace rename AuditLog entry
+
+Important auth change:
+auth.ts now refreshes name, email, and accountType from the database
+using token.sub. This prevents an email change from breaking authenticated
+API routes that rely on session.user.email.
+
+After extracting into the nexus-setups project root:
+1. Replace the files when prompted.
+2. Run:
+   npm run build
+3. If successful:
+   npm run dev
+4. Open Settings and test:
+   - Name change
+   - Email change (requires current password)
+   - Password change
+   - Workspace rename as Admin/Manager
+   - Theme toggle
+   - Sign out
