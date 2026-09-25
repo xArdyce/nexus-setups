@@ -7294,6 +7294,158 @@ export default function CreatorDashboard({ user }) {
 
                                                     <div
                                                         className="review-history-card"
+                                                        style={{
+                                                            marginBottom:
+                                                                "16px",
+                                                        }}
+                                                    >
+                                                        <div className="review-history-top">
+                                                            <strong>
+                                                                DELIVERY
+                                                                HISTORY
+                                                            </strong>
+
+                                                            <span className="graph-tag">
+                                                                {
+                                                                    (
+                                                                        selectedProject
+                                                                            ?.deliveryHistory ||
+                                                                        []
+                                                                    ).length
+                                                                }{" "}
+                                                                DOWNLOAD
+                                                                {(
+                                                                    selectedProject
+                                                                        ?.deliveryHistory ||
+                                                                    []
+                                                                ).length ===
+                                                                1
+                                                                    ? ""
+                                                                    : "S"}
+                                                            </span>
+                                                        </div>
+
+                                                        {(
+                                                            selectedProject
+                                                                ?.deliveryHistory ||
+                                                            []
+                                                        ).length >
+                                                        0 ? (
+                                                            <div
+                                                                style={{
+                                                                    display:
+                                                                        "grid",
+                                                                    gap:
+                                                                        "10px",
+                                                                    marginTop:
+                                                                        "12px",
+                                                                }}
+                                                            >
+                                                                {(
+                                                                    selectedProject
+                                                                        ?.deliveryHistory ||
+                                                                    []
+                                                                ).map(
+                                                                    (
+                                                                        entry
+                                                                    ) => {
+                                                                        const metadata =
+                                                                            entry.metadata ||
+                                                                            {};
+
+                                                                        return (
+                                                                            <div
+                                                                                key={
+                                                                                    entry.id
+                                                                                }
+                                                                                style={{
+                                                                                    padding:
+                                                                                        "10px 0",
+                                                                                    borderBottom:
+                                                                                        "1px solid var(--border)",
+                                                                                }}
+                                                                            >
+                                                                                <strong
+                                                                                    style={{
+                                                                                        display:
+                                                                                            "block",
+                                                                                    }}
+                                                                                >
+                                                                                    {entry
+                                                                                        .user
+                                                                                        ?.name ||
+                                                                                        entry
+                                                                                            .user
+                                                                                            ?.email ||
+                                                                                        "Nexus user"}
+                                                                                </strong>
+
+                                                                                <small
+                                                                                    style={{
+                                                                                        display:
+                                                                                            "block",
+                                                                                        marginTop:
+                                                                                            "4px",
+                                                                                    }}
+                                                                                >
+                                                                                    {new Date(
+                                                                                        entry.createdAt
+                                                                                    ).toLocaleString()}
+                                                                                </small>
+
+                                                                                <small
+                                                                                    style={{
+                                                                                        display:
+                                                                                            "block",
+                                                                                        marginTop:
+                                                                                            "4px",
+                                                                                    }}
+                                                                                >
+                                                                                    Package:{" "}
+                                                                                    {metadata.approvedAssetVersion
+                                                                                        ? `v${metadata.approvedAssetVersion}`
+                                                                                        : "approved cut"}
+                                                                                    {" + "}
+                                                                                    {Number(
+                                                                                        metadata.supportingFileCount ||
+                                                                                            0
+                                                                                    )}{" "}
+                                                                                    supporting{" "}
+                                                                                    {Number(
+                                                                                        metadata.supportingFileCount ||
+                                                                                            0
+                                                                                    ) ===
+                                                                                    1
+                                                                                        ? "file"
+                                                                                        : "files"}
+                                                                                </small>
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <p
+                                                                className="text-link"
+                                                                style={{
+                                                                    marginTop:
+                                                                        "10px",
+                                                                }}
+                                                            >
+                                                                No
+                                                                delivery
+                                                                package
+                                                                downloads
+                                                                have
+                                                                been
+                                                                recorded
+                                                                yet.
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    <div
+                                                        className="review-history-card"
                                                     >
                                                         <div className="review-history-top">
                                                             <strong>

@@ -340,6 +340,29 @@ export async function GET(
         );
     }
 
+    const deliveryHistory =
+        await prisma.auditLog.findMany({
+            where: {
+                resource: "ContentItem",
+                resourceId: content.id,
+                action:
+                    "DELIVERY_PACKAGE_DOWNLOADED",
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+            take: 20,
+        });
+
     return NextResponse.json({
         project: {
             id: content.project.id,
@@ -398,6 +421,21 @@ export async function GET(
             assetType: asset.assetType,
             createdAt: asset.createdAt,
         })),
+
+        deliveryHistory: deliveryHistory.map(
+            (entry) => ({
+                id: entry.id,
+                createdAt: entry.createdAt,
+                user: entry.user
+                    ? {
+                          id: entry.user.id,
+                          name: entry.user.name,
+                          email: entry.user.email,
+                      }
+                    : null,
+                metadata: entry.metadata,
+            })
+        ),
 
         reviews: content.reviews.map((review) => ({
             id: review.id,
