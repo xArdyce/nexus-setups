@@ -2885,13 +2885,7 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    const submitReviewDecision = async (
-        reviewId,
-        decision,
-        {
-            confirmUnresolved = false,
-        } = {}
-    ) => {
+    const submitReviewDecision = async (reviewId, decision) => {
         if (!reviewId) {
             return;
         }
@@ -2904,51 +2898,6 @@ export default function CreatorDashboard({ user }) {
                 "Add revision notes so the Editor knows what needs to change."
             );
             return;
-        }
-
-        let approvalConfirmed =
-            confirmUnresolved;
-
-        if (
-            decision === "APPROVE" &&
-            !approvalConfirmed
-        ) {
-            const review =
-                selectedProject?.reviews?.find(
-                    (item) =>
-                        item.id === reviewId
-                );
-
-            const unresolvedCount =
-                (review?.comments || []).filter(
-                    (comment) =>
-                        !comment.resolved
-                ).length;
-
-            if (unresolvedCount > 0) {
-                const confirmed =
-                    window.confirm(
-                        `There ${
-                            unresolvedCount === 1
-                                ? "is"
-                                : "are"
-                        } ${unresolvedCount} unresolved review ${
-                            unresolvedCount === 1
-                                ? "comment"
-                                : "comments"
-                        } on ${
-                            review?.assetVersion
-                                ? `v${review.assetVersion.version}`
-                                : "this cut"
-                        }. Approve anyway?`
-                    );
-
-                if (!confirmed) {
-                    return;
-                }
-
-                approvalConfirmed = true;
-            }
         }
 
         setProjectStatusUpdating(true);
@@ -2968,62 +2917,15 @@ export default function CreatorDashboard({ user }) {
                     body: JSON.stringify({
                         decision,
                         notes: reviewNote.trim(),
-                        confirmUnresolved:
-                            approvalConfirmed,
                     }),
                 }
             );
 
             const data = await res.json();
 
-            if (
-                res.status === 409 &&
-                data.code ===
-                    "UNRESOLVED_REVIEW_COMMENTS" &&
-                decision === "APPROVE" &&
-                !approvalConfirmed
-            ) {
-                const unresolvedCount =
-                    Number(
-                        data.unresolvedCommentCount ||
-                            0
-                    );
-
-                const confirmed =
-                    window.confirm(
-                        `There ${
-                            unresolvedCount === 1
-                                ? "is"
-                                : "are"
-                        } ${unresolvedCount} unresolved review ${
-                            unresolvedCount === 1
-                                ? "comment"
-                                : "comments"
-                        } on this cut. Approve anyway?`
-                    );
-
-                if (confirmed) {
-                    setProjectStatusUpdating(
-                        false
-                    );
-
-                    await submitReviewDecision(
-                        reviewId,
-                        decision,
-                        {
-                            confirmUnresolved:
-                                true,
-                        }
-                    );
-                }
-
-                return;
-            }
-
             if (!res.ok) {
                 throw new Error(
-                    data.error ||
-                        "Failed to process review decision."
+                    data.error || "Failed to process review decision."
                 );
             }
 
@@ -3032,14 +2934,10 @@ export default function CreatorDashboard({ user }) {
             setReviewTimestamp("");
             await refreshProjectContext();
         } catch (error) {
-            console.error(
-                "Failed to process review decision:",
-                error
-            );
+            console.error("Failed to process review decision:", error);
 
             setReviewError(
-                error.message ||
-                    "Failed to process review decision."
+                error.message || "Failed to process review decision."
             );
         } finally {
             setProjectStatusUpdating(false);
@@ -3399,6 +3297,28 @@ export default function CreatorDashboard({ user }) {
         selectedProject?.reviews?.find(
             (review) => review.status === "PENDING"
         ) || null;
+
+    const approvedReview =
+        selectedProject?.reviews?.find(
+            (review) =>
+                review.status === "APPROVED" &&
+                review.assetVersion
+        ) ||
+        selectedProject?.reviews?.find(
+            (review) =>
+                review.status === "APPROVED"
+        ) ||
+        null;
+
+    const approvedAssetVersion =
+        approvedReview?.assetVersion || null;
+
+    const finalDeliveryAssets =
+        (selectedProject?.assets || []).filter(
+            (asset) =>
+                !approvedAssetVersion ||
+                asset.id !== approvedAssetVersion.assetId
+        );
 
     const canMakeReviewDecision =
         Boolean(pendingReview) &&
@@ -7188,6 +7108,325 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
                                             )}
 
+                                            {currentProjectStatus ===
+                                                "APPROVED" && (
+                                                <div
+                                                    className="panel review-panel"
+                                                    style={{
+                                                        marginBottom:
+                                                            "20px",
+                                                    }}
+                                                >
+                                                    <div className="panel-header review-panel-header">
+                                                        <div>
+                                                            <span className="status-tag">
+                                                                FINAL
+                                                                DELIVERY
+                                                            </span>
+
+                                                            <h3>
+                                                                APPROVED
+                                                                FILES
+                                                            </h3>
+                                                        </div>
+
+                                                        <span className="graph-tag">
+                                                            COMPLETE
+                                                        </span>
+                                                    </div>
+
+                                                    {approvedAssetVersion ? (
+                                                        <div
+                                                            className="review-history-card"
+                                                            style={{
+                                                                marginBottom:
+                                                                    "16px",
+                                                            }}
+                                                        >
+                                                            <div className="review-history-top">
+                                                                <strong>
+                                                                    APPROVED
+                                                                    CUT
+                                                                </strong>
+
+                                                                <span className="graph-tag">
+                                                                    v{
+                                                                        approvedAssetVersion.version
+                                                                    }
+                                                                </span>
+                                                            </div>
+
+                                                            <p
+                                                                style={{
+                                                                    marginTop:
+                                                                        "8px",
+                                                                    wordBreak:
+                                                                        "break-word",
+                                                                }}
+                                                            >
+                                                                {
+                                                                    approvedAssetVersion.fileName
+                                                                }
+                                                            </p>
+
+                                                            <small
+                                                                style={{
+                                                                    display:
+                                                                        "block",
+                                                                    marginTop:
+                                                                        "6px",
+                                                                }}
+                                                            >
+                                                                This is
+                                                                the exact
+                                                                version
+                                                                approved
+                                                                during
+                                                                review.
+                                                            </small>
+
+                                                            <div
+                                                                style={{
+                                                                    display:
+                                                                        "flex",
+                                                                    gap:
+                                                                        "8px",
+                                                                    flexWrap:
+                                                                        "wrap",
+                                                                    marginTop:
+                                                                        "12px",
+                                                                }}
+                                                            >
+                                                                {approvedAssetVersion.assetType ===
+                                                                    "VIDEO" && (
+                                                                    <a
+                                                                        className="asset-action"
+                                                                        href={`/api/assets/${encodeURIComponent(
+                                                                            approvedAssetVersion.assetId
+                                                                        )}/download?version=${encodeURIComponent(
+                                                                            approvedAssetVersion.version
+                                                                        )}&mode=inline`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                    >
+                                                                        OPEN
+                                                                        APPROVED
+                                                                        CUT
+                                                                    </a>
+                                                                )}
+
+                                                                <a
+                                                                    className="asset-action"
+                                                                    href={`/api/assets/${encodeURIComponent(
+                                                                        approvedAssetVersion.assetId
+                                                                    )}/download?version=${encodeURIComponent(
+                                                                        approvedAssetVersion.version
+                                                                    )}&mode=attachment`}
+                                                                >
+                                                                    DOWNLOAD
+                                                                    APPROVED
+                                                                    CUT
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div
+                                                            className="review-history-card"
+                                                            style={{
+                                                                marginBottom:
+                                                                    "16px",
+                                                            }}
+                                                        >
+                                                            <strong>
+                                                                APPROVED
+                                                                PROJECT
+                                                            </strong>
+
+                                                            <p
+                                                                className="text-link"
+                                                                style={{
+                                                                    marginTop:
+                                                                        "8px",
+                                                                }}
+                                                            >
+                                                                This
+                                                                project
+                                                                was
+                                                                approved
+                                                                before a
+                                                                specific
+                                                                asset
+                                                                version
+                                                                was
+                                                                attached
+                                                                to the
+                                                                review.
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    <div
+                                                        className="review-history-card"
+                                                    >
+                                                        <div className="review-history-top">
+                                                            <strong>
+                                                                SUPPORTING
+                                                                FILES
+                                                            </strong>
+
+                                                            <span className="graph-tag">
+                                                                {
+                                                                    finalDeliveryAssets.length
+                                                                }{" "}
+                                                                FILE
+                                                                {finalDeliveryAssets.length ===
+                                                                1
+                                                                    ? ""
+                                                                    : "S"}
+                                                            </span>
+                                                        </div>
+
+                                                        {finalDeliveryAssets.length >
+                                                        0 ? (
+                                                            <div
+                                                                style={{
+                                                                    display:
+                                                                        "grid",
+                                                                    gap:
+                                                                        "10px",
+                                                                    marginTop:
+                                                                        "12px",
+                                                                }}
+                                                            >
+                                                                {finalDeliveryAssets.map(
+                                                                    (
+                                                                        asset
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                asset.id
+                                                                            }
+                                                                            style={{
+                                                                                display:
+                                                                                    "flex",
+                                                                                alignItems:
+                                                                                    "center",
+                                                                                justifyContent:
+                                                                                    "space-between",
+                                                                                gap:
+                                                                                    "12px",
+                                                                                flexWrap:
+                                                                                    "wrap",
+                                                                                padding:
+                                                                                    "10px 0",
+                                                                                borderBottom:
+                                                                                    "1px solid var(--border)",
+                                                                            }}
+                                                                        >
+                                                                            <div
+                                                                                style={{
+                                                                                    minWidth:
+                                                                                        0,
+                                                                                }}
+                                                                            >
+                                                                                <strong
+                                                                                    style={{
+                                                                                        display:
+                                                                                            "block",
+                                                                                        wordBreak:
+                                                                                            "break-word",
+                                                                                    }}
+                                                                                >
+                                                                                    {
+                                                                                        asset.fileName
+                                                                                    }
+                                                                                </strong>
+
+                                                                                <small>
+                                                                                    {asset.assetType ||
+                                                                                        "ASSET"}
+                                                                                </small>
+                                                                            </div>
+
+                                                                            <div
+                                                                                style={{
+                                                                                    display:
+                                                                                        "flex",
+                                                                                    gap:
+                                                                                        "8px",
+                                                                                    flexWrap:
+                                                                                        "wrap",
+                                                                                }}
+                                                                            >
+                                                                                {asset.assetType ===
+                                                                                    "VIDEO" && (
+                                                                                    <a
+                                                                                        className="asset-action"
+                                                                                        href={`/api/assets/${encodeURIComponent(
+                                                                                            asset.id
+                                                                                        )}/download?mode=inline`}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                    >
+                                                                                        OPEN
+                                                                                    </a>
+                                                                                )}
+
+                                                                                <a
+                                                                                    className="asset-action"
+                                                                                    href={`/api/assets/${encodeURIComponent(
+                                                                                        asset.id
+                                                                                    )}/download?mode=attachment`}
+                                                                                >
+                                                                                    DOWNLOAD
+                                                                                </a>
+                                                                            </div>
+                                                                        </div>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <p
+                                                                className="text-link"
+                                                                style={{
+                                                                    marginTop:
+                                                                        "10px",
+                                                                }}
+                                                            >
+                                                                No
+                                                                additional
+                                                                delivery
+                                                                files
+                                                                have
+                                                                been
+                                                                added.
+                                                            </p>
+                                                        )}
+
+                                                        {finalDeliveryAssets.length >
+                                                            1 && (
+                                                            <p
+                                                                className="text-link"
+                                                                style={{
+                                                                    marginTop:
+                                                                        "12px",
+                                                                }}
+                                                            >
+                                                                Files
+                                                                download
+                                                                individually
+                                                                for now.
+                                                                A bundled
+                                                                download
+                                                                can be
+                                                                added
+                                                                later.
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* REVIEW */}
                                             <div className="panel review-panel">
                                                 <div className="panel-header review-panel-header">
@@ -7836,40 +8075,6 @@ export default function CreatorDashboard({ user }) {
                                                                     }
                                                                 />
                                                             </div>
-
-                                                            {(() => {
-                                                                const unresolvedCount =
-                                                                    (
-                                                                        pendingReview.comments ||
-                                                                        []
-                                                                    ).filter(
-                                                                        (
-                                                                            comment
-                                                                        ) =>
-                                                                            !comment.resolved
-                                                                    ).length;
-
-                                                                return unresolvedCount >
-                                                                    0 ? (
-                                                                    <p
-                                                                        className="text-link"
-                                                                        style={{
-                                                                            marginBottom:
-                                                                                "10px",
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            unresolvedCount
-                                                                        }{" "}
-                                                                        unresolved review{" "}
-                                                                        {unresolvedCount ===
-                                                                        1
-                                                                            ? "comment"
-                                                                            : "comments"}{" "}
-                                                                        remain on this cut.
-                                                                    </p>
-                                                                ) : null;
-                                                            })()}
 
                                                             <div className="review-decision-actions">
                                                                 <button
