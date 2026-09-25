@@ -465,6 +465,9 @@ export default function CreatorDashboard({ user }) {
                     metadata.fileName || "an asset"
                 } to ${title}.`;
 
+            case "DELIVERY_PACKAGE_DOWNLOADED":
+                return `${actor} downloaded the final delivery package for ${title}.`;
+
             case "ASSET_DELETED":
                 return `${actor} deleted ${
                     metadata.fileName || "an asset"
@@ -7136,13 +7139,36 @@ export default function CreatorDashboard({ user }) {
                                                     </div>
 
                                                     {approvedAssetVersion ? (
-                                                        <div
-                                                            className="review-history-card"
-                                                            style={{
-                                                                marginBottom:
-                                                                    "16px",
-                                                            }}
-                                                        >
+                                                        <>
+                                                            <div
+                                                                style={{
+                                                                    display:
+                                                                        "flex",
+                                                                    justifyContent:
+                                                                        "flex-end",
+                                                                    marginBottom:
+                                                                        "12px",
+                                                                }}
+                                                            >
+                                                                <a
+                                                                    className="asset-action"
+                                                                    href={`/api/projects/${encodeURIComponent(
+                                                                        selectedProject.content.id
+                                                                    )}/delivery`}
+                                                                >
+                                                                    DOWNLOAD
+                                                                    DELIVERY
+                                                                    PACKAGE
+                                                                </a>
+                                                            </div>
+
+                                                            <div
+                                                                className="review-history-card"
+                                                                style={{
+                                                                    marginBottom:
+                                                                        "16px",
+                                                                }}
+                                                            >
                                                             <div className="review-history-top">
                                                                 <strong>
                                                                     APPROVED
@@ -7229,6 +7255,7 @@ export default function CreatorDashboard({ user }) {
                                                                 </a>
                                                             </div>
                                                         </div>
+                                                        </>
                                                     ) : (
                                                         <div
                                                             className="review-history-card"
