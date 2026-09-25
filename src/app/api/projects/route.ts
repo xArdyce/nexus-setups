@@ -27,6 +27,100 @@ const ETA_LABELS: Record<string, string> = {
   APPROVED: "Approved",
 };
 
+const PROJECT_PAGE_SIZE = 25;
+const MAX_PROJECT_PAGE_SIZE = 100;
+
+const PROJECT_STATUSES = [
+  "REQUESTED",
+  "IN_PRODUCTION",
+  "IN_REVIEW",
+  "REVISION",
+  "APPROVED",
+] as const;
+
+type ProjectStatusValue =
+  (typeof PROJECT_STATUSES)[number];
+
+function parseProjectListParams(searchParams: URLSearchParams) {
+  const rawLimit = Number(searchParams.get("limit"));
+  const limit =
+    Number.isInteger(rawLimit) && rawLimit > 0
+      ? Math.min(rawLimit, MAX_PROJECT_PAGE_SIZE)
+      : PROJECT_PAGE_SIZE;
+
+  const statusRaw = searchParams.get("status");
+  const status =
+    statusRaw &&
+    (PROJECT_STATUSES as readonly string[]).includes(
+      statusRaw
+    )
+      ? (statusRaw as ProjectStatusValue)
+      : null;
+
+  const typeRaw = searchParams.get("type");
+  const contentType =
+    typeRaw &&
+    (CONTENT_TYPES as readonly string[]).includes(typeRaw)
+      ? typeRaw
+      : null;
+
+  const sortRaw = searchParams.get("sort");
+  const sort = [
+    "updated-desc",
+    "newest",
+    "oldest",
+    "due-date",
+  ].includes(sortRaw || "")
+    ? sortRaw!
+    : "updated-desc";
+
+  return {
+    limit,
+    cursor: searchParams.get("cursor"),
+    search: (searchParams.get("q") || "").trim(),
+    status,
+    contentType,
+    editorId: searchParams.get("editorId"),
+    filterCreatorId:
+      searchParams.get("filterCreatorId"),
+    sort,
+  };
+}
+
+function projectOrderBy(sort: string) {
+  switch (sort) {
+    case "oldest":
+      return [
+        { createdAt: "asc" as const },
+        { id: "asc" as const },
+      ];
+
+    case "due-date":
+      return [
+        {
+          dueDate: {
+            sort: "asc" as const,
+            nulls: "last" as const,
+          },
+        },
+        { id: "asc" as const },
+      ];
+
+    case "newest":
+      return [
+        { createdAt: "desc" as const },
+        { id: "desc" as const },
+      ];
+
+    case "updated-desc":
+    default:
+      return [
+        { updatedAt: "desc" as const },
+        { id: "desc" as const },
+      ];
+  }
+}
+
 function isGoogleDriveFolderUrl(value: string) {
   try {
     const url = new URL(value);
@@ -223,6 +317,17 @@ export async function GET(request: Request) {
   const requestedCreatorId =
     searchParams.get("creatorId");
 
+  const {
+    limit,
+    cursor,
+    search,
+    status,
+    contentType,
+    editorId,
+    filterCreatorId,
+    sort,
+  } = parseProjectListParams(searchParams);
+
   /*
    * ============================================================
    * CREATOR ACCESS
@@ -282,33 +387,92 @@ export async function GET(request: Request) {
      * This prevents a creator from manipulating query
      * parameters to access another creator's projects.
      */
-    const contentItems = await prisma.contentItem.findMany({
-      where: {
-        project: {
-          organizationId: creator.organizationId,
-          creatorId: creator.id,
-        },
+    const creatorWhere = {
+      project: {
+        organizationId: creator.organizationId,
+        creatorId: creator.id,
       },
-      include: PROJECT_LIST_INCLUDE,
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+      ...(search
+        ? {
+            OR: [
+              {
+                title: {
+                  contains: search,
+                  mode: "insensitive" as const,
+                },
+              },
+              {
+                project: {
+                  creator: {
+                    OR: [
+                      {
+                        name: {
+                          contains: search,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                      {
+                        email: {
+                          contains: search,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+      ...(status ? { status } : {}),
+      ...(contentType ? { contentType } : {}),
+    };
 
-    const queuePositionById = new Map<string, number>();
-
-    contentItems
-      .filter((item) => item.status === "REQUESTED")
-      .sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() -
-          new Date(b.createdAt).getTime()
-      )
-      .forEach((item, index) => {
-        queuePositionById.set(item.id, index + 1);
+    const contentItems =
+      await prisma.contentItem.findMany({
+        where: creatorWhere,
+        include: PROJECT_LIST_INCLUDE,
+        orderBy: projectOrderBy(sort),
+        take: limit + 1,
+        ...(cursor
+          ? {
+              cursor: { id: cursor },
+              skip: 1,
+            }
+          : {}),
       });
 
-    const projects = contentItems.map((item) =>
+    const hasMore = contentItems.length > limit;
+    const pageItems = hasMore
+      ? contentItems.slice(0, limit)
+      : contentItems;
+
+    const requestedQueueItems =
+      await prisma.contentItem.findMany({
+        where: {
+          project: {
+            organizationId: creator.organizationId,
+            creatorId: creator.id,
+          },
+          status: "REQUESTED",
+        },
+        select: {
+          id: true,
+        },
+        orderBy: [
+          { createdAt: "asc" },
+          { id: "asc" },
+        ],
+      });
+
+    const queuePositionById = new Map(
+      requestedQueueItems.map((item, index) => [
+        item.id,
+        index + 1,
+      ])
+    );
+
+    const projects = pageItems.map((item) =>
       toDisplayItem(item, queuePositionById)
     );
 
@@ -316,6 +480,11 @@ export async function GET(request: Request) {
       projects,
       organizationId: creator.organizationId,
       creatorId: creator.id,
+      nextCursor:
+        hasMore && pageItems.length > 0
+          ? pageItems[pageItems.length - 1].id
+          : null,
+      hasMore,
     });
   }
 
@@ -387,63 +556,168 @@ export async function GET(request: Request) {
     }
   }
 
-  const contentItems = await prisma.contentItem.findMany({
-    where: {
-      project: {
-        organizationId: targetOrganizationId,
+  const creatorScopeId =
+    requestedCreatorId || filterCreatorId;
 
-        ...(requestedCreatorId
-          ? {
-              creatorId: requestedCreatorId,
-            }
-          : {}),
-      },
+  if (
+    filterCreatorId &&
+    requestedCreatorId &&
+    filterCreatorId !== requestedCreatorId
+  ) {
+    return NextResponse.json({
+      projects: [],
+      organizationId: targetOrganizationId,
+      creatorId: requestedCreatorId,
+      nextCursor: null,
+      hasMore: false,
+    });
+  }
 
-      ...(isEditor
+  const accessWhere = {
+    project: {
+      organizationId: targetOrganizationId,
+      ...(creatorScopeId
         ? {
-            OR: [
-              {
-                editorAssignments: {
-                  some: {
-                    userId: user.id,
-                  },
+            creatorId: creatorScopeId,
+          }
+        : {}),
+    },
+
+    ...(isEditor
+      ? {
+          OR: [
+            {
+              editorAssignments: {
+                some: {
+                  userId: user.id,
                 },
               },
-              {
-                project: {
-                  creator: {
-                    editorAssignments: {
-                      some: {
-                        userId: user.id,
-                      },
+            },
+            {
+              project: {
+                creator: {
+                  editorAssignments: {
+                    some: {
+                      userId: user.id,
                     },
                   },
                 },
               },
-            ],
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const filterWhere = {
+    ...(search
+      ? {
+          OR: [
+            {
+              title: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              project: {
+                creator: {
+                  OR: [
+                    {
+                      name: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      email: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+    ...(status ? { status } : {}),
+    ...(contentType ? { contentType } : {}),
+    ...(editorId
+      ? {
+          OR: [
+            {
+              editorAssignments: {
+                some: {
+                  userId: editorId,
+                },
+              },
+            },
+            {
+              project: {
+                creator: {
+                  editorAssignments: {
+                    some: {
+                      userId: editorId,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const contentItems =
+    await prisma.contentItem.findMany({
+      where: {
+        AND: [accessWhere, filterWhere],
+      },
+      include: PROJECT_LIST_INCLUDE,
+      orderBy: projectOrderBy(sort),
+      take: limit + 1,
+      ...(cursor
+        ? {
+            cursor: { id: cursor },
+            skip: 1,
           }
         : {}),
-    },
-    include: PROJECT_LIST_INCLUDE,
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-
-  const queuePositionById = new Map<string, number>();
-
-  contentItems
-    .filter((item) => item.status === "REQUESTED")
-    .sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() -
-        new Date(b.createdAt).getTime()
-    )
-    .forEach((item, index) => {
-      queuePositionById.set(item.id, index + 1);
     });
 
-  const projects = contentItems.map((item) =>
+  const hasMore = contentItems.length > limit;
+  const pageItems = hasMore
+    ? contentItems.slice(0, limit)
+    : contentItems;
+
+  const requestedQueueItems =
+    await prisma.contentItem.findMany({
+      where: {
+        AND: [
+          accessWhere,
+          {
+            status: "REQUESTED",
+          },
+        ],
+      },
+      select: {
+        id: true,
+      },
+      orderBy: [
+        { createdAt: "asc" },
+        { id: "asc" },
+      ],
+    });
+
+  const queuePositionById = new Map(
+    requestedQueueItems.map((item, index) => [
+      item.id,
+      index + 1,
+    ])
+  );
+
+  const projects = pageItems.map((item) =>
     toDisplayItem(item, queuePositionById)
   );
 
@@ -452,9 +726,14 @@ export async function GET(request: Request) {
     organizationId: targetOrganizationId,
     ...(requestedCreatorId
       ? {
-        creatorId: requestedCreatorId,
-      }
+          creatorId: requestedCreatorId,
+        }
       : {}),
+    nextCursor:
+      hasMore && pageItems.length > 0
+        ? pageItems[pageItems.length - 1].id
+        : null,
+    hasMore,
   });
 }
 

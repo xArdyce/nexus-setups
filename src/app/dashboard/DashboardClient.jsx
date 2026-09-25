@@ -45,6 +45,14 @@ export default function CreatorDashboard({ user }) {
     const [projects, setProjects] = useState([]);
     const [projectsLoading, setProjectsLoading] = useState(true);
     const [projectsError, setProjectsError] = useState(null);
+    const [projectsNextCursor, setProjectsNextCursor] =
+        useState(null);
+    const [projectsHasMore, setProjectsHasMore] =
+        useState(false);
+    const [projectsLoadingMore, setProjectsLoadingMore] =
+        useState(false);
+    const [debouncedProjectSearch, setDebouncedProjectSearch] =
+        useState("");
 
     const [organizations, setOrganizations] = useState([]);
     const [organizationsLoading, setOrganizationsLoading] = useState(true);
@@ -536,11 +544,11 @@ export default function CreatorDashboard({ user }) {
 
     const projectCreatorOptions = Array.from(
         new Map(
-            projects
-                .filter((project) => project.creator?.id)
-                .map((project) => [
-                    project.creator.id,
-                    project.creator,
+            creators
+                .filter((creator) => creator?.id)
+                .map((creator) => [
+                    creator.id,
+                    creator,
                 ])
         ).values()
     ).sort((a, b) =>
@@ -563,82 +571,8 @@ export default function CreatorDashboard({ user }) {
         )
     );
 
-    const filteredAndSortedProjects = projects
-        .filter((project) => {
-            const search =
-                projectSearch.trim().toLowerCase();
+    const filteredAndSortedProjects = projects;
 
-            const matchesSearch =
-                !search ||
-                String(project.title || "")
-                    .toLowerCase()
-                    .includes(search) ||
-                String(
-                    project.creator?.name ||
-                        project.creator?.email ||
-                        ""
-                )
-                    .toLowerCase()
-                    .includes(search);
-
-            const matchesStatus =
-                projectFilter === "all" ||
-                normalizeProjectStatus(project.status) ===
-                    projectFilter;
-
-            const matchesCreator =
-                projectCreatorFilter === "all" ||
-                project.creator?.id ===
-                    projectCreatorFilter;
-
-            const matchesEditor =
-                projectEditorFilter === "all" ||
-                (project.assignedEditors || []).some(
-                    (editor) =>
-                        editor.id ===
-                        projectEditorFilter
-                );
-
-            const matchesType =
-                projectTypeFilter === "all" ||
-                project.type === projectTypeFilter;
-
-            return (
-                matchesSearch &&
-                matchesStatus &&
-                matchesCreator &&
-                matchesEditor &&
-                matchesType
-            );
-        })
-        .sort((a, b) => {
-            const createdA =
-                new Date(a.createdAt || 0).getTime();
-            const createdB =
-                new Date(b.createdAt || 0).getTime();
-            const updatedA =
-                new Date(a.updatedAt || 0).getTime();
-            const updatedB =
-                new Date(b.updatedAt || 0).getTime();
-            const dueA = a.dueDate
-                ? new Date(a.dueDate).getTime()
-                : Number.POSITIVE_INFINITY;
-            const dueB = b.dueDate
-                ? new Date(b.dueDate).getTime()
-                : Number.POSITIVE_INFINITY;
-
-            switch (projectSort) {
-                case "oldest":
-                    return createdA - createdB;
-                case "due-date":
-                    return dueA - dueB;
-                case "updated-desc":
-                    return updatedB - updatedA;
-                case "newest":
-                default:
-                    return createdB - createdA;
-            }
-        });
 
     // =========================
     // FETCH ORGANIZATIONS
@@ -1750,23 +1684,86 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
+    const buildProjectQuery = (
+        organizationId,
+        {
+            cursor = null,
+            creatorId = null,
+            limit = 25,
+        } = {}
+    ) => {
+        const params = new URLSearchParams();
+
+        params.set("organizationId", organizationId);
+        params.set("limit", String(limit));
+
+        if (cursor) {
+            params.set("cursor", cursor);
+        }
+
+        if (creatorId) {
+            params.set("creatorId", creatorId);
+        } else if (projectCreatorFilter !== "all") {
+            params.set(
+                "filterCreatorId",
+                projectCreatorFilter
+            );
+        }
+
+        if (debouncedProjectSearch.trim()) {
+            params.set(
+                "q",
+                debouncedProjectSearch.trim()
+            );
+        }
+
+        if (projectFilter !== "all") {
+            params.set("status", projectFilter);
+        }
+
+        if (projectEditorFilter !== "all") {
+            params.set(
+                "editorId",
+                projectEditorFilter
+            );
+        }
+
+        if (projectTypeFilter !== "all") {
+            params.set("type", projectTypeFilter);
+        }
+
+        params.set("sort", projectSort);
+
+        return params.toString();
+    };
+
     const loadProjects = async (
-        organizationId = activeOrganizationId
+        organizationId = activeOrganizationId,
+        { append = false, cursor = null } = {}
     ) => {
         if (!organizationId) {
             setProjects([]);
+            setProjectsNextCursor(null);
+            setProjectsHasMore(false);
             setProjectsLoading(false);
             return;
         }
 
-        setProjectsLoading(true);
-        setProjectsError(null);
+        if (append) {
+            setProjectsLoadingMore(true);
+        } else {
+            setProjectsLoading(true);
+            setProjectsError(null);
+        }
 
         try {
+            const query = buildProjectQuery(
+                organizationId,
+                { cursor }
+            );
+
             const res = await fetch(
-                `/api/projects?organizationId=${encodeURIComponent(
-                    organizationId
-                )}`
+                `/api/projects?${query}`
             );
 
             if (!res.ok) {
@@ -1775,8 +1772,21 @@ export default function CreatorDashboard({ user }) {
 
             const data = await res.json();
 
-            setProjects(
-                (data.projects || []).map(toDisplayProject)
+            const nextProjects = (
+                data.projects || []
+            ).map(toDisplayProject);
+
+            setProjects((current) =>
+                append
+                    ? [...current, ...nextProjects]
+                    : nextProjects
+            );
+
+            setProjectsNextCursor(
+                data.nextCursor || null
+            );
+            setProjectsHasMore(
+                Boolean(data.hasMore)
             );
         } catch (err) {
             console.error("Failed to load projects:", err);
@@ -1784,9 +1794,38 @@ export default function CreatorDashboard({ user }) {
             setProjectsError(
                 "Couldn't load your projects. Try refreshing."
             );
+
+            if (!append) {
+                setProjects([]);
+                setProjectsNextCursor(null);
+                setProjectsHasMore(false);
+            }
         } finally {
-            setProjectsLoading(false);
+            if (append) {
+                setProjectsLoadingMore(false);
+            } else {
+                setProjectsLoading(false);
+            }
         }
+    };
+
+    const loadMoreProjects = async () => {
+        if (
+            !activeOrganizationId ||
+            !projectsHasMore ||
+            !projectsNextCursor ||
+            projectsLoadingMore
+        ) {
+            return;
+        }
+
+        await loadProjects(
+            activeOrganizationId,
+            {
+                append: true,
+                cursor: projectsNextCursor,
+            }
+        );
     };
 
     // =========================
@@ -1803,10 +1842,16 @@ export default function CreatorDashboard({ user }) {
         setProjectsError(null);
 
         try {
+            const params = new URLSearchParams({
+                organizationId:
+                    activeOrganizationId,
+                creatorId,
+                limit: "100",
+                sort: "updated-desc",
+            });
+
             const res = await fetch(
-                `/api/projects?organizationId=${encodeURIComponent(
-                    activeOrganizationId
-                )}&creatorId=${encodeURIComponent(creatorId)}`
+                `/api/projects?${params.toString()}`
             );
 
             if (!res.ok) {
@@ -3127,8 +3172,19 @@ export default function CreatorDashboard({ user }) {
     }, []);
 
     useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedProjectSearch(
+                projectSearch.trim()
+            );
+        }, 300);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [projectSearch]);
+
+    useEffect(() => {
         if (activeOrganizationId) {
-            loadProjects(activeOrganizationId);
             loadCreators(activeOrganizationId);
             loadAssets(activeOrganizationId);
             loadActivity(activeOrganizationId);
@@ -3136,6 +3192,8 @@ export default function CreatorDashboard({ user }) {
             // No accessible organization means there is nothing left to
             // fetch, so finish the dependent loading states.
             setProjects([]);
+            setProjectsNextCursor(null);
+            setProjectsHasMore(false);
             setCreators([]);
             setAssets([]);
             setActivity([]);
@@ -3153,6 +3211,27 @@ export default function CreatorDashboard({ user }) {
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeOrganizationId, organizationsLoading]);
+
+    useEffect(() => {
+        if (!activeOrganizationId) {
+            return;
+        }
+
+        setProjectsNextCursor(null);
+        setProjectsHasMore(false);
+
+        loadProjects(activeOrganizationId);
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        activeOrganizationId,
+        debouncedProjectSearch,
+        projectFilter,
+        projectCreatorFilter,
+        projectEditorFilter,
+        projectTypeFilter,
+        projectSort,
+    ]);
 
     useEffect(() => {
         if (!activeOrganizationId) {
@@ -4784,6 +4863,36 @@ export default function CreatorDashboard({ user }) {
                                                     </div>
                                                 )
                                             )}
+
+                                    {!projectsLoading &&
+                                        !projectsError &&
+                                        projectsHasMore && (
+                                            <div
+                                                style={{
+                                                    display:
+                                                        "flex",
+                                                    justifyContent:
+                                                        "center",
+                                                    padding:
+                                                        "18px 12px 4px",
+                                                }}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="action-btn active"
+                                                    onClick={
+                                                        loadMoreProjects
+                                                    }
+                                                    disabled={
+                                                        projectsLoadingMore
+                                                    }
+                                                >
+                                                    {projectsLoadingMore
+                                                        ? "LOADING…"
+                                                        : "LOAD MORE PROJECTS"}
+                                                </button>
+                                            </div>
+                                        )}
                                 </div>
                             </div>
                         </div>
