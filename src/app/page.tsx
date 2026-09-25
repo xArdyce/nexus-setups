@@ -4,9 +4,14 @@ import "./homepage.css";
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { InterfaceTranslator, LanguageSelector } from "@/components/InterfaceLanguage";
 
 export default function NexusHomepage() {
   const router = useRouter();
+  const [session, setSession] = useState<any>(null);
+  const [sessionStatus, setSessionStatus] = useState<
+    "loading" | "authenticated" | "unauthenticated"
+  >("loading");
 
   // =========================
   // STATE
@@ -14,7 +19,7 @@ export default function NexusHomepage() {
 
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [modalOpen, setModalOpen] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup">("login");
+  const [authTab, setAuthTab] = useState<"login" | "signup" | "reset-request" | "reset-password">("login");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -32,6 +37,47 @@ export default function NexusHomepage() {
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [signupLoading, setSignupLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSession = async () => {
+      try {
+        const response = await fetch("/api/auth/session", {
+          cache: "no-store",
+        });
+
+        const data = await response.json();
+
+        if (cancelled) return;
+
+        if (data?.user) {
+          setSession(data);
+          setSessionStatus("authenticated");
+        } else {
+          setSession(null);
+          setSessionStatus("unauthenticated");
+        }
+      } catch (error) {
+        console.error("Failed to load session:", error);
+
+        if (!cancelled) {
+          setSession(null);
+          setSessionStatus("unauthenticated");
+        }
+      }
+    };
+
+    loadSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // =========================
   // THEME
@@ -46,6 +92,19 @@ export default function NexusHomepage() {
     } else {
       setTheme("dark");
       document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("resetToken");
+
+    if (token) {
+      setResetToken(token);
+      setAuthTab("reset-password");
+      setModalOpen(true);
+      setLoginError("");
+      setResetMessage("");
     }
   }, []);
 
@@ -181,9 +240,12 @@ export default function NexusHomepage() {
     setLoginError("");
   };
 
-  const handleAuthTab = (tab: "login" | "signup") => {
+  const handleAuthTab = (
+    tab: "login" | "signup" | "reset-request" | "reset-password"
+  ) => {
     setAuthTab(tab);
     setLoginError("");
+    setResetMessage("");
   };
 
   // =========================
@@ -200,7 +262,9 @@ export default function NexusHomepage() {
 
     const formData = new FormData(event.currentTarget);
 
-    const email = String(formData.get("loginEmail") || "").trim();
+    const email = String(formData.get("loginEmail") || "")
+      .trim()
+      .toLowerCase();
     const password = String(formData.get("loginPass") || "");
 
     try {
@@ -308,15 +372,118 @@ export default function NexusHomepage() {
   };
 
   // =========================
-  // SOCIAL LOGIN
+  // PASSWORD RESET
   // =========================
 
-  const handleSocialAuth = () => {
-    localStorage.setItem("nexus-session", "active");
+  const handleResetRequest = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
 
-    closeLoginModal();
+    setLoginError("");
+    setResetMessage("");
+    setResetLoading(true);
 
-    router.push("/dashboard");
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("resetEmail") || "")
+      .trim()
+      .toLowerCase();
+
+    try {
+      const response = await fetch("/api/auth/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setLoginError(
+          data.error || "PASSWORD RESET REQUEST FAILED."
+        );
+        return;
+      }
+
+      setResetMessage(
+        data.message ||
+          "IF THAT ACCOUNT EXISTS, A RESET LINK HAS BEEN CREATED."
+      );
+
+      if (data.debugResetUrl) {
+        setResetMessage(
+          `LOCAL DEVELOPMENT RESET LINK: ${data.debugResetUrl}`
+        );
+      }
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      setLoginError("SYSTEM ERROR. PLEASE TRY AGAIN.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    setLoginError("");
+    setResetMessage("");
+    setResetLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const password = String(formData.get("resetPassword") || "");
+    const confirmPassword = String(
+      formData.get("resetPasswordConfirm") || ""
+    );
+
+    if (password !== confirmPassword) {
+      setLoginError("PASSWORDS DO NOT MATCH.");
+      setResetLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/auth/password-reset/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token: resetToken,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setLoginError(
+          data.error || "PASSWORD RESET FAILED."
+        );
+        return;
+      }
+
+      setResetMessage("PASSWORD UPDATED. YOU CAN NOW LOG IN.");
+      setResetToken("");
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete("resetToken");
+      window.history.replaceState({}, "", url.toString());
+
+      setTimeout(() => {
+        setAuthTab("login");
+        setResetMessage("");
+      }, 1200);
+    } catch (error) {
+      console.error("Password reset error:", error);
+      setLoginError("SYSTEM ERROR. PLEASE TRY AGAIN.");
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   // =========================
@@ -544,6 +711,8 @@ export default function NexusHomepage() {
 
   return (
     <>
+      <InterfaceTranslator />
+
       {/* ATMOSPHERE */}
 
       <div className="noise"></div>
@@ -601,6 +770,8 @@ export default function NexusHomepage() {
         </nav>
 
         <div className="header-actions">
+          <LanguageSelector compact />
+
           <button
             className="theme-toggle"
             id="themeToggle"
@@ -620,13 +791,29 @@ export default function NexusHomepage() {
           </button>
 
           <button
-            className="nav-login"
+            className={`nav-login ${session?.user ? "user-active" : ""}`}
             id="loginBtn"
             type="button"
-            onClick={openLoginModal}
+            onClick={() => {
+              if (session?.user) {
+                router.push("/dashboard");
+                return;
+              }
+
+              openLoginModal();
+            }}
+            disabled={sessionStatus === "loading"}
           >
-            <span className="user-label">LOGIN</span>
-            <i className="login-icon">🗝</i>
+            <span className="user-label">
+              {sessionStatus === "loading"
+                ? "CHECKING..."
+                : session?.user
+                  ? "DASHBOARD"
+                  : "LOGIN"}
+            </span>
+            <i className="login-icon">
+              {session?.user ? "↗" : "🗝"}
+            </i>
           </button>
 
           <button
@@ -646,6 +833,10 @@ export default function NexusHomepage() {
         className={`mobile-menu ${mobileMenuOpen ? "open" : ""
           }`}
       >
+        <div className="mobile-language-row">
+          <LanguageSelector />
+        </div>
+
         <a
           href="#services"
           onClick={handleAnchorClick}
@@ -693,10 +884,21 @@ export default function NexusHomepage() {
           id="mobileLoginBtn"
           onClick={() => {
             closeMobileMenu();
+
+            if (session?.user) {
+              router.push("/dashboard");
+              return;
+            }
+
             openLoginModal();
           }}
+          disabled={sessionStatus === "loading"}
         >
-          CLIENT PORTAL LOGIN 🔑
+          {sessionStatus === "loading"
+            ? "CHECKING SESSION..."
+            : session?.user
+              ? "OPEN DASHBOARD ↗"
+              : "CLIENT PORTAL LOGIN 🔑"}
         </button>
       </div>
 
@@ -1656,7 +1858,8 @@ export default function NexusHomepage() {
             <h3>NEXUS PORTAL</h3>
           </div>
 
-          <div className="auth-tabs">
+          {(authTab === "login" || authTab === "signup") && (
+            <div className="auth-tabs">
             <button
               className={`auth-tab ${authTab === "login"
                   ? "active"
@@ -1682,64 +1885,8 @@ export default function NexusHomepage() {
             </button>
           </div>
 
-          <div className="social-auth-grid">
-            <button
-              type="button"
-              className="social-auth-btn social-google"
-              onClick={handleSocialAuth}
-            >
-              <svg
-                className="social-icon"
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-              >
-                <path
-                  fill="#EA4335"
-                  d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.2 9 5 12 5z"
-                />
+          )}
 
-                <path
-                  fill="#4285F4"
-                  d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
-                />
-
-                <path
-                  fill="#FBBC05"
-                  d="M5.6 14.8c-.3-.8-.4-1.8-.4-2.8s.1-1.9.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"
-                />
-
-                <path
-                  fill="#34A853"
-                  d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.2-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"
-                />
-              </svg>
-
-              <span>GOOGLE</span>
-            </button>
-
-            <button
-              type="button"
-              className="social-auth-btn social-apple"
-              onClick={handleSocialAuth}
-            >
-              <svg
-                className="social-icon"
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="currentColor"
-              >
-                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.32c.67-.82 1.12-1.96.99-3.1-.97.04-2.14.65-2.83 1.43-.62.72-1.16 1.88-1.01 3 .09.01.21.02.32.02 1.09 0 2.22-.59 2.53-1.35z" />
-              </svg>
-
-              <span>APPLE</span>
-            </button>
-          </div>
-
-          <div className="auth-divider">
-            <span>OR VIA EMAIL</span>
-          </div>
 
           {authTab === "login" && (
             <form
@@ -1756,6 +1903,7 @@ export default function NexusHomepage() {
                   id="loginEmail"
                   name="loginEmail"
                   placeholder="you@example.com"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -1766,15 +1914,13 @@ export default function NexusHomepage() {
                     PASSWORD
                   </label>
 
-                  <a
-                    href="#"
+                  <button
+                    type="button"
                     className="forgot-pass"
-                    onClick={(event) =>
-                      event.preventDefault()
-                    }
+                    onClick={() => handleAuthTab("reset-request")}
                   >
                     FORGOT?
-                  </a>
+                  </button>
                 </div>
 
                 <div className="password-wrapper">
@@ -1787,6 +1933,7 @@ export default function NexusHomepage() {
                     id="loginPass"
                     name="loginPass"
                     placeholder="••••••••"
+                    autoComplete="current-password"
                     required
                   />
 
@@ -1804,19 +1951,6 @@ export default function NexusHomepage() {
                       : "👁"}
                   </button>
                 </div>
-              </div>
-
-              <div className="auth-options">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                  />
-
-                  <span>
-                    REMEMBER SESSION
-                  </span>
-                </label>
               </div>
 
               {loginError && (
@@ -1837,6 +1971,150 @@ export default function NexusHomepage() {
             </form>
           )}
 
+          {authTab === "reset-request" && (
+            <form
+              className="auth-form active"
+              onSubmit={handleResetRequest}
+            >
+              <div className="auth-reset-heading">
+                <button
+                  type="button"
+                  className="auth-back-btn"
+                  onClick={() => handleAuthTab("login")}
+                >
+                  ← BACK TO LOGIN
+                </button>
+
+                <h4>RESET PASSWORD</h4>
+
+                <p>
+                  Enter your account email. During local development,
+                  Nexus will generate a secure reset link for testing.
+                </p>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="resetEmail">
+                  EMAIL ADDRESS
+                </label>
+
+                <input
+                  type="email"
+                  id="resetEmail"
+                  name="resetEmail"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+
+              {loginError && (
+                <p className="auth-error-msg active">
+                  {loginError}
+                </p>
+              )}
+
+              {resetMessage && (
+                <p className="auth-reset-message active">
+                  {resetMessage}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="button button-primary auth-submit"
+                disabled={resetLoading}
+              >
+                {resetLoading
+                  ? "CREATING RESET LINK..."
+                  : "CREATE RESET LINK ↗"}
+              </button>
+            </form>
+          )}
+
+          {authTab === "reset-password" && (
+            <form
+              className="auth-form active"
+              onSubmit={handlePasswordReset}
+            >
+              <div className="auth-reset-heading">
+                <h4>CREATE NEW PASSWORD</h4>
+
+                <p>
+                  Choose a new password for your Nexus account.
+                </p>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="resetPassword">
+                  NEW PASSWORD
+                </label>
+
+                <div className="password-wrapper">
+                  <input
+                    type={showResetPassword ? "text" : "password"}
+                    id="resetPassword"
+                    name="resetPassword"
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+
+                  <button
+                    type="button"
+                    className="toggle-pass"
+                    onClick={() =>
+                      setShowResetPassword(
+                        (current) => !current
+                      )
+                    }
+                  >
+                    {showResetPassword ? "🙈" : "👁"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="resetPasswordConfirm">
+                  CONFIRM PASSWORD
+                </label>
+
+                <input
+                  type={showResetPassword ? "text" : "password"}
+                  id="resetPasswordConfirm"
+                  name="resetPasswordConfirm"
+                  placeholder="Repeat new password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </div>
+
+              {loginError && (
+                <p className="auth-error-msg active">
+                  {loginError}
+                </p>
+              )}
+
+              {resetMessage && (
+                <p className="auth-reset-message active">
+                  {resetMessage}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="button button-primary auth-submit"
+                disabled={resetLoading}
+              >
+                {resetLoading
+                  ? "UPDATING PASSWORD..."
+                  : "UPDATE PASSWORD ↗"}
+              </button>
+            </form>
+          )}
+
           {authTab === "signup" && (
             <form
               className="auth-form active"
@@ -1852,6 +2130,7 @@ export default function NexusHomepage() {
                   id="signupName"
                   name="signupName"
                   placeholder="Nexus Studio"
+                  autoComplete="name"
                   required
                 />
               </div>
@@ -1866,6 +2145,7 @@ export default function NexusHomepage() {
                   id="signupEmail"
                   name="signupEmail"
                   placeholder="you@channel.com"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -1930,6 +2210,7 @@ export default function NexusHomepage() {
                     id="signupPass"
                     name="signupPass"
                     placeholder="At least 8 characters"
+                    autoComplete="new-password"
                     required
                     minLength={8}
                   />

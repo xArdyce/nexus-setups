@@ -932,19 +932,38 @@ footer {
 
 .auth-options {
     margin-bottom: 16px;
+    display: grid;
+    gap: 5px;
 }
 
 .checkbox-label {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    width: fit-content;
     cursor: pointer;
     font: 10px "DM Mono", monospace;
     color: var(--text-muted);
 }
 
 .checkbox-label input {
+    flex: 0 0 auto;
     accent-color: var(--purple-bright);
+}
+
+.auth-options > small {
+    display: block;
+    margin-left: 22px;
+    color: var(--text-muted);
+    font: 9px "DM Mono", monospace;
+    letter-spacing: .05em;
+    line-height: 1.4;
+}
+
+@media (max-width: 520px) {
+    .auth-options > small {
+        margin-left: 0;
+    }
 }
 
 .auth-error-msg {
@@ -3608,4 +3627,78 @@ footer {
     .cursor-glow {
         display: none;
     }
+}
+
+/* =========================================================
+   LANGUAGE SELECTOR
+========================================================= */
+.language-selector { min-height:42px; display:inline-flex; align-items:center; gap:8px; padding:0 10px; border:1px solid var(--line); background:var(--input-bg); color:var(--white); }
+.language-selector-label { flex:0 0 auto; font:9px "DM Mono", monospace; font-weight:500; letter-spacing:.1em; color:var(--muted); }
+.language-selector select { min-width:92px; max-width:130px; border:0; outline:0; background:transparent; color:var(--white); font:10px "DM Mono", monospace; font-weight:500; cursor:pointer; }
+.language-selector select option { background:var(--black-soft); color:var(--white); }
+[data-theme="light"] .language-selector select option { background:#f7f5fa; color:#0c0a10; }
+.mobile-language-row { display:none; }
+@media (max-width:900px) { .language-selector-compact .language-selector-label { display:none; } .language-selector-compact { padding:0 8px; } .language-selector-compact select { min-width:74px; max-width:92px; } }
+@media (max-width:700px) { .site-header .language-selector { display:none; } .mobile-language-row { display:flex; width:100%; margin-bottom:12px; } .mobile-language-row .language-selector { width:100%; justify-content:space-between; } }
+@media (max-width:560px) { .dash-actions .language-selector { grid-column:1 / -1; width:100%; justify-content:space-between; min-height:38px; } .dash-actions .language-selector .language-selector-label { display:inline; } .dash-actions .language-selector select { max-width:none; width:auto; } }
+
+
+/* REAL PASSWORD RESET FLOW */
+.forgot-pass {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.forgot-pass:hover {
+    color: var(--white);
+}
+
+.auth-reset-heading {
+    margin-bottom: 18px;
+}
+
+.auth-reset-heading h4 {
+    margin-top: 10px;
+    color: var(--white);
+    font: 13px "DM Mono", monospace;
+    font-weight: 500;
+    letter-spacing: .08em;
+}
+
+.auth-reset-heading p {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.auth-back-btn {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--purple-bright);
+    font: 9px "DM Mono", monospace;
+    letter-spacing: .08em;
+}
+
+.auth-back-btn:hover {
+    color: var(--white);
+}
+
+.auth-reset-message {
+    display: none;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(125, 245, 187, .24);
+    background: rgba(125, 245, 187, .08);
+    color: var(--green);
+    font: 10px "DM Mono", monospace;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.auth-reset-message.active {
+    display: block;
 }

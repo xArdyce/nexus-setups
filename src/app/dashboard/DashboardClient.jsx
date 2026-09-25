@@ -14,6 +14,7 @@
 import "./dashboard.css";
 import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
+import { InterfaceTranslator, LanguageSelector } from "@/components/InterfaceLanguage";
 
 export default function CreatorDashboard({ user }) {
     const accountType = user?.accountType || "CREATOR";
@@ -147,6 +148,21 @@ export default function CreatorDashboard({ user }) {
         useState(null);
     const [settingsSaving, setSettingsSaving] =
         useState(null);
+
+    const confirmAndSignOut = async () => {
+        const confirmed = window.confirm(
+            "Are you sure you want to log out?"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        await signOut({
+            callbackUrl: "/",
+        });
+    };
+
 
     const [profileDraft, setProfileDraft] =
         useState({
@@ -2686,6 +2702,7 @@ export default function CreatorDashboard({ user }) {
 
     return (
         <>
+            <InterfaceTranslator />
             <div className="noise"></div>
 
             <div className="app-shell">
@@ -2797,21 +2814,15 @@ export default function CreatorDashboard({ user }) {
                             </small>
                         </div>
 
-                        <a
-                            href="/"
+                        <button
+                            type="button"
                             className="logout-btn"
                             title="Log Out"
-                            onClick={(e) => {
-                                e.preventDefault();
-
-                                signOut({
-                                    callbackUrl:
-                                        "/",
-                                });
-                            }}
+                            aria-label="Log out"
+                            onClick={confirmAndSignOut}
                         >
                             ↗
-                        </a>
+                        </button>
                     </div>
                 </aside>
 
@@ -2885,6 +2896,8 @@ export default function CreatorDashboard({ user }) {
                                         )}
                                 </select>
                             </div>
+
+                            <LanguageSelector compact />
 
                             <div
                                 style={{
@@ -6937,34 +6950,155 @@ export default function CreatorDashboard({ user }) {
                             currentView === "analytics" ? "active" : ""
                         }`}
                     >
-                        <div className="panel-scroll-container">
-                            <div className="panel analytics-panel">
-                                <div className="panel-header">
-                                    <div>
-                                        <span className="status-tag">
-                                            ANALYTICS
-                                        </span>
+                        <div className="analytics-scroll-container">
+                            <div className="analytics-platform-bar">
+                                <div className="analytics-platform-heading">
+                                    <span className="status-tag">ANALYTICS</span>
+                                    <strong>CREATOR PERFORMANCE</strong>
+                                </div>
 
-                                        <h3>
-                                            PERFORMANCE ANALYTICS
-                                        </h3>
+                                <div className="analytics-platform-tabs">
+                                    <button type="button" className="analytics-platform-tab active">
+                                        YOUTUBE
+                                    </button>
+                                    <button type="button" className="analytics-platform-tab" disabled>
+                                        TIKTOK <small>SOON</small>
+                                    </button>
+                                    <button type="button" className="analytics-platform-tab" disabled>
+                                        INSTAGRAM <small>SOON</small>
+                                    </button>
+                                    <button type="button" className="analytics-platform-tab" disabled>
+                                        TWITCH <small>SOON</small>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="analytics-connect-card">
+                                <div className="analytics-connect-copy">
+                                    <div className="analytics-platform-mark">YT</div>
+
+                                    <div>
+                                        <span className="analytics-kicker">YOUTUBE ANALYTICS</span>
+                                        <h3>CONNECT YOUR YOUTUBE CHANNEL</h3>
+                                        <p>
+                                            Connect a creator channel to bring channel growth,
+                                            watch time, reach and video performance into Nexus.
+                                        </p>
                                     </div>
                                 </div>
 
-                                <div className="analytics-empty-state">
-                                    <div className="analytics-empty-icon">
-                                        📊
+                                <div className="analytics-connect-actions">
+                                    <span className="analytics-connection-status">NOT CONNECTED</span>
+                                    <button
+                                        type="button"
+                                        className="button button-primary"
+                                        disabled
+                                        title="YouTube account connection is the next integration step."
+                                    >
+                                        CONNECT YOUTUBE
+                                    </button>
+                                    <small>OAuth connection will be enabled in the next step.</small>
+                                </div>
+                            </div>
+
+                            <div className="analytics-metric-grid">
+                                <div className="analytics-metric-card">
+                                    <span>TOTAL VIEWS</span>
+                                    <strong>—</strong>
+                                    <small>Connect YouTube to load data</small>
+                                </div>
+                                <div className="analytics-metric-card">
+                                    <span>WATCH TIME</span>
+                                    <strong>—</strong>
+                                    <small>Hours watched</small>
+                                </div>
+                                <div className="analytics-metric-card">
+                                    <span>SUBSCRIBERS</span>
+                                    <strong>—</strong>
+                                    <small>Channel audience</small>
+                                </div>
+                                <div className="analytics-metric-card">
+                                    <span>IMPRESSIONS CTR</span>
+                                    <strong>—</strong>
+                                    <small>Thumbnail click-through rate</small>
+                                </div>
+                            </div>
+
+                            <div className="analytics-layout">
+                                <div className="panel analytics-data-panel">
+                                    <div className="panel-header">
+                                        <div>
+                                            <span className="analytics-kicker">CHANNEL TREND</span>
+                                            <h3>PERFORMANCE OVER TIME</h3>
+                                        </div>
+                                        <span className="analytics-period">LAST 28 DAYS</span>
                                     </div>
 
-                                    <strong>
-                                        NO ANALYTICS DATA YET
-                                    </strong>
+                                    <div className="analytics-chart-empty">
+                                        <div className="analytics-chart-grid">
+                                            <span />
+                                            <span />
+                                            <span />
+                                            <span />
+                                        </div>
+                                        <div className="analytics-empty-icon">◫</div>
+                                        <strong>CHANNEL DATA WILL APPEAR HERE</strong>
+                                        <p>
+                                            Once YouTube is connected, Nexus will display performance
+                                            trends without using sample metrics.
+                                        </p>
+                                    </div>
+                                </div>
 
-                                    <p>
-                                        Creator platform analytics have not been connected yet.
-                                        Views, watch time, audience growth and content performance
-                                        will appear here when integrations are added.
-                                    </p>
+                                <div className="panel analytics-data-panel">
+                                    <div className="panel-header">
+                                        <div>
+                                            <span className="analytics-kicker">CONTENT</span>
+                                            <h3>TOP VIDEOS</h3>
+                                        </div>
+                                    </div>
+
+                                    <div className="analytics-video-list">
+                                        {[1, 2, 3, 4].map((item) => (
+                                            <div className="analytics-video-placeholder" key={item}>
+                                                <div className="analytics-video-thumb" />
+                                                <div className="analytics-video-meta">
+                                                    <span>VIDEO PERFORMANCE</span>
+                                                    <strong>Waiting for YouTube data</strong>
+                                                </div>
+                                                <span className="analytics-video-value">—</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="analytics-roadmap">
+                                <div>
+                                    <span className="analytics-kicker">INTEGRATION ROADMAP</span>
+                                    <h3>PLATFORM CONNECTIONS</h3>
+                                </div>
+
+                                <div className="analytics-roadmap-items">
+                                    {[
+                                        ["01", "YOUTUBE", "NEXT TO CONNECT", true],
+                                        ["02", "TIKTOK", "PLANNED", false],
+                                        ["03", "INSTAGRAM", "PLANNED", false],
+                                        ["04", "TWITCH", "PLANNED", false],
+                                    ].map(([number, platform, state, current]) => (
+                                        <div
+                                            className={`analytics-roadmap-item ${
+                                                current ? "current" : ""
+                                            }`}
+                                            key={platform}
+                                        >
+                                            <span>{number}</span>
+                                            <div>
+                                                <strong>{platform}</strong>
+                                                <small>{state}</small>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -7574,12 +7708,7 @@ export default function CreatorDashboard({ user }) {
                                                 <button
                                                     type="button"
                                                     className="action-btn"
-                                                    onClick={() =>
-                                                        signOut({
-                                                            callbackUrl:
-                                                                "/",
-                                                        })
-                                                    }
+                                                    onClick={confirmAndSignOut}
                                                 >
                                                     SIGN OUT ↗
                                                 </button>
