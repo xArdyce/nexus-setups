@@ -33,8 +33,6 @@ enum ContentStatus {
   IN_REVIEW
   REVISION
   APPROVED
-  SCHEDULED
-  PUBLISHED
 }
 
 enum TaskStatus {

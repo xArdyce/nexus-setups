@@ -84,8 +84,8 @@ async function getContentPermission(
   ) {
     return {
       canView: true,
-      canManageTasks: false,
-      canDeleteTasks: false,
+      canManageTasks: true,
+      canDeleteTasks: true,
       role: "CREATOR" as const,
     };
   }
@@ -256,10 +256,7 @@ export async function PATCH(
     if (!permission.canManageTasks) {
       return NextResponse.json(
         {
-          error:
-            permission.role === "CREATOR"
-              ? "Creators cannot modify production tasks"
-              : "Forbidden",
+          error: "Forbidden",
         },
         { status: 403 }
       );
@@ -273,6 +270,25 @@ export async function PATCH(
       dueDate,
       assignedToId,
     } = body;
+
+    if (
+      permission.role === "EDITOR" &&
+      (
+        title !== undefined ||
+        description !== undefined ||
+        priority !== undefined ||
+        dueDate !== undefined ||
+        assignedToId !== undefined
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Editors can update task status, but cannot change task details.",
+        },
+        { status: 403 }
+      );
+    }
 
     if (
       title !== undefined &&
@@ -428,7 +444,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           error:
-            "Only admins and managers can delete tasks",
+            "Only the owning Creator, Admins, and Managers can delete tasks",
         },
         { status: 403 }
       );

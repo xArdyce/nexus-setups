@@ -1282,6 +1282,7 @@ footer {
 
 .manifesto h2,
 .section-heading-row h2,
+.content-guide-heading h2,
 .process-intro h2,
 .pricing-heading h2,
 .booking-copy h2,
@@ -1298,6 +1299,7 @@ footer {
 
 .manifesto h2 em,
 .section-heading-row h2 em,
+.content-guide-heading h2 em,
 .process-intro h2 em,
 .pricing-heading h2 em,
 .booking-copy h2 em,
@@ -1324,6 +1326,7 @@ footer {
 }
 
 .services,
+.content-guide,
 .work,
 .process,
 .pricing,
@@ -1532,6 +1535,148 @@ footer {
     color: var(--text-muted);
 
     font-size: 20px;
+}
+
+
+/* =========================================================
+   CONTENT EXPLAINED
+========================================================= */
+.content-guide {
+    position: relative;
+}
+
+.content-guide-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 50px;
+    margin-left: 7%;
+}
+
+.content-guide-grid {
+    margin-top: 70px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+}
+
+.content-guide-card {
+    min-height: 315px;
+    padding: 34px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--card-bg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    transition:
+        transform .3s ease,
+        border-color .3s ease,
+        background-color .4s ease;
+}
+
+.content-guide-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(
+            circle at 100% 0%,
+            var(--guide-glow),
+            transparent 42%
+        );
+    opacity: .55;
+    pointer-events: none;
+}
+
+.content-guide-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(160, 92, 230, .32);
+}
+
+.content-guide-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+.guide-short {
+    --guide-glow: rgba(75, 141, 255, .13);
+}
+
+.guide-long {
+    --guide-glow: rgba(122, 53, 230, .14);
+}
+
+.guide-post {
+    --guide-glow: rgba(231, 92, 255, .11);
+}
+
+.guide-management {
+    --guide-glow: rgba(125, 245, 187, .09);
+}
+
+.guide-system {
+    --guide-glow: rgba(160, 92, 230, .16);
+    grid-column: 1 / -1;
+    min-height: 285px;
+}
+
+.content-guide-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 42px;
+}
+
+.content-guide-index,
+.content-guide-label,
+.content-guide-example {
+    font-family: "DM Mono", monospace;
+    letter-spacing: .08em;
+}
+
+.content-guide-index {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.content-guide-label {
+    color: var(--purple-bright);
+    font-size: 9px;
+}
+
+.content-guide-card h3 {
+    max-width: 520px;
+    font-size: clamp(25px, 2.6vw, 37px);
+    line-height: 1.05;
+    letter-spacing: -.045em;
+}
+
+.content-guide-card p {
+    max-width: 650px;
+    margin-top: 17px;
+    color: var(--text-copy);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.content-guide-example {
+    width: fit-content;
+    max-width: 100%;
+    margin-top: auto;
+    padding-top: 30px;
+    color: var(--text-muted);
+    font-size: 9px;
+    overflow-wrap: anywhere;
+}
+
+.guide-system p {
+    max-width: 850px;
 }
 
 .work-tabs {
@@ -2783,6 +2928,7 @@ footer {
 
     .manifesto,
     .services,
+    .content-guide,
     .work,
     .process,
     .pricing,
@@ -2794,6 +2940,7 @@ footer {
 
     .manifesto h2,
     .section-heading-row h2,
+    .content-guide-heading h2,
     .process-intro h2,
     .pricing-heading h2,
     .booking-copy h2,
@@ -3118,6 +3265,23 @@ footer {
     }
 }
 
+
+@media (max-width: 900px) {
+    .content-guide-heading {
+        margin-left: 0;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .content-guide-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .guide-system {
+        grid-column: auto;
+    }
+}
+
 @media (max-width: 700px) {
     :root {
         --pad: 18px;
@@ -3218,6 +3382,7 @@ footer {
 
     .manifesto,
     .services,
+    .content-guide,
     .work,
     .process,
     .pricing,
@@ -3238,6 +3403,7 @@ footer {
     }
 
     .section-description,
+    .content-guide-heading > p,
     .process-intro > p,
     .large-copy,
     .booking-copy > p:not(.section-kicker) {
@@ -3247,6 +3413,25 @@ footer {
 
     .service-card {
         padding: 24px;
+    }
+
+    .content-guide-grid {
+        margin-top: 48px;
+    }
+
+    .content-guide-card,
+    .guide-system {
+        min-height: 0;
+        padding: 24px;
+    }
+
+    .content-guide-top {
+        margin-bottom: 30px;
+    }
+
+    .content-guide-example {
+        margin-top: 30px;
+        padding-top: 0;
     }
 
     .service-main h3 {
@@ -3414,6 +3599,15 @@ footer {
 
     .service-card {
         padding: 20px;
+    }
+
+    .content-guide-card,
+    .guide-system {
+        padding: 20px;
+    }
+
+    .content-guide-card h3 {
+        font-size: clamp(24px, 8vw, 30px);
     }
 
     .service-index {

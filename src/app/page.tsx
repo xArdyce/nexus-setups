@@ -1016,7 +1016,7 @@ export default function NexusHomepage() {
                 <p className="large-copy">
                   Creating content is only one part of the job.
                   Editing it. Packaging it. Organising it.
-                  Publishing it. Keeping everything moving.
+                  Reviewing it. Keeping everything moving.
                   That's where the real workload lives.
                 </p>
 
@@ -1159,7 +1159,7 @@ export default function NexusHomepage() {
 
                   <p>
                     Asset organisation, project management,
-                    publishing workflows, creative coordination
+                    review workflows, creative coordination
                     and keeping your entire operation moving.
                   </p>
 
@@ -1176,6 +1176,156 @@ export default function NexusHomepage() {
           </div>
         </section>
 
+        {/* CONTENT EXPLAINED */}
+
+        <section
+          className="content-guide"
+          id="content-guide"
+        >
+          <div className="section-shell">
+            <div className="section-number">03</div>
+
+            <div className="content-guide-heading">
+              <div>
+                <span className="section-kicker">
+                  CONTENT, EXPLAINED
+                </span>
+
+                <h2>
+                  What we mean
+                  <br />
+                  when we say
+                  <br />
+
+                  <span
+                    className="solid-banner-sm type-target"
+                    data-text="content."
+                    ref={addTypeTarget}
+                  >
+                    <span className="typed-text"></span>
+                    <span className="cursor"></span>
+                  </span>
+                </h2>
+              </div>
+
+              <p className="section-description">
+                You do not need to know the industry language.
+                Here is what the terms we use actually mean
+                and where Nexus fits into the process.
+              </p>
+            </div>
+
+            <div className="content-guide-grid">
+              <article className="content-guide-card guide-short">
+                <div className="content-guide-top">
+                  <span className="content-guide-index">01</span>
+                  <span className="content-guide-label">CONTENT TYPE</span>
+                </div>
+
+                <h3>Short-form content</h3>
+
+                <p>
+                  Short videos designed to be watched quickly,
+                  usually in a vertical format. This includes
+                  TikToks, Instagram Reels and YouTube Shorts.
+                  They are typically fast-paced and built to
+                  capture attention quickly.
+                </p>
+
+                <span className="content-guide-example">
+                  TIKTOK / REELS / YOUTUBE SHORTS
+                </span>
+              </article>
+
+              <article className="content-guide-card guide-long">
+                <div className="content-guide-top">
+                  <span className="content-guide-index">02</span>
+                  <span className="content-guide-label">CONTENT TYPE</span>
+                </div>
+
+                <h3>Long-form content</h3>
+
+                <p>
+                  Longer videos that give an idea more time to
+                  develop. This can include YouTube videos,
+                  podcasts, interviews, gaming videos, tutorials
+                  and other content where the viewer stays for
+                  a longer experience.
+                </p>
+
+                <span className="content-guide-example">
+                  YOUTUBE / PODCASTS / GAMING / INTERVIEWS
+                </span>
+              </article>
+
+              <article className="content-guide-card guide-post">
+                <div className="content-guide-top">
+                  <span className="content-guide-index">03</span>
+                  <span className="content-guide-label">SERVICE</span>
+                </div>
+
+                <h3>Post-production</h3>
+
+                <p>
+                  Everything that happens after the footage has
+                  been recorded. We turn raw footage into the
+                  finished piece through editing, pacing, audio
+                  cleanup, captions, graphics, effects, colour
+                  work and final delivery.
+                </p>
+
+                <span className="content-guide-example">
+                  RAW FOOTAGE → FINISHED CONTENT
+                </span>
+              </article>
+
+              <article className="content-guide-card guide-management">
+                <div className="content-guide-top">
+                  <span className="content-guide-index">04</span>
+                  <span className="content-guide-label">SERVICE</span>
+                </div>
+
+                <h3>Content management</h3>
+
+                <p>
+                  The organisation behind the creative work.
+                  This means keeping projects, deadlines,
+                  footage, assets, revisions, approvals and
+                  delivery organised so content keeps moving
+                  instead of getting lost between stages.
+                </p>
+
+                <span className="content-guide-example">
+                  ORGANISE / TRACK / REVIEW / DELIVER
+                </span>
+              </article>
+
+              <article className="content-guide-card guide-system">
+                <div className="content-guide-top">
+                  <span className="content-guide-index">05</span>
+                  <span className="content-guide-label">FULL SERVICE</span>
+                </div>
+
+                <h3>Full content system</h3>
+
+                <p>
+                  The complete operation working together, not
+                  just one edited video. Nexus connects
+                  post-production, short-form and long-form
+                  content, project tracking, assets, reviews,
+                  approvals and ongoing creator support into
+                  one organised workflow.
+                </p>
+
+                <span className="content-guide-example">
+                  CREATE / PRODUCE / MANAGE / SCALE
+                </span>
+              </article>
+            </div>
+          </div>
+        </section>
+
+
         {/* WORK */}
 
         <section
@@ -1183,7 +1333,7 @@ export default function NexusHomepage() {
           id="work"
         >
           <div className="section-shell">
-            <div className="section-number">03</div>
+            <div className="section-number">04</div>
 
             <div className="section-heading-row">
               <div>
@@ -1305,7 +1455,7 @@ export default function NexusHomepage() {
           id="process"
         >
           <div className="section-shell">
-            <div className="section-number">04</div>
+            <div className="section-number">05</div>
 
             <div className="process-intro">
               <div>
@@ -1356,8 +1506,8 @@ export default function NexusHomepage() {
                 ],
                 [
                   "04",
-                  "Deploy",
-                  "Everything is organised, delivered and ready to publish.",
+                  "Deliver",
+                  "Final files are organised, approved and delivered back to you.",
                 ],
               ].map(([number, title, description]) => (
                 <article
@@ -1382,7 +1532,7 @@ export default function NexusHomepage() {
           id="pricing"
         >
           <div className="section-shell">
-            <div className="section-number">05</div>
+            <div className="section-number">06</div>
 
             <div className="pricing-heading">
               <div>
@@ -1556,7 +1706,7 @@ export default function NexusHomepage() {
           id="contact"
         >
           <div className="section-shell">
-            <div className="section-number">06</div>
+            <div className="section-number">07</div>
 
             <div className="booking-grid">
               <div className="booking-copy">
@@ -1699,7 +1849,7 @@ export default function NexusHomepage() {
           id="faq"
         >
           <div className="section-shell">
-            <div className="section-number">07</div>
+            <div className="section-number">08</div>
 
             <div className="faq-heading">
               <span className="section-kicker">

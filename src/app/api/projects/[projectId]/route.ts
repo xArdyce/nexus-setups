@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { getR2BucketName, getR2Client } from "@/lib/r2";
 import {
     getAssignedEditorUserIds,
     getCreatorAccountUserId,
@@ -14,8 +16,6 @@ const CONTENT_STATUSES = [
     "IN_REVIEW",
     "REVISION",
     "APPROVED",
-    "SCHEDULED",
-    "PUBLISHED",
 ] as const;
 
 type ContentStatusValue = (typeof CONTENT_STATUSES)[number];
@@ -82,6 +82,13 @@ async function getAccessibleContent(
         },
 
         assets: {
+            include: {
+                versions: {
+                    orderBy: {
+                        version: "desc" as const,
+                    },
+                },
+            },
             orderBy: {
                 createdAt: "desc" as const,
             },
@@ -217,6 +224,44 @@ async function getAccessibleContent(
 
         include: includeData,
     });
+}
+
+async function deleteR2Objects(storageKeys: string[]) {
+    const uniqueKeys = Array.from(
+        new Set(storageKeys.filter(Boolean))
+    );
+
+    if (uniqueKeys.length === 0) {
+        return;
+    }
+
+    const client = getR2Client();
+    const bucket = getR2BucketName();
+
+    for (let index = 0; index < uniqueKeys.length; index += 1000) {
+        const batch = uniqueKeys.slice(index, index + 1000);
+
+        const result = await client.send(
+            new DeleteObjectsCommand({
+                Bucket: bucket,
+                Delete: {
+                    Objects: batch.map((Key) => ({ Key })),
+                    Quiet: true,
+                },
+            })
+        );
+
+        if (result.Errors?.length) {
+            const failedKeys = result.Errors
+                .map((error) => error.Key)
+                .filter(Boolean)
+                .join(", ");
+
+            throw new Error(
+                `Cloudflare R2 could not delete one or more project assets: ${failedKeys || "unknown object"}`
+            );
+        }
+    }
 }
 
 function canManageProduction(
@@ -436,8 +481,6 @@ export async function PATCH(
             REVISION: ["IN_PRODUCTION", "IN_REVIEW"],
             IN_REVIEW: [],
             APPROVED: [],
-            SCHEDULED: [],
-            PUBLISHED: [],
         };
 
         const allowedNextStatuses =
@@ -596,22 +639,6 @@ export async function PATCH(
     }
 
     if (
-        requestedStatus === "SCHEDULED" ||
-        requestedStatus === "PUBLISHED"
-    ) {
-        await notifyUsers(
-            [creatorUserId],
-            requestedStatus === "SCHEDULED"
-                ? "Project scheduled"
-                : "Project published",
-            requestedStatus === "SCHEDULED"
-                ? `${content.title} has been scheduled.`
-                : `${content.title} has been published.`,
-            user.id
-        );
-    }
-
-    if (
         requestedStatus === "APPROVED" ||
         requestedStatus === "REVISION"
     ) {
@@ -652,3 +679,113 @@ export async function PATCH(
         },
     });
 }
+
+// DELETE /api/projects/[projectId]
+export async function DELETE(
+    request: Request,
+    { params }: { params: Promise<{ projectId: string }> }
+) {
+    try {
+        const user = await getAuthenticatedUser();
+
+        if (!user) {
+            return NextResponse.json(
+                { error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+
+        const { projectId } = await params;
+        const content = await getAccessibleContent(
+            projectId,
+            user
+        );
+
+        if (!content) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Project not found or access denied.",
+                },
+                { status: 404 }
+            );
+        }
+
+        if (user.accountType !== "CREATOR") {
+            const membership = user.memberships.find(
+                (item) =>
+                    item.organizationId ===
+                    content.project.organizationId
+            );
+
+            if (
+                !membership ||
+                (membership.role !== "ADMIN" &&
+                    membership.role !== "MANAGER")
+            ) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Only the owning Creator, Admins, and Managers can delete projects.",
+                    },
+                    { status: 403 }
+                );
+            }
+        }
+
+        const storageKeys = content.assets.flatMap(
+            (asset) => [
+                asset.storageKey,
+                ...asset.versions.map(
+                    (version) => version.storageKey
+                ),
+            ]
+        );
+
+        await deleteR2Objects(storageKeys);
+
+        await prisma.$transaction(async (tx) => {
+            await tx.auditLog.create({
+                data: {
+                    action: "CONTENT_DELETED",
+                    resource: "ContentItem",
+                    resourceId: content.id,
+                    userId: user.id,
+                    metadata: {
+                        title: content.title,
+                        organizationId:
+                            content.project.organizationId,
+                        creatorId:
+                            content.project.creator?.id ?? null,
+                        projectId:
+                            content.project.id,
+                    },
+                },
+            });
+
+            await tx.contentItem.delete({
+                where: {
+                    id: content.id,
+                },
+            });
+        });
+
+        return NextResponse.json({
+            success: true,
+            deletedProjectId: content.id,
+        });
+    } catch (error) {
+        console.error(
+            "DELETE /api/projects/[projectId] failed:",
+            error
+        );
+
+        return NextResponse.json(
+            {
+                error: "Failed to delete project.",
+            },
+            { status: 500 }
+        );
+    }
+}
+

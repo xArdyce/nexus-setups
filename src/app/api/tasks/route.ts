@@ -77,7 +77,7 @@ async function getContentPermission(
   ) {
     return {
       canView: true,
-      canManageTasks: false,
+      canManageTasks: true,
       role: "CREATOR" as const,
     };
   }
@@ -147,7 +147,7 @@ async function getContentPermission(
 
   return {
     canView: Boolean(accessibleContent),
-    canManageTasks: Boolean(accessibleContent),
+    canManageTasks: false,
     role: membership.role,
   };
 }
@@ -367,9 +367,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            permission.role === "CREATOR"
-              ? "Creators cannot create production tasks"
-              : "You do not have access to manage tasks for this content",
+            permission.role === "EDITOR"
+              ? "Editors cannot create production tasks"
+              : "You do not have access to create tasks for this content",
         },
         { status: 403 }
       );

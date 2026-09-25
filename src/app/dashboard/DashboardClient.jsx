@@ -50,6 +50,7 @@ export default function CreatorDashboard({ user }) {
     const [projectDetailsLoading, setProjectDetailsLoading] = useState(false);
     const [projectDetailsError, setProjectDetailsError] = useState(null);
     const [projectStatusUpdating, setProjectStatusUpdating] = useState(false);
+    const [projectDeleting, setProjectDeleting] = useState(false);
     const [reviewNote, setReviewNote] = useState("");
     const [reviewComment, setReviewComment] = useState("");
     const [reviewTimestamp, setReviewTimestamp] = useState("");
@@ -189,7 +190,7 @@ export default function CreatorDashboard({ user }) {
             rendering: "IN_PRODUCTION",
             review: "IN_REVIEW",
             queued: "REQUESTED",
-            completed: "PUBLISHED",
+            completed: "APPROVED",
         };
 
         return legacyStatusMap[status] || status;
@@ -202,8 +203,6 @@ export default function CreatorDashboard({ user }) {
             IN_REVIEW: "NEEDS REVIEW",
             REVISION: "REVISION REQUESTED",
             APPROVED: "APPROVED",
-            SCHEDULED: "SCHEDULED",
-            PUBLISHED: "DELIVERED",
         };
 
         const normalized = normalizeProjectStatus(status);
@@ -2008,7 +2007,7 @@ export default function CreatorDashboard({ user }) {
         setTasksError(null);
 
         try {
-            const payload = canManageAssignments
+            const payload = canManageTaskStructure
                 ? {
                     title: draft.title.trim(),
                     description:
@@ -2061,7 +2060,7 @@ export default function CreatorDashboard({ user }) {
     };
 
     const deleteTask = async (taskId) => {
-        if (!canManageAssignments) {
+        if (!canManageTaskStructure) {
             return;
         }
 
@@ -2158,6 +2157,82 @@ export default function CreatorDashboard({ user }) {
         }
 
         await loadActivity(activeOrganizationId);
+    };
+
+    const deleteProject = async () => {
+        const contentId = selectedProject?.content?.id;
+        const title =
+            selectedProject?.content?.title || "this project";
+
+        if (!contentId || !canDeleteProject) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Delete "${title}"? This permanently removes the project, its tasks, reviews, assignments, and asset records from Nexus. This cannot be undone.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setProjectDeleting(true);
+        setProjectDetailsError(null);
+
+        try {
+            const res = await fetch(
+                `/api/projects/${encodeURIComponent(contentId)}`,
+                {
+                    method: "DELETE",
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error || "Failed to delete project."
+                );
+            }
+
+            setSelectedProject(null);
+            setTasks([]);
+            setTaskDrafts({});
+            setProjectAssignments([]);
+            setInheritedProjectEditors([]);
+            setAvailableEditors([]);
+            setAssignmentsError(null);
+            setReviewError(null);
+            setReviewNote("");
+            setReviewComment("");
+            setReviewTimestamp("");
+
+            if (selectedCreator) {
+                setCurrentView("creator-workspace");
+
+                await Promise.all([
+                    loadCreatorProjects(selectedCreator.id),
+                    loadAssets(activeOrganizationId),
+                    loadActivity(activeOrganizationId),
+                ]);
+            } else {
+                setCurrentView("projects");
+
+                await Promise.all([
+                    loadProjects(activeOrganizationId),
+                    loadAssets(activeOrganizationId),
+                    loadActivity(activeOrganizationId),
+                ]);
+            }
+        } catch (error) {
+            console.error("Failed to delete project:", error);
+
+            setProjectDetailsError(
+                error.message || "Couldn't delete this project."
+            );
+        } finally {
+            setProjectDeleting(false);
+        }
     };
 
     const updateProductionStatus = async (status) => {
@@ -2690,6 +2765,23 @@ export default function CreatorDashboard({ user }) {
         null;
 
     const canManageWorkspaceSettings =
+        activeSettingsWorkspace?.role ===
+            "ADMIN" ||
+        activeSettingsWorkspace?.role ===
+            "MANAGER";
+
+    const canManageTaskStructure =
+        isCreator ||
+        activeSettingsWorkspace?.role ===
+            "ADMIN" ||
+        activeSettingsWorkspace?.role ===
+            "MANAGER";
+
+    const canUpdateTaskStatus =
+        isCreator || isEditor;
+
+    const canDeleteProject =
+        isCreator ||
         activeSettingsWorkspace?.role ===
             "ADMIN" ||
         activeSettingsWorkspace?.role ===
@@ -3298,8 +3390,6 @@ export default function CreatorDashboard({ user }) {
                                                     (p) =>
                                                         ![
                                                             "APPROVED",
-                                                            "SCHEDULED",
-                                                            "PUBLISHED",
                                                         ].includes(
                                                             normalizeProjectStatus(p.status)
                                                         )
@@ -3318,7 +3408,7 @@ export default function CreatorDashboard({ user }) {
                                 </div>
 
                                 <div className="metric-card">
-                                    <span className="metric-label">DELIVERED</span>
+                                    <span className="metric-label">APPROVED</span>
                                     <strong className="metric-value">
                                         {projectsLoading
                                             ? "—"
@@ -3326,11 +3416,11 @@ export default function CreatorDashboard({ user }) {
                                                 projects.filter(
                                                     (p) =>
                                                         normalizeProjectStatus(p.status) ===
-                                                        "PUBLISHED"
+                                                        "APPROVED"
                                                 ).length
                                             ).padStart(2, "0")}
                                     </strong>
-                                    <span className="metric-delta">Published projects</span>
+                                    <span className="metric-delta">Final approved cuts</span>
                                 </div>
 
                                 <div className="metric-card">
@@ -3659,8 +3749,6 @@ export default function CreatorDashboard({ user }) {
                                             "IN_REVIEW",
                                             "REVISION",
                                             "APPROVED",
-                                            "SCHEDULED",
-                                            "PUBLISHED",
                                         ].map(
                                             (filter) => (
                                                 <button
@@ -3839,7 +3927,7 @@ export default function CreatorDashboard({ user }) {
                                                                         "REVISION"
                                                                         ? "VIEW REVISION ↗"
                                                                         : proj.status ===
-                                                                            "PUBLISHED"
+                                                                          "APPROVED"
                                                                             ? "VIEW PROJECT ↗"
                                                                             : "VIEW BRIEF"}
                                                             </button>
@@ -4063,8 +4151,6 @@ export default function CreatorDashboard({ user }) {
                                                             ) =>
                                                                 ![
                                                                     "APPROVED",
-                                                                    "SCHEDULED",
-                                                                    "PUBLISHED",
                                                                 ].includes(
                                                                     normalizeProjectStatus(
                                                                         project.status
@@ -4108,7 +4194,7 @@ export default function CreatorDashboard({ user }) {
 
                                             <div className="metric-card">
                                                 <span className="metric-label">
-                                                    DELIVERED
+                                                    APPROVED
                                                 </span>
 
                                                 <strong className="metric-value">
@@ -4120,14 +4206,14 @@ export default function CreatorDashboard({ user }) {
                                                                 normalizeProjectStatus(
                                                                     project.status
                                                                 ) ===
-                                                                "PUBLISHED"
+                                                                "APPROVED"
                                                         ).length
                                                     }
                                                 </strong>
 
                                                 <span className="metric-delta">
-                                                    Completed
-                                                    content
+                                                    Final
+                                                    approved cuts
                                                 </span>
                                             </div>
                                         </div>
@@ -4530,37 +4616,71 @@ export default function CreatorDashboard({ user }) {
                                         </h3>
                                     </div>
 
-                                    <button
-                                        type="button"
-                                        className="action-btn"
-                                        onClick={() => {
-                                            setSelectedProject(
-                                                null
-                                            );
-
-                                            if (
-                                                selectedCreator
-                                            ) {
-                                                setCurrentView(
-                                                    "creator-workspace"
-                                                );
-
-                                                loadCreatorProjects(
-                                                    selectedCreator.id
-                                                );
-                                            } else {
-                                                setCurrentView(
-                                                    "projects"
-                                                );
-
-                                                loadProjects(
-                                                    activeOrganizationId
-                                                );
-                                            }
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "8px",
+                                            flexWrap: "wrap",
+                                            justifyContent: "flex-end",
                                         }}
                                     >
-                                        ← BACK
-                                    </button>
+                                        {canDeleteProject &&
+                                            selectedProject && (
+                                                <button
+                                                    type="button"
+                                                    className="action-btn"
+                                                    onClick={
+                                                        deleteProject
+                                                    }
+                                                    disabled={
+                                                        projectDeleting
+                                                    }
+                                                    style={{
+                                                        borderColor:
+                                                            "var(--red)",
+                                                        color:
+                                                            "var(--red)",
+                                                    }}
+                                                >
+                                                    {projectDeleting
+                                                        ? "DELETING..."
+                                                        : "DELETE PROJECT"}
+                                                </button>
+                                            )}
+
+                                        <button
+                                            type="button"
+                                            className="action-btn"
+                                            onClick={() => {
+                                                setSelectedProject(
+                                                    null
+                                                );
+
+                                                if (
+                                                    selectedCreator
+                                                ) {
+                                                    setCurrentView(
+                                                        "creator-workspace"
+                                                    );
+
+                                                    loadCreatorProjects(
+                                                        selectedCreator.id
+                                                    );
+                                                } else {
+                                                    setCurrentView(
+                                                        "projects"
+                                                    );
+
+                                                    loadProjects(
+                                                        activeOrganizationId
+                                                    );
+                                                }
+                                            }}
+                                        >
+                                            ← BACK
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {projectDetailsLoading && (
@@ -4735,8 +4855,7 @@ export default function CreatorDashboard({ user }) {
                                                         </p>
                                                     )}
 
-                                                {isEditor &&
-                                                    canManageAssignments && (
+                                                {canManageTaskStructure && (
                                                         <form
                                                             onSubmit={
                                                                 createTask
@@ -5158,7 +5277,7 @@ export default function CreatorDashboard({ user }) {
                                                                                             draft.title
                                                                                         }
                                                                                         readOnly={
-                                                                                            !canManageAssignments
+                                                                                            !canManageTaskStructure
                                                                                         }
                                                                                         onChange={(
                                                                                             e
@@ -5185,10 +5304,10 @@ export default function CreatorDashboard({ user }) {
                                                                                             draft.status
                                                                                         }
                                                                                         disabled={
-                                                                                            !isEditor ||
-                                                                                            taskUpdatingId ===
-                                                                                                task.id
-                                                                                        }
+                                                                                             !canUpdateTaskStatus ||
+                                                                                             taskUpdatingId ===
+                                                                                                 task.id
+                                                                                         }
                                                                                         onChange={(
                                                                                             e
                                                                                         ) =>
@@ -5240,7 +5359,7 @@ export default function CreatorDashboard({ user }) {
                                                                                             draft.priority
                                                                                         }
                                                                                         disabled={
-                                                                                            !canManageAssignments
+                                                                                            !canManageTaskStructure
                                                                                         }
                                                                                         onChange={(
                                                                                             e
@@ -5293,7 +5412,7 @@ export default function CreatorDashboard({ user }) {
                                                                                             draft.dueDate
                                                                                         }
                                                                                         readOnly={
-                                                                                            !canManageAssignments
+                                                                                            !canManageTaskStructure
                                                                                         }
                                                                                         onChange={(
                                                                                             e
@@ -5316,7 +5435,7 @@ export default function CreatorDashboard({ user }) {
                                                                                     EDITOR
                                                                                 </label>
 
-                                                                                {canManageAssignments ? (
+                                                                                {canManageTaskStructure ? (
                                                                                     <select
                                                                                         className="dash-input"
                                                                                         value={
@@ -5389,7 +5508,7 @@ export default function CreatorDashboard({ user }) {
                                                                                         draft.description
                                                                                     }
                                                                                     readOnly={
-                                                                                        !canManageAssignments
+                                                                                        !canManageTaskStructure
                                                                                     }
                                                                                     onChange={(
                                                                                         e
@@ -5437,7 +5556,7 @@ export default function CreatorDashboard({ user }) {
                                                                                     </div>
                                                                                 )}
 
-                                                                            {isEditor && (
+                                                                            {(isEditor || isCreator) && (
                                                                                 <div className="task-actions">
                                                                                     <button
                                                                                         type="button"
@@ -5455,12 +5574,12 @@ export default function CreatorDashboard({ user }) {
                                                                                         {taskUpdatingId ===
                                                                                         task.id
                                                                                             ? "SAVING…"
-                                                                                            : canManageAssignments
+                                                                                            : canManageTaskStructure
                                                                                                 ? "SAVE TASK"
                                                                                                 : "SAVE STATUS"}
                                                                                     </button>
 
-                                                                                    {canManageAssignments && (
+                                                                                    {canManageTaskStructure && (
                                                                                         <button
                                                                                             type="button"
                                                                                             className="action-btn"
@@ -5931,14 +6050,6 @@ export default function CreatorDashboard({ user }) {
                                                             "APPROVED",
                                                             "APPROVED",
                                                         ],
-                                                        [
-                                                            "SCHEDULED",
-                                                            "SCHEDULED",
-                                                        ],
-                                                        [
-                                                            "PUBLISHED",
-                                                            "PUBLISHED",
-                                                        ],
                                                     ].map(
                                                         (
                                                             [
@@ -5961,8 +6072,6 @@ export default function CreatorDashboard({ user }) {
                                                                     "IN_REVIEW",
                                                                     "REVISION",
                                                                     "APPROVED",
-                                                                    "SCHEDULED",
-                                                                    "PUBLISHED",
                                                                 ];
 
                                                             const currentIndex =
@@ -6137,65 +6246,17 @@ export default function CreatorDashboard({ user }) {
                                                             </button>
                                                         )}
 
-                                                        {canManageAssignments &&
-                                                            currentProjectStatus ===
-                                                                "APPROVED" && (
-                                                                <button
-                                                                    type="button"
-                                                                    className="button button-primary"
-                                                                    disabled={
-                                                                        projectStatusUpdating
-                                                                    }
-                                                                    onClick={() =>
-                                                                        updateProductionStatus(
-                                                                            "SCHEDULED"
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    {projectStatusUpdating
-                                                                        ? "UPDATING…"
-                                                                        : "MARK SCHEDULED"}
-                                                                </button>
-                                                            )}
-
-                                                        {canManageAssignments &&
-                                                            currentProjectStatus ===
-                                                                "SCHEDULED" && (
-                                                                <button
-                                                                    type="button"
-                                                                    className="button button-primary"
-                                                                    disabled={
-                                                                        projectStatusUpdating
-                                                                    }
-                                                                    onClick={() =>
-                                                                        updateProductionStatus(
-                                                                            "PUBLISHED"
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    {projectStatusUpdating
-                                                                        ? "UPDATING…"
-                                                                        : "MARK PUBLISHED"}
-                                                                </button>
-                                                            )}
-
-                                                        {![
-                                                            "REQUESTED",
-                                                            "REVISION",
-                                                            "IN_PRODUCTION",
-                                                            "APPROVED",
-                                                            "SCHEDULED",
-                                                        ].includes(
-                                                            currentProjectStatus
-                                                        ) && (
+                                                        {currentProjectStatus ===
+                                                            "APPROVED" && (
                                                             <p className="text-link">
-                                                                {currentProjectStatus ===
-                                                                "IN_REVIEW"
-                                                                    ? "This cut is waiting for a review decision."
-                                                                    : currentProjectStatus ===
-                                                                      "PUBLISHED"
-                                                                    ? "This project has been published."
-                                                                    : "No production action is available right now."}
+                                                                Final cut approved. Nexus production is complete.
+                                                            </p>
+                                                        )}
+
+                                                        {currentProjectStatus ===
+                                                            "IN_REVIEW" && (
+                                                            <p className="text-link">
+                                                                This cut is waiting for a review decision.
                                                             </p>
                                                         )}
                                                     </div>

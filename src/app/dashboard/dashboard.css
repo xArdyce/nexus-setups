@@ -678,18 +678,6 @@ body {
     border: 1px solid rgba(125, 245, 187, .24);
 }
 
-.project-status.status-scheduled {
-    color: var(--blue);
-    background: rgba(75, 141, 255, .11);
-    border: 1px solid rgba(75, 141, 255, .25);
-}
-
-.project-status.status-published {
-    color: #54dfb7;
-    background: rgba(33, 182, 138, .11);
-    border: 1px solid rgba(33, 182, 138, .26);
-}
-
 [data-theme="light"] .project-status.status-requested {
     color: #4f6178;
     background: rgba(79, 97, 120, .08);
@@ -718,18 +706,6 @@ body {
     color: #05703f;
     background: rgba(5, 112, 63, .08);
     border-color: rgba(5, 112, 63, .20);
-}
-
-[data-theme="light"] .project-status.status-scheduled {
-    color: #1c52b8;
-    background: rgba(28, 82, 184, .08);
-    border-color: rgba(28, 82, 184, .20);
-}
-
-[data-theme="light"] .project-status.status-published {
-    color: #08765a;
-    background: rgba(8, 118, 90, .08);
-    border-color: rgba(8, 118, 90, .20);
 }
 
 .project-eta {
@@ -848,14 +824,6 @@ body {
 
 .project-table-row.status-row-approved {
     border-left-color: var(--green);
-}
-
-.project-table-row.status-row-scheduled {
-    border-left-color: var(--blue);
-}
-
-.project-table-row.status-row-published {
-    border-left-color: #21b68a;
 }
 
 .table-head {
@@ -2499,14 +2467,6 @@ body {
 
 .production-queue-item.status-row-approved {
     border-left-color: var(--green);
-}
-
-.production-queue-item.status-row-scheduled {
-    border-left-color: var(--blue);
-}
-
-.production-queue-item.status-row-published {
-    border-left-color: #21b68a;
 }
 
 /* ACTIVE PRODUCTION QUEUE COLUMN ALIGNMENT */

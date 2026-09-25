@@ -18,8 +18,6 @@ const DB_TO_UI_STATUS: Record<string, string> = {
   IN_REVIEW: "review",
   REVISION: "review",
   APPROVED: "completed",
-  SCHEDULED: "completed",
-  PUBLISHED: "completed",
 };
 
 const ETA_LABELS: Record<string, string> = {
@@ -27,8 +25,6 @@ const ETA_LABELS: Record<string, string> = {
   IN_REVIEW: "Awaiting review",
   REVISION: "Needs revision",
   APPROVED: "Approved",
-  SCHEDULED: "Scheduled",
-  PUBLISHED: "Published",
 };
 
 function isGoogleDriveFolderUrl(value: string) {
