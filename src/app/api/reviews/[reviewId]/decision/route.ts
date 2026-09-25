@@ -148,6 +148,7 @@ export async function POST(
         let body: {
             decision?: unknown;
             notes?: unknown;
+            confirmUnresolved?: unknown;
         };
 
         try {
@@ -168,6 +169,9 @@ export async function POST(
             typeof body.notes === "string"
                 ? body.notes.trim()
                 : "";
+
+        const confirmUnresolved =
+            body.confirmUnresolved === true;
 
         if (
             decision !== "APPROVE" &&
@@ -193,6 +197,40 @@ export async function POST(
                 },
                 { status: 400 }
             );
+        }
+
+        if (
+            decision === "APPROVE" &&
+            !confirmUnresolved
+        ) {
+            const unresolvedCommentCount =
+                await prisma.reviewComment.count({
+                    where: {
+                        reviewId: review.id,
+                        resolved: false,
+                    },
+                });
+
+            if (unresolvedCommentCount > 0) {
+                return NextResponse.json(
+                    {
+                        error:
+                            `There ${
+                                unresolvedCommentCount === 1
+                                    ? "is"
+                                    : "are"
+                            } ${unresolvedCommentCount} unresolved review ${
+                                unresolvedCommentCount === 1
+                                    ? "comment"
+                                    : "comments"
+                            } on this cut.`,
+                        code:
+                            "UNRESOLVED_REVIEW_COMMENTS",
+                        unresolvedCommentCount,
+                    },
+                    { status: 409 }
+                );
+            }
         }
 
         const nextReviewStatus =
@@ -291,6 +329,10 @@ export async function POST(
                                 review.assetVersion?.assetId ?? null,
                             decision,
                             notes: notes || null,
+                            approvedWithUnresolvedComments:
+                                decision === "APPROVE"
+                                    ? confirmUnresolved
+                                    : false,
                         },
                     },
                 });

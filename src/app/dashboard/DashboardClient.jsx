@@ -2885,7 +2885,13 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    const submitReviewDecision = async (reviewId, decision) => {
+    const submitReviewDecision = async (
+        reviewId,
+        decision,
+        {
+            confirmUnresolved = false,
+        } = {}
+    ) => {
         if (!reviewId) {
             return;
         }
@@ -2898,6 +2904,51 @@ export default function CreatorDashboard({ user }) {
                 "Add revision notes so the Editor knows what needs to change."
             );
             return;
+        }
+
+        let approvalConfirmed =
+            confirmUnresolved;
+
+        if (
+            decision === "APPROVE" &&
+            !approvalConfirmed
+        ) {
+            const review =
+                selectedProject?.reviews?.find(
+                    (item) =>
+                        item.id === reviewId
+                );
+
+            const unresolvedCount =
+                (review?.comments || []).filter(
+                    (comment) =>
+                        !comment.resolved
+                ).length;
+
+            if (unresolvedCount > 0) {
+                const confirmed =
+                    window.confirm(
+                        `There ${
+                            unresolvedCount === 1
+                                ? "is"
+                                : "are"
+                        } ${unresolvedCount} unresolved review ${
+                            unresolvedCount === 1
+                                ? "comment"
+                                : "comments"
+                        } on ${
+                            review?.assetVersion
+                                ? `v${review.assetVersion.version}`
+                                : "this cut"
+                        }. Approve anyway?`
+                    );
+
+                if (!confirmed) {
+                    return;
+                }
+
+                approvalConfirmed = true;
+            }
         }
 
         setProjectStatusUpdating(true);
@@ -2917,15 +2968,62 @@ export default function CreatorDashboard({ user }) {
                     body: JSON.stringify({
                         decision,
                         notes: reviewNote.trim(),
+                        confirmUnresolved:
+                            approvalConfirmed,
                     }),
                 }
             );
 
             const data = await res.json();
 
+            if (
+                res.status === 409 &&
+                data.code ===
+                    "UNRESOLVED_REVIEW_COMMENTS" &&
+                decision === "APPROVE" &&
+                !approvalConfirmed
+            ) {
+                const unresolvedCount =
+                    Number(
+                        data.unresolvedCommentCount ||
+                            0
+                    );
+
+                const confirmed =
+                    window.confirm(
+                        `There ${
+                            unresolvedCount === 1
+                                ? "is"
+                                : "are"
+                        } ${unresolvedCount} unresolved review ${
+                            unresolvedCount === 1
+                                ? "comment"
+                                : "comments"
+                        } on this cut. Approve anyway?`
+                    );
+
+                if (confirmed) {
+                    setProjectStatusUpdating(
+                        false
+                    );
+
+                    await submitReviewDecision(
+                        reviewId,
+                        decision,
+                        {
+                            confirmUnresolved:
+                                true,
+                        }
+                    );
+                }
+
+                return;
+            }
+
             if (!res.ok) {
                 throw new Error(
-                    data.error || "Failed to process review decision."
+                    data.error ||
+                        "Failed to process review decision."
                 );
             }
 
@@ -2934,10 +3032,14 @@ export default function CreatorDashboard({ user }) {
             setReviewTimestamp("");
             await refreshProjectContext();
         } catch (error) {
-            console.error("Failed to process review decision:", error);
+            console.error(
+                "Failed to process review decision:",
+                error
+            );
 
             setReviewError(
-                error.message || "Failed to process review decision."
+                error.message ||
+                    "Failed to process review decision."
             );
         } finally {
             setProjectStatusUpdating(false);
@@ -7734,6 +7836,40 @@ export default function CreatorDashboard({ user }) {
                                                                     }
                                                                 />
                                                             </div>
+
+                                                            {(() => {
+                                                                const unresolvedCount =
+                                                                    (
+                                                                        pendingReview.comments ||
+                                                                        []
+                                                                    ).filter(
+                                                                        (
+                                                                            comment
+                                                                        ) =>
+                                                                            !comment.resolved
+                                                                    ).length;
+
+                                                                return unresolvedCount >
+                                                                    0 ? (
+                                                                    <p
+                                                                        className="text-link"
+                                                                        style={{
+                                                                            marginBottom:
+                                                                                "10px",
+                                                                        }}
+                                                                    >
+                                                                        {
+                                                                            unresolvedCount
+                                                                        }{" "}
+                                                                        unresolved review{" "}
+                                                                        {unresolvedCount ===
+                                                                        1
+                                                                            ? "comment"
+                                                                            : "comments"}{" "}
+                                                                        remain on this cut.
+                                                                    </p>
+                                                                ) : null;
+                                                            })()}
 
                                                             <div className="review-decision-actions">
                                                                 <button
