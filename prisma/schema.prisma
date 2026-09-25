@@ -254,28 +254,32 @@ model AssetVersion {
   assetId    String
   createdAt  DateTime @default(now())
 
-  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  asset   Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  reviews Review[]
 
   @@unique([assetId, version])
   @@index([assetId])
 }
 
 model Review {
-  id        String       @id @default(cuid())
-  status    ReviewStatus @default(PENDING)
-  notes     String?
-  contentId String
-  authorId  String
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  status         ReviewStatus @default(PENDING)
+  notes          String?
+  contentId      String
+  authorId       String
+  assetVersionId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  author  User        @relation("ReviewAuthor", fields: [authorId], references: [id])
+  content      ContentItem   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  author       User          @relation("ReviewAuthor", fields: [authorId], references: [id])
+  assetVersion AssetVersion? @relation(fields: [assetVersionId], references: [id], onDelete: SetNull)
 
   comments ReviewComment[]
 
   @@index([contentId])
   @@index([authorId])
+  @@index([assetVersionId])
   @@index([status])
 }
 

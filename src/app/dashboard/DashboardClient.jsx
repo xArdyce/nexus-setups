@@ -51,6 +51,16 @@ export default function CreatorDashboard({ user }) {
     const [projectDetailsError, setProjectDetailsError] = useState(null);
     const [projectStatusUpdating, setProjectStatusUpdating] = useState(false);
     const [projectDeleting, setProjectDeleting] = useState(false);
+    const [projectEditing, setProjectEditing] = useState(false);
+    const [projectEditSaving, setProjectEditSaving] = useState(false);
+    const [projectEditError, setProjectEditError] = useState(null);
+    const [projectEditDraft, setProjectEditDraft] = useState({
+        title: "",
+        description: "",
+        footageLink: "",
+        contentType: "Short-form",
+        dueDate: "",
+    });
     const [reviewNote, setReviewNote] = useState("");
     const [reviewComment, setReviewComment] = useState("");
     const [reviewTimestamp, setReviewTimestamp] = useState("");
@@ -120,6 +130,14 @@ export default function CreatorDashboard({ user }) {
         useState(null);
     const [assetDeletingId, setAssetDeletingId] =
         useState(null);
+    const [assetVersionUploadingId, setAssetVersionUploadingId] =
+        useState(null);
+    const [assetVersionUploadProgress, setAssetVersionUploadProgress] =
+        useState(0);
+    const [assetVersionError, setAssetVersionError] =
+        useState(null);
+    const [expandedAssetVersions, setExpandedAssetVersions] =
+        useState({});
 
     const [activity, setActivity] = useState([]);
     const [activityLoading, setActivityLoading] = useState(true);
@@ -339,6 +357,9 @@ export default function CreatorDashboard({ user }) {
                     metadata.previousStatus
                 )} to ${displayStatus(metadata.newStatus)}.`;
 
+            case "CONTENT_DETAILS_UPDATED":
+                return `${actor} updated the project details for ${title}.`;
+
             case "EDITOR_ASSIGNED_TO_CONTENT":
                 return `${actor} assigned ${
                     metadata.editorName || "an Editor"
@@ -364,6 +385,10 @@ export default function CreatorDashboard({ user }) {
                 }.`;
 
             case "REVIEW_COMMENT_ADDED": {
+                const versionLabel =
+                    metadata.assetVersion
+                        ? ` v${metadata.assetVersion}`
+                        : "";
                 const timestamp =
                     metadata.timestamp !== null &&
                     metadata.timestamp !== undefined
@@ -372,17 +397,32 @@ export default function CreatorDashboard({ user }) {
                           )}`
                         : "";
 
-                return `${actor} added review feedback to ${title}${timestamp}.`;
+                return `${actor} added review feedback to ${title}${versionLabel}${timestamp}.`;
             }
 
             case "REVIEW_APPROVED":
-                return `${actor} approved ${title}.`;
+                return `${actor} approved ${title}${
+                    metadata.assetVersion
+                        ? ` v${metadata.assetVersion}`
+                        : ""
+                }.`;
 
             case "REVIEW_REVISION_REQUESTED":
-                return `${actor} requested revisions for ${title}.`;
+                return `${actor} requested revisions for ${title}${
+                    metadata.assetVersion
+                        ? ` v${metadata.assetVersion}`
+                        : ""
+                }.`;
 
             case "ASSET_UPLOADED":
                 return `${actor} uploaded ${
+                    metadata.fileName || "an asset"
+                } to ${title}.`;
+
+            case "ASSET_VERSION_UPLOADED":
+                return `${actor} uploaded v${
+                    metadata.version || "?"
+                } of ${
                     metadata.fileName || "an asset"
                 } to ${title}.`;
 
@@ -615,7 +655,8 @@ export default function CreatorDashboard({ user }) {
     const uploadFileToSignedUrl = (
         uploadUrl,
         file,
-        requiredHeaders
+        requiredHeaders,
+        onProgress = setAssetUploadProgress
     ) =>
         new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -638,7 +679,7 @@ export default function CreatorDashboard({ user }) {
                     return;
                 }
 
-                setAssetUploadProgress(
+                onProgress(
                     Math.round(
                         (event.loaded /
                             event.total) *
@@ -813,6 +854,121 @@ export default function CreatorDashboard({ user }) {
             );
         } finally {
             setAssetUploading(false);
+        }
+    };
+
+    const toggleAssetVersions = (assetId) => {
+        setExpandedAssetVersions((current) => ({
+            ...current,
+            [assetId]: !current[assetId],
+        }));
+    };
+
+    const uploadAssetVersion = async (asset, event) => {
+        const file =
+            event.target.files?.[0] || null;
+
+        if (!asset?.id || !file) {
+            return;
+        }
+
+        setAssetVersionUploadingId(asset.id);
+        setAssetVersionUploadProgress(0);
+        setAssetVersionError(null);
+
+        try {
+            const prepareRes = await fetch(
+                "/api/assets/upload-url",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        contentId: asset.contentId,
+                        assetId: asset.id,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        mimeType:
+                            file.type ||
+                            "application/octet-stream",
+                    }),
+                }
+            );
+
+            const prepareData =
+                await prepareRes.json();
+
+            if (!prepareRes.ok) {
+                throw new Error(
+                    prepareData.error ||
+                        "Failed to prepare version upload."
+                );
+            }
+
+            await uploadFileToSignedUrl(
+                prepareData.uploadUrl,
+                file,
+                prepareData.requiredHeaders,
+                setAssetVersionUploadProgress
+            );
+
+            const finalizeRes =
+                await fetch("/api/assets", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        contentId: asset.contentId,
+                        assetId: asset.id,
+                        storageKey:
+                            prepareData.storageKey,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        mimeType:
+                            file.type ||
+                            "application/octet-stream",
+                        assetType: asset.assetType,
+                    }),
+                });
+
+            const finalizeData =
+                await finalizeRes.json();
+
+            if (!finalizeRes.ok) {
+                throw new Error(
+                    finalizeData.error ||
+                        "The file reached R2, but Nexus could not register the new version."
+                );
+            }
+
+            setAssetVersionUploadProgress(100);
+
+            await Promise.all([
+                loadAssets(activeOrganizationId),
+                loadActivity(activeOrganizationId),
+            ]);
+
+            setExpandedAssetVersions(
+                (current) => ({
+                    ...current,
+                    [asset.id]: true,
+                })
+            );
+        } catch (error) {
+            console.error(
+                "Asset version upload failed:",
+                error
+            );
+
+            setAssetVersionError(
+                error.message ||
+                    "Couldn't upload this asset version."
+            );
+        } finally {
+            event.target.value = "";
+            setAssetVersionUploadingId(null);
         }
     };
 
@@ -2159,6 +2315,136 @@ export default function CreatorDashboard({ user }) {
         await loadActivity(activeOrganizationId);
     };
 
+    const toDateInputValue = (value) => {
+        if (!value) return "";
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return "";
+        }
+
+        return date.toISOString().slice(0, 10);
+    };
+
+    const startProjectEditing = () => {
+        const content = selectedProject?.content;
+
+        if (!content || !canEditProjectDetails) {
+            return;
+        }
+
+        setProjectEditDraft({
+            title: content.title || "",
+            description: content.description || "",
+            footageLink: content.footageLink || "",
+            contentType: content.contentType || "Short-form",
+            dueDate: toDateInputValue(content.dueDate),
+        });
+
+        setProjectEditError(null);
+        setProjectEditing(true);
+    };
+
+    const cancelProjectEditing = () => {
+        setProjectEditing(false);
+        setProjectEditError(null);
+    };
+
+    const saveProjectDetails = async (event) => {
+        event.preventDefault();
+
+        const contentId = selectedProject?.content?.id;
+
+        if (!contentId || !canEditProjectDetails) {
+            return;
+        }
+
+        if (!projectEditDraft.title.trim()) {
+            setProjectEditError("Project title is required.");
+            return;
+        }
+
+        const isManagement =
+            activeSettingsWorkspace?.role === "ADMIN" ||
+            activeSettingsWorkspace?.role === "MANAGER";
+
+        const payload = {
+            title: projectEditDraft.title.trim(),
+            description: projectEditDraft.description.trim(),
+            dueDate: projectEditDraft.dueDate || null,
+        };
+
+        if (
+            isManagement ||
+            currentProjectStatus === "REQUESTED" ||
+            currentProjectStatus === "IN_PRODUCTION"
+        ) {
+            if (
+                !isGoogleDriveFolderUrl(
+                    projectEditDraft.footageLink
+                )
+            ) {
+                setProjectEditError(
+                    "Please paste a valid Google Drive folder link."
+                );
+                return;
+            }
+
+            payload.footageLink =
+                projectEditDraft.footageLink.trim();
+        }
+
+        if (
+            isManagement ||
+            currentProjectStatus === "REQUESTED"
+        ) {
+            payload.contentType =
+                projectEditDraft.contentType;
+        }
+
+        setProjectEditSaving(true);
+        setProjectEditError(null);
+
+        try {
+            const res = await fetch(
+                `/api/projects/${encodeURIComponent(contentId)}`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to update project details."
+                );
+            }
+
+            setProjectEditing(false);
+
+            await refreshProjectContext();
+        } catch (error) {
+            console.error(
+                "Failed to update project details:",
+                error
+            );
+
+            setProjectEditError(
+                error.message ||
+                    "Couldn't update this project."
+            );
+        } finally {
+            setProjectEditSaving(false);
+        }
+    };
+
     const deleteProject = async () => {
         const contentId = selectedProject?.content?.id;
         const title =
@@ -2196,6 +2482,8 @@ export default function CreatorDashboard({ user }) {
             }
 
             setSelectedProject(null);
+            setProjectEditing(false);
+            setProjectEditError(null);
             setTasks([]);
             setTaskDrafts({});
             setProjectAssignments([]);
@@ -2724,7 +3012,12 @@ export default function CreatorDashboard({ user }) {
 
         const type = typeLabels[asset.assetType] || "Asset";
 
-        return `${type} • ${formatAssetSize(asset.fileSize)}`;
+        const version =
+            Number(asset.latestVersion || 1);
+
+        return `${type} • ${formatAssetSize(
+            asset.fileSize
+        )} • v${version}`;
     };
 
     const taskAssignableEditors = Array.from(
@@ -2779,6 +3072,30 @@ export default function CreatorDashboard({ user }) {
 
     const canUpdateTaskStatus =
         isCreator || isEditor;
+
+    const canManageProjectDetails =
+        activeSettingsWorkspace?.role ===
+            "ADMIN" ||
+        activeSettingsWorkspace?.role ===
+            "MANAGER";
+
+    const canEditProjectDetails =
+        canManageProjectDetails ||
+        (isCreator &&
+            currentProjectStatus !== "APPROVED");
+
+    const canEditProjectContentType =
+        canManageProjectDetails ||
+        (isCreator &&
+            currentProjectStatus === "REQUESTED");
+
+    const canEditProjectFootage =
+        canManageProjectDetails ||
+        (isCreator &&
+            (
+                currentProjectStatus === "REQUESTED" ||
+                currentProjectStatus === "IN_PRODUCTION"
+            ));
 
     const canDeleteProject =
         isCreator ||
@@ -4625,6 +4942,26 @@ export default function CreatorDashboard({ user }) {
                                             justifyContent: "flex-end",
                                         }}
                                     >
+                                        {canEditProjectDetails &&
+                                            selectedProject && (
+                                                <button
+                                                    type="button"
+                                                    className="action-btn"
+                                                    onClick={
+                                                        projectEditing
+                                                            ? cancelProjectEditing
+                                                            : startProjectEditing
+                                                    }
+                                                    disabled={
+                                                        projectEditSaving
+                                                    }
+                                                >
+                                                    {projectEditing
+                                                        ? "CANCEL EDIT"
+                                                        : "EDIT PROJECT"}
+                                                </button>
+                                            )}
+
                                         {canDeleteProject &&
                                             selectedProject && (
                                                 <button
@@ -4653,6 +4990,8 @@ export default function CreatorDashboard({ user }) {
                                             type="button"
                                             className="action-btn"
                                             onClick={() => {
+                                                setProjectEditing(false);
+                                                setProjectEditError(null);
                                                 setSelectedProject(
                                                     null
                                                 );
@@ -4805,6 +5144,227 @@ export default function CreatorDashboard({ user }) {
                                                     </span>
                                                 </div>
                                             </div>
+
+                                            {projectEditing && (
+                                                <div
+                                                    className="panel"
+                                                    style={{
+                                                        marginTop: "20px",
+                                                    }}
+                                                >
+                                                    <div className="panel-header">
+                                                        <div>
+                                                            <span className="status-tag">
+                                                                PROJECT SETTINGS
+                                                            </span>
+
+                                                            <h3>
+                                                                EDIT PROJECT DETAILS
+                                                            </h3>
+                                                        </div>
+
+                                                        <span className="graph-tag">
+                                                            {currentProjectStatus}
+                                                        </span>
+                                                    </div>
+
+                                                    <form
+                                                        className="brief-form"
+                                                        onSubmit={
+                                                            saveProjectDetails
+                                                        }
+                                                    >
+                                                        <div className="form-row">
+                                                            <div className="form-field">
+                                                                <label htmlFor="editProjectTitle">
+                                                                    PROJECT TITLE
+                                                                </label>
+
+                                                                <input
+                                                                    id="editProjectTitle"
+                                                                    type="text"
+                                                                    className="dash-input"
+                                                                    value={
+                                                                        projectEditDraft.title
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        setProjectEditDraft(
+                                                                            (current) => ({
+                                                                                ...current,
+                                                                                title: event.target.value,
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                    required
+                                                                />
+                                                            </div>
+
+                                                            <div className="form-field">
+                                                                <label htmlFor="editProjectType">
+                                                                    CONTENT TYPE
+                                                                </label>
+
+                                                                <select
+                                                                    id="editProjectType"
+                                                                    className="dash-input"
+                                                                    value={
+                                                                        projectEditDraft.contentType
+                                                                    }
+                                                                    disabled={
+                                                                        !canEditProjectContentType
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        setProjectEditDraft(
+                                                                            (current) => ({
+                                                                                ...current,
+                                                                                contentType: event.target.value,
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <option value="Short-form">
+                                                                        Short-form Reel / TikTok
+                                                                    </option>
+                                                                    <option value="YouTube Long-form">
+                                                                        YouTube Long-form
+                                                                    </option>
+                                                                    <option value="Repurposed Cuts">
+                                                                        Social Repurpose Pack
+                                                                    </option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="form-row">
+                                                            <div className="form-field">
+                                                                <label htmlFor="editProjectFootage">
+                                                                    GOOGLE DRIVE FOOTAGE FOLDER
+                                                                </label>
+
+                                                                <input
+                                                                    id="editProjectFootage"
+                                                                    type="url"
+                                                                    className="dash-input"
+                                                                    value={
+                                                                        projectEditDraft.footageLink
+                                                                    }
+                                                                    disabled={
+                                                                        !canEditProjectFootage
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        setProjectEditDraft(
+                                                                            (current) => ({
+                                                                                ...current,
+                                                                                footageLink: event.target.value,
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+
+                                                            <div className="form-field">
+                                                                <label htmlFor="editProjectDueDate">
+                                                                    DUE DATE
+                                                                </label>
+
+                                                                <input
+                                                                    id="editProjectDueDate"
+                                                                    type="date"
+                                                                    className="dash-input"
+                                                                    value={
+                                                                        projectEditDraft.dueDate
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        setProjectEditDraft(
+                                                                            (current) => ({
+                                                                                ...current,
+                                                                                dueDate: event.target.value,
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="form-field">
+                                                            <label htmlFor="editProjectDescription">
+                                                                PROJECT BRIEF / DESCRIPTION
+                                                            </label>
+
+                                                            <textarea
+                                                                id="editProjectDescription"
+                                                                className="dash-input"
+                                                                rows={4}
+                                                                value={
+                                                                    projectEditDraft.description
+                                                                }
+                                                                onChange={(event) =>
+                                                                    setProjectEditDraft(
+                                                                        (current) => ({
+                                                                            ...current,
+                                                                            description: event.target.value,
+                                                                        })
+                                                                    )
+                                                                }
+                                                                placeholder="Add project context, editing notes, goals, or other important information."
+                                                            />
+                                                        </div>
+
+                                                        {!canEditProjectContentType &&
+                                                            isCreator && (
+                                                                <p className="text-link">
+                                                                    Content type is locked once production has started.
+                                                                </p>
+                                                            )}
+
+                                                        {!canEditProjectFootage &&
+                                                            isCreator && (
+                                                                <p className="text-link">
+                                                                    The footage folder is locked while the project is in review or revision.
+                                                                </p>
+                                                            )}
+
+                                                        {projectEditError && (
+                                                            <p className="brief-error-msg active">
+                                                                {projectEditError}
+                                                            </p>
+                                                        )}
+
+                                                        <div
+                                                            style={{
+                                                                display: "flex",
+                                                                gap: "10px",
+                                                                flexWrap: "wrap",
+                                                            }}
+                                                        >
+                                                            <button
+                                                                type="submit"
+                                                                className="button button-primary"
+                                                                disabled={
+                                                                    projectEditSaving
+                                                                }
+                                                            >
+                                                                {projectEditSaving
+                                                                    ? "SAVING…"
+                                                                    : "SAVE PROJECT"}
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                className="button button-ghost"
+                                                                onClick={
+                                                                    cancelProjectEditing
+                                                                }
+                                                                disabled={
+                                                                    projectEditSaving
+                                                                }
+                                                            >
+                                                                CANCEL
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            )}
 
                                             {/* PRODUCTION TASKS */}
                                             <div
@@ -6332,6 +6892,77 @@ export default function CreatorDashboard({ user }) {
                                                                         </small>
                                                                     </div>
 
+                                                                    {review.assetVersion ? (
+                                                                        <div
+                                                                            style={{
+                                                                                display:
+                                                                                    "flex",
+                                                                                alignItems:
+                                                                                    "center",
+                                                                                gap:
+                                                                                    "10px",
+                                                                                flexWrap:
+                                                                                    "wrap",
+                                                                                marginTop:
+                                                                                    "10px",
+                                                                            }}
+                                                                        >
+                                                                            <span className="graph-tag">
+                                                                                CUT v{
+                                                                                    review
+                                                                                        .assetVersion
+                                                                                        .version
+                                                                                }
+                                                                                {" • "}
+                                                                                {
+                                                                                    review
+                                                                                        .assetVersion
+                                                                                        .fileName
+                                                                                }
+                                                                            </span>
+
+                                                                            <a
+                                                                                className="asset-action"
+                                                                                href={`/api/assets/${encodeURIComponent(
+                                                                                    review
+                                                                                        .assetVersion
+                                                                                        .assetId
+                                                                                )}/download?version=${encodeURIComponent(
+                                                                                    review
+                                                                                        .assetVersion
+                                                                                        .version
+                                                                                )}&mode=${
+                                                                                    review
+                                                                                        .assetVersion
+                                                                                        .assetType ===
+                                                                                    "VIDEO"
+                                                                                        ? "inline"
+                                                                                        : "attachment"
+                                                                                }`}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                            >
+                                                                                {review
+                                                                                    .assetVersion
+                                                                                    .assetType ===
+                                                                                "VIDEO"
+                                                                                    ? "OPEN CUT"
+                                                                                    : "DOWNLOAD VERSION"}
+                                                                            </a>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <small
+                                                                            style={{
+                                                                                display:
+                                                                                    "block",
+                                                                                marginTop:
+                                                                                    "10px",
+                                                                            }}
+                                                                        >
+                                                                            Legacy review • no asset version attached
+                                                                        </small>
+                                                                    )}
+
                                                                     {review.notes && (
                                                                         <p
                                                                             style={{
@@ -6431,6 +7062,77 @@ export default function CreatorDashboard({ user }) {
                                                     </p>
                                                 )}
 
+                                                {pendingReview?.assetVersion && (
+                                                    <div
+                                                        className="review-history-card"
+                                                        style={{
+                                                            marginBottom:
+                                                                "16px",
+                                                        }}
+                                                    >
+                                                        <div className="review-history-top">
+                                                            <strong>
+                                                                CURRENT REVIEW CUT
+                                                            </strong>
+                                                            <span className="graph-tag">
+                                                                v{
+                                                                    pendingReview
+                                                                        .assetVersion
+                                                                        .version
+                                                                }
+                                                            </span>
+                                                        </div>
+
+                                                        <p
+                                                            style={{
+                                                                marginTop:
+                                                                    "8px",
+                                                            }}
+                                                        >
+                                                            {
+                                                                pendingReview
+                                                                    .assetVersion
+                                                                    .fileName
+                                                            }
+                                                        </p>
+
+                                                        <a
+                                                            className="asset-action"
+                                                            href={`/api/assets/${encodeURIComponent(
+                                                                pendingReview
+                                                                    .assetVersion
+                                                                    .assetId
+                                                            )}/download?version=${encodeURIComponent(
+                                                                pendingReview
+                                                                    .assetVersion
+                                                                    .version
+                                                            )}&mode=${
+                                                                pendingReview
+                                                                    .assetVersion
+                                                                    .assetType ===
+                                                                "VIDEO"
+                                                                    ? "inline"
+                                                                    : "attachment"
+                                                            }`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{
+                                                                display:
+                                                                    "inline-block",
+                                                                marginTop:
+                                                                    "8px",
+                                                            }}
+                                                        >
+                                                            {pendingReview
+                                                                .assetVersion
+                                                                .assetType ===
+                                                            "VIDEO"
+                                                                ? "OPEN REVIEW CUT"
+                                                                : "DOWNLOAD REVIEW VERSION"}
+                                                        </a>
+                                                    </div>
+                                                )}
+
                                                 {pendingReview && (
                                                     <form
                                                         onSubmit={(
@@ -6447,6 +7149,10 @@ export default function CreatorDashboard({ user }) {
                                                             <label htmlFor="reviewComment">
                                                                 REVIEW
                                                                 COMMENT
+                                                                {pendingReview
+                                                                    ?.assetVersion
+                                                                    ? ` • v${pendingReview.assetVersion.version}`
+                                                                    : ""}
                                                             </label>
 
                                                             <textarea
@@ -6846,6 +7552,12 @@ export default function CreatorDashboard({ user }) {
                                     </div>
                                 </form>
 
+                                    {assetVersionError && (
+                                        <p className="brief-error-msg active asset-upload-error">
+                                            {assetVersionError}
+                                        </p>
+                                    )}
+
                                     <div className="asset-grid">
                                     {assetsLoading ? (
                                         <div className="asset-state-card">
@@ -6899,102 +7611,279 @@ export default function CreatorDashboard({ user }) {
                                         </div>
                                     ) : (
                                         assets.map(
-                                            (asset) => (
-                                                <div
-                                                    className="asset-card"
-                                                    key={
-                                                        asset.id
-                                                    }
-                                                >
-                                                    <div className="asset-icon">
-                                                        {assetIcon(
-                                                            asset.assetType
-                                                        )}
-                                                    </div>
+                                            (asset) => {
+                                                const versions =
+                                                    asset.versions ||
+                                                    [];
+                                                const latestVersion =
+                                                    Number(
+                                                        asset.latestVersion ||
+                                                            versions[0]?.version ||
+                                                            1
+                                                    );
+                                                const versionInputId =
+                                                    `asset-version-${asset.id}`;
 
-                                                    <div className="asset-details">
-                                                        <strong>
-                                                            {
-                                                                asset.fileName
-                                                            }
-                                                        </strong>
-
-                                                        <small>
-                                                            {assetMeta(
-                                                                asset
-                                                            )}
-                                                        </small>
-
-                                                        {asset
-                                                            .content
-                                                            ?.title && (
-                                                            <small
-                                                                style={{
-                                                                    display:
-                                                                        "block",
-                                                                    marginTop:
-                                                                        "4px",
-                                                                }}
-                                                            >
-                                                                {
-                                                                    asset
-                                                                        .content
-                                                                        .title
-                                                                }
-                                                            </small>
-                                                        )}
-                                                    </div>
-
+                                                return (
                                                     <div
+                                                        className="asset-card"
+                                                        key={asset.id}
                                                         style={{
-                                                            display:
-                                                                "flex",
-                                                            gap:
-                                                                "6px",
-                                                            flexWrap:
-                                                                "wrap",
+                                                            alignItems:
+                                                                "flex-start",
                                                         }}
                                                     >
-                                                        <a
-                                                            className="asset-action"
-                                                            href={`/api/assets/${encodeURIComponent(
-                                                                asset.id
-                                                            )}/download?mode=${
-                                                                asset.assetType ===
-                                                                "VIDEO"
-                                                                    ? "inline"
-                                                                    : "attachment"
-                                                            }`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {asset.assetType ===
-                                                            "VIDEO"
-                                                                ? "STREAM"
-                                                                : "DOWNLOAD"}
-                                                        </a>
+                                                        <div className="asset-icon">
+                                                            {assetIcon(
+                                                                asset.assetType
+                                                            )}
+                                                        </div>
 
-                                                        <button
-                                                            type="button"
-                                                            className="asset-action"
-                                                            disabled={
-                                                                assetDeletingId ===
-                                                                asset.id
-                                                            }
-                                                            onClick={() =>
-                                                                deleteAsset(
-                                                                    asset
-                                                                )
-                                                            }
+                                                        <div
+                                                            className="asset-details"
+                                                            style={{
+                                                                minWidth: 0,
+                                                                flex: 1,
+                                                            }}
                                                         >
-                                                            {assetDeletingId ===
-                                                            asset.id
-                                                                ? "DELETING…"
-                                                                : "DELETE"}
-                                                        </button>
+                                                            <strong>
+                                                                {asset.fileName}
+                                                            </strong>
+
+                                                            <small>
+                                                                {assetMeta(
+                                                                    asset
+                                                                )}
+                                                            </small>
+
+                                                            {asset.content
+                                                                ?.title && (
+                                                                <small
+                                                                    style={{
+                                                                        display:
+                                                                            "block",
+                                                                        marginTop:
+                                                                            "4px",
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        asset
+                                                                            .content
+                                                                            .title
+                                                                    }
+                                                                </small>
+                                                            )}
+
+                                                            {expandedAssetVersions[
+                                                                asset.id
+                                                            ] && (
+                                                                <div
+                                                                    style={{
+                                                                        marginTop:
+                                                                            "12px",
+                                                                        display:
+                                                                            "grid",
+                                                                        gap:
+                                                                            "8px",
+                                                                    }}
+                                                                >
+                                                                    {versions.map(
+                                                                        (version) => (
+                                                                            <div
+                                                                                key={
+                                                                                    version.id ||
+                                                                                    `${asset.id}-${version.version}`
+                                                                                }
+                                                                                style={{
+                                                                                    display:
+                                                                                        "flex",
+                                                                                    alignItems:
+                                                                                        "center",
+                                                                                    justifyContent:
+                                                                                        "space-between",
+                                                                                    gap:
+                                                                                        "10px",
+                                                                                    padding:
+                                                                                        "9px 10px",
+                                                                                    border:
+                                                                                        "1px solid var(--line)",
+                                                                                    borderRadius:
+                                                                                        "6px",
+                                                                                    flexWrap:
+                                                                                        "wrap",
+                                                                                }}
+                                                                            >
+                                                                                <div>
+                                                                                    <strong
+                                                                                        style={{
+                                                                                            fontSize:
+                                                                                                "12px",
+                                                                                        }}
+                                                                                    >
+                                                                                        v{
+                                                                                            version.version
+                                                                                        }
+                                                                                        {version.version ===
+                                                                                        latestVersion
+                                                                                            ? " • LATEST"
+                                                                                            : ""}
+                                                                                    </strong>
+                                                                                    <small
+                                                                                        style={{
+                                                                                            display:
+                                                                                                "block",
+                                                                                            marginTop:
+                                                                                                "3px",
+                                                                                        }}
+                                                                                    >
+                                                                                        {
+                                                                                            version.fileName
+                                                                                        }{" "}
+                                                                                        •{" "}
+                                                                                        {formatAssetSize(
+                                                                                            version.fileSize
+                                                                                        )}
+                                                                                    </small>
+                                                                                </div>
+
+                                                                                <a
+                                                                                    className="asset-action"
+                                                                                    href={`/api/assets/${encodeURIComponent(
+                                                                                        asset.id
+                                                                                    )}/download?version=${encodeURIComponent(
+                                                                                        version.version
+                                                                                    )}&mode=${
+                                                                                        asset.assetType ===
+                                                                                        "VIDEO"
+                                                                                            ? "inline"
+                                                                                            : "attachment"
+                                                                                    }`}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                >
+                                                                                    {asset.assetType ===
+                                                                                    "VIDEO"
+                                                                                        ? "STREAM"
+                                                                                        : "DOWNLOAD"}
+                                                                                </a>
+                                                                            </div>
+                                                                        )
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div
+                                                            style={{
+                                                                display:
+                                                                    "flex",
+                                                                gap: "6px",
+                                                                flexWrap:
+                                                                    "wrap",
+                                                                justifyContent:
+                                                                    "flex-end",
+                                                            }}
+                                                        >
+                                                            <a
+                                                                className="asset-action"
+                                                                href={`/api/assets/${encodeURIComponent(
+                                                                    asset.id
+                                                                )}/download?mode=${
+                                                                    asset.assetType ===
+                                                                    "VIDEO"
+                                                                        ? "inline"
+                                                                        : "attachment"
+                                                                }`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                {asset.assetType ===
+                                                                "VIDEO"
+                                                                    ? "STREAM LATEST"
+                                                                    : "DOWNLOAD LATEST"}
+                                                            </a>
+
+                                                            <button
+                                                                type="button"
+                                                                className="asset-action"
+                                                                onClick={() =>
+                                                                    toggleAssetVersions(
+                                                                        asset.id
+                                                                    )
+                                                                }
+                                                            >
+                                                                {expandedAssetVersions[
+                                                                    asset.id
+                                                                ]
+                                                                    ? "HIDE VERSIONS"
+                                                                    : `VERSIONS (${versions.length})`}
+                                                            </button>
+
+                                                            <input
+                                                                id={versionInputId}
+                                                                type="file"
+                                                                style={{
+                                                                    display:
+                                                                        "none",
+                                                                }}
+                                                                disabled={
+                                                                    assetVersionUploadingId !==
+                                                                    null
+                                                                }
+                                                                onChange={(event) =>
+                                                                    uploadAssetVersion(
+                                                                        asset,
+                                                                        event
+                                                                    )
+                                                                }
+                                                            />
+
+                                                            <label
+                                                                htmlFor={
+                                                                    versionInputId
+                                                                }
+                                                                className="asset-action"
+                                                                style={{
+                                                                    cursor:
+                                                                        assetVersionUploadingId !==
+                                                                        null
+                                                                            ? "not-allowed"
+                                                                            : "pointer",
+                                                                    opacity:
+                                                                        assetVersionUploadingId !==
+                                                                        null
+                                                                            ? 0.55
+                                                                            : 1,
+                                                                }}
+                                                            >
+                                                                {assetVersionUploadingId ===
+                                                                asset.id
+                                                                    ? `UPLOADING ${assetVersionUploadProgress}%`
+                                                                    : "NEW VERSION"}
+                                                            </label>
+
+                                                            <button
+                                                                type="button"
+                                                                className="asset-action"
+                                                                disabled={
+                                                                    assetDeletingId ===
+                                                                    asset.id
+                                                                }
+                                                                onClick={() =>
+                                                                    deleteAsset(
+                                                                        asset
+                                                                    )
+                                                                }
+                                                            >
+                                                                {assetDeletingId ===
+                                                                asset.id
+                                                                    ? "DELETING…"
+                                                                    : "DELETE"}
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )
+                                                );
+                                            }
                                         )
                                     )}
                                     </div>

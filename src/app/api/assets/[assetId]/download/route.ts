@@ -79,6 +79,14 @@ async function getAccessibleAsset(
                 fileName: true,
                 mimeType: true,
                 storageKey: true,
+                versions: {
+                    select: {
+                        version: true,
+                        fileName: true,
+                        mimeType: true,
+                        storageKey: true,
+                    },
+                },
             },
         });
     }
@@ -180,6 +188,14 @@ async function getAccessibleAsset(
             fileName: true,
             mimeType: true,
             storageKey: true,
+            versions: {
+                select: {
+                    version: true,
+                    fileName: true,
+                    mimeType: true,
+                    storageKey: true,
+                },
+            },
         },
     });
 }
@@ -236,17 +252,64 @@ export async function GET(
                 ? "inline"
                 : "attachment";
 
+        const requestedVersionRaw =
+            searchParams.get("version");
+
+        const requestedVersion =
+            requestedVersionRaw
+                ? Number(requestedVersionRaw)
+                : null;
+
+        if (
+            requestedVersionRaw &&
+            (
+                requestedVersion === null ||
+                !Number.isInteger(requestedVersion) ||
+                requestedVersion < 1
+            )
+        ) {
+            return NextResponse.json(
+                {
+                    error: "Invalid asset version.",
+                },
+                { status: 400 }
+            );
+        }
+
+        const versionRecord =
+            requestedVersion === null
+                ? null
+                : asset.versions.find(
+                      (version) =>
+                          version.version === requestedVersion
+                  );
+
+        if (
+            requestedVersion !== null &&
+            !versionRecord
+        ) {
+            return NextResponse.json(
+                {
+                    error: "Asset version not found.",
+                },
+                { status: 404 }
+            );
+        }
+
+        const downloadTarget =
+            versionRecord || asset;
+
         const command =
             new GetObjectCommand({
                 Bucket:
                     getR2BucketName(),
-                Key: asset.storageKey,
+                Key: downloadTarget.storageKey,
                 ResponseContentType:
-                    asset.mimeType ||
+                    downloadTarget.mimeType ||
                     undefined,
                 ResponseContentDisposition:
                     `${mode}; filename="${safeDispositionFileName(
-                        asset.fileName
+                        downloadTarget.fileName
                     )}"`,
             });
 

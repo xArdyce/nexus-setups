@@ -15,6 +15,15 @@ function serializeAsset(asset: {
     uploadedById: string;
     createdAt: Date;
     updatedAt: Date;
+    versions: {
+        id: string;
+        version: number;
+        storageKey: string;
+        fileName: string;
+        fileSize: bigint | null;
+        mimeType: string | null;
+        createdAt: Date;
+    }[];
     content: {
         id: string;
         title: string;
@@ -37,6 +46,18 @@ function serializeAsset(asset: {
         uploadedById: asset.uploadedById,
         createdAt: asset.createdAt,
         updatedAt: asset.updatedAt,
+        latestVersion:
+            asset.versions[0]?.version ?? 1,
+        versions: asset.versions.map((version) => ({
+            id: version.id,
+            version: version.version,
+            storageKey: version.storageKey,
+            fileName: version.fileName,
+            fileSize:
+                version.fileSize?.toString() ?? null,
+            mimeType: version.mimeType,
+            createdAt: version.createdAt,
+        })),
 
         content: {
             id: asset.content.id,
@@ -203,6 +224,11 @@ export async function GET(request: Request) {
                 },
 
                 include: {
+                    versions: {
+                        orderBy: {
+                            version: "desc",
+                        },
+                    },
                     content: {
                         select: {
                             id: true,
@@ -347,6 +373,11 @@ export async function GET(request: Request) {
             },
 
             include: {
+                versions: {
+                    orderBy: {
+                        version: "desc",
+                    },
+                },
                 content: {
                     select: {
                         id: true,
@@ -552,6 +583,7 @@ export async function POST(request: Request) {
 
         let body: {
             contentId?: unknown;
+            assetId?: unknown;
             storageKey?: unknown;
             fileName?: unknown;
             fileSize?: unknown;
@@ -573,6 +605,10 @@ export async function POST(request: Request) {
 
         const contentId = String(
             body.contentId || ""
+        ).trim();
+
+        const assetId = String(
+            body.assetId || ""
         ).trim();
 
         const storageKey = String(
@@ -630,6 +666,29 @@ export async function POST(request: Request) {
             );
         }
 
+        const versionTarget = assetId
+            ? await prisma.asset.findFirst({
+                  where: {
+                      id: assetId,
+                      contentId: content.id,
+                  },
+                  select: {
+                      id: true,
+                      assetType: true,
+                  },
+              })
+            : null;
+
+        if (assetId && !versionTarget) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Asset not found in this project or access denied.",
+                },
+                { status: 404 }
+            );
+        }
+
         const requiredPrefix = [
             "organizations",
             content.project.organizationId,
@@ -652,17 +711,27 @@ export async function POST(request: Request) {
             );
         }
 
-        const existing =
-            await prisma.asset.findUnique({
-                where: {
-                    storageKey,
-                },
-                select: {
-                    id: true,
-                },
-            });
+        const [existingAsset, existingVersion] =
+            await Promise.all([
+                prisma.asset.findUnique({
+                    where: {
+                        storageKey,
+                    },
+                    select: {
+                        id: true,
+                    },
+                }),
+                prisma.assetVersion.findFirst({
+                    where: {
+                        storageKey,
+                    },
+                    select: {
+                        id: true,
+                    },
+                }),
+            ]);
 
-        if (existing) {
+        if (existingAsset || existingVersion) {
             return NextResponse.json(
                 {
                     error:
@@ -696,6 +765,116 @@ export async function POST(request: Request) {
             mimeType ||
             null;
 
+        if (versionTarget) {
+            const updatedAsset =
+                await prisma.$transaction(
+                    async (tx) => {
+                        const latestVersion =
+                            await tx.assetVersion.findFirst({
+                                where: {
+                                    assetId: versionTarget.id,
+                                },
+                                orderBy: {
+                                    version: "desc",
+                                },
+                                select: {
+                                    version: true,
+                                },
+                            });
+
+                        const nextVersion =
+                            (latestVersion?.version ?? 0) + 1;
+
+                        await tx.assetVersion.create({
+                            data: {
+                                version: nextVersion,
+                                storageKey,
+                                fileName,
+                                fileSize:
+                                    actualFileSize !== null
+                                        ? BigInt(actualFileSize)
+                                        : null,
+                                mimeType: actualMimeType,
+                                assetId: versionTarget.id,
+                            },
+                        });
+
+                        const asset =
+                            await tx.asset.update({
+                                where: {
+                                    id: versionTarget.id,
+                                },
+                                data: {
+                                    fileName,
+                                    fileSize:
+                                        actualFileSize !== null
+                                            ? BigInt(actualFileSize)
+                                            : null,
+                                    mimeType: actualMimeType,
+                                    storageKey,
+                                },
+                                include: {
+                                    versions: {
+                                        orderBy: {
+                                            version: "desc",
+                                        },
+                                    },
+                                    content: {
+                                        select: {
+                                            id: true,
+                                            title: true,
+                                            contentType: true,
+                                            project: {
+                                                select: {
+                                                    id: true,
+                                                    name: true,
+                                                    organizationId: true,
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            });
+
+                        await tx.auditLog.create({
+                            data: {
+                                action:
+                                    "ASSET_VERSION_UPLOADED",
+                                resource: "Asset",
+                                resourceId: asset.id,
+                                userId: user.id,
+                                metadata: {
+                                    organizationId:
+                                        content.project.organizationId,
+                                    creatorId:
+                                        content.project.creatorId,
+                                    contentId: content.id,
+                                    contentTitle: content.title,
+                                    assetId: asset.id,
+                                    fileName,
+                                    assetType:
+                                        versionTarget.assetType,
+                                    version: nextVersion,
+                                    fileSize: actualFileSize,
+                                },
+                            },
+                        });
+
+                        return asset;
+                    }
+                );
+
+            return NextResponse.json(
+                {
+                    asset:
+                        serializeAsset(
+                            updatedAsset
+                        ),
+                },
+                { status: 201 }
+            );
+        }
+
         const created =
             await prisma.$transaction(
                 async (tx) => {
@@ -704,36 +883,27 @@ export async function POST(request: Request) {
                             data: {
                                 fileName,
                                 fileSize:
-                                    actualFileSize !==
-                                    null
-                                        ? BigInt(
-                                              actualFileSize
-                                          )
+                                    actualFileSize !== null
+                                        ? BigInt(actualFileSize)
                                         : null,
-                                mimeType:
-                                    actualMimeType,
+                                mimeType: actualMimeType,
                                 storageKey,
                                 assetType,
-                                contentId:
-                                    content.id,
-                                uploadedById:
-                                    user.id,
+                                contentId: content.id,
+                                uploadedById: user.id,
                             },
-
                             include: {
+                                versions: true,
                                 content: {
                                     select: {
                                         id: true,
                                         title: true,
-                                        contentType:
-                                            true,
-
+                                        contentType: true,
                                         project: {
                                             select: {
                                                 id: true,
                                                 name: true,
-                                                organizationId:
-                                                    true,
+                                                organizationId: true,
                                             },
                                         },
                                     },
@@ -741,56 +911,46 @@ export async function POST(request: Request) {
                             },
                         });
 
-                    await tx.assetVersion.create({
-                        data: {
-                            version: 1,
-                            storageKey,
-                            fileName,
-                            fileSize:
-                                actualFileSize !==
-                                null
-                                    ? BigInt(
-                                          actualFileSize
-                                      )
-                                    : null,
-                            mimeType:
-                                actualMimeType,
-                            assetId:
-                                asset.id,
-                        },
-                    });
+                    const initialVersion =
+                        await tx.assetVersion.create({
+                            data: {
+                                version: 1,
+                                storageKey,
+                                fileName,
+                                fileSize:
+                                    actualFileSize !== null
+                                        ? BigInt(actualFileSize)
+                                        : null,
+                                mimeType: actualMimeType,
+                                assetId: asset.id,
+                            },
+                        });
 
                     await tx.auditLog.create({
                         data: {
-                            action:
-                                "ASSET_UPLOADED",
-                            resource:
-                                "Asset",
-                            resourceId:
-                                asset.id,
+                            action: "ASSET_UPLOADED",
+                            resource: "Asset",
+                            resourceId: asset.id,
                             userId: user.id,
                             metadata: {
                                 organizationId:
-                                    content.project
-                                        .organizationId,
+                                    content.project.organizationId,
                                 creatorId:
-                                    content.project
-                                        .creatorId,
-                                contentId:
-                                    content.id,
-                                contentTitle:
-                                    content.title,
-                                assetId:
-                                    asset.id,
+                                    content.project.creatorId,
+                                contentId: content.id,
+                                contentTitle: content.title,
+                                assetId: asset.id,
                                 fileName,
                                 assetType,
-                                fileSize:
-                                    actualFileSize,
+                                fileSize: actualFileSize,
                             },
                         },
                     });
 
-                    return asset;
+                    return {
+                        ...asset,
+                        versions: [initialVersion],
+                    };
                 }
             );
 

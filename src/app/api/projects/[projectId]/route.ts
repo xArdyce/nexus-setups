@@ -18,7 +18,29 @@ const CONTENT_STATUSES = [
     "APPROVED",
 ] as const;
 
+const CONTENT_TYPES = [
+    "Short-form",
+    "YouTube Long-form",
+    "Repurposed Cuts",
+] as const;
+
 type ContentStatusValue = (typeof CONTENT_STATUSES)[number];
+
+function isGoogleDriveFolderUrl(value: string) {
+    try {
+        const url = new URL(value);
+
+        return (
+            url.protocol === "https:" &&
+            url.hostname === "drive.google.com" &&
+            /^\/drive\/(?:u\/\d+\/)?folders\/[^/]+\/?$/.test(
+                url.pathname
+            )
+        );
+    } catch {
+        return false;
+    }
+}
 
 async function getAuthenticatedUser() {
     const session = await auth();
@@ -96,6 +118,16 @@ async function getAccessibleContent(
 
         reviews: {
             include: {
+                assetVersion: {
+                    include: {
+                        asset: {
+                            select: {
+                                id: true,
+                                assetType: true,
+                            },
+                        },
+                    },
+                },
                 author: {
                     select: {
                         id: true,
@@ -369,6 +401,23 @@ export async function GET(
 
             author: review.author,
 
+            assetVersion: review.assetVersion
+                ? {
+                      id: review.assetVersion.id,
+                      version: review.assetVersion.version,
+                      fileName: review.assetVersion.fileName,
+                      fileSize:
+                          review.assetVersion.fileSize?.toString() ??
+                          null,
+                      mimeType: review.assetVersion.mimeType,
+                      assetId: review.assetVersion.assetId,
+                      assetType:
+                          review.assetVersion.asset.assetType,
+                      createdAt:
+                          review.assetVersion.createdAt,
+                  }
+                : null,
+
             comments: review.comments.map((comment) => ({
                 id: comment.id,
                 comment: comment.comment,
@@ -407,6 +456,11 @@ export async function PATCH(
     let body: {
         status?: unknown;
         reviewNotes?: unknown;
+        title?: unknown;
+        description?: unknown;
+        footageLink?: unknown;
+        contentType?: unknown;
+        dueDate?: unknown;
     };
 
     try {
@@ -436,6 +490,283 @@ export async function PATCH(
             { error: "Invalid content status." },
             { status: 400 }
         );
+    }
+
+    const detailFields = [
+        "title",
+        "description",
+        "footageLink",
+        "contentType",
+        "dueDate",
+    ] as const;
+
+    const requestedDetailFields = detailFields.filter(
+        (field) => body[field] !== undefined
+    );
+
+    if (requestedDetailFields.length > 0) {
+        const membership =
+            user.accountType === "CREATOR"
+                ? null
+                : user.memberships.find(
+                      (item) =>
+                          item.organizationId ===
+                          content.project.organizationId
+                  );
+
+        const isManagement =
+            membership?.role === "ADMIN" ||
+            membership?.role === "MANAGER";
+
+        const isOwningCreator =
+            user.accountType === "CREATOR" &&
+            user.creatorProfile?.id ===
+                content.project.creator?.id;
+
+        if (!isOwningCreator && !isManagement) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Only the owning Creator, Admins, and Managers can edit project details.",
+                },
+                { status: 403 }
+            );
+        }
+
+        if (
+            isOwningCreator &&
+            content.status === "APPROVED"
+        ) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Approved projects are read-only for Creator accounts.",
+                },
+                { status: 403 }
+            );
+        }
+
+        const creatorAllowedFields: Record<
+            string,
+            readonly string[]
+        > = {
+            REQUESTED: detailFields,
+            IN_PRODUCTION: [
+                "title",
+                "description",
+                "footageLink",
+                "dueDate",
+            ],
+            IN_REVIEW: [
+                "title",
+                "description",
+                "dueDate",
+            ],
+            REVISION: [
+                "title",
+                "description",
+                "dueDate",
+            ],
+            APPROVED: [],
+        };
+
+        if (isOwningCreator) {
+            const allowedFields =
+                creatorAllowedFields[content.status] || [];
+
+            const blockedField =
+                requestedDetailFields.find(
+                    (field) =>
+                        !allowedFields.includes(field)
+                );
+
+            if (blockedField) {
+                return NextResponse.json(
+                    {
+                        error:
+                            `${blockedField} cannot be changed while this project is ${content.status.toLowerCase().replaceAll("_", " ")}.`,
+                    },
+                    { status: 403 }
+                );
+            }
+        }
+
+        const updateData: {
+            title?: string;
+            description?: string | null;
+            footageLink?: string;
+            contentType?: (typeof CONTENT_TYPES)[number];
+            dueDate?: Date | null;
+        } = {};
+
+        if (body.title !== undefined) {
+            if (
+                typeof body.title !== "string" ||
+                !body.title.trim()
+            ) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Project title cannot be empty.",
+                    },
+                    { status: 400 }
+                );
+            }
+
+            updateData.title = body.title.trim();
+        }
+
+        if (body.description !== undefined) {
+            if (typeof body.description !== "string") {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Project description must be text.",
+                    },
+                    { status: 400 }
+                );
+            }
+
+            updateData.description =
+                body.description.trim() || null;
+        }
+
+        if (body.footageLink !== undefined) {
+            if (
+                typeof body.footageLink !== "string" ||
+                !isGoogleDriveFolderUrl(
+                    body.footageLink.trim()
+                )
+            ) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Please provide a valid Google Drive folder URL.",
+                    },
+                    { status: 400 }
+                );
+            }
+
+            updateData.footageLink =
+                body.footageLink.trim();
+        }
+
+        if (body.contentType !== undefined) {
+            if (
+                typeof body.contentType !== "string" ||
+                !CONTENT_TYPES.includes(
+                    body.contentType as
+                        (typeof CONTENT_TYPES)[number]
+                )
+            ) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Invalid content type.",
+                    },
+                    { status: 400 }
+                );
+            }
+
+            updateData.contentType =
+                body.contentType as
+                    (typeof CONTENT_TYPES)[number];
+        }
+
+        if (body.dueDate !== undefined) {
+            if (
+                body.dueDate === null ||
+                body.dueDate === ""
+            ) {
+                updateData.dueDate = null;
+            } else if (typeof body.dueDate === "string") {
+                const parsedDueDate =
+                    new Date(body.dueDate);
+
+                if (
+                    Number.isNaN(
+                        parsedDueDate.getTime()
+                    )
+                ) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                "Invalid due date.",
+                        },
+                        { status: 400 }
+                    );
+                }
+
+                updateData.dueDate = parsedDueDate;
+            } else {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Invalid due date.",
+                    },
+                    { status: 400 }
+                );
+            }
+        }
+
+        const updatedContent =
+            await prisma.$transaction(
+                async (tx) => {
+                    const updated =
+                        await tx.contentItem.update({
+                            where: {
+                                id: content.id,
+                            },
+                            data: updateData,
+                        });
+
+                    await tx.auditLog.create({
+                        data: {
+                            action:
+                                "CONTENT_DETAILS_UPDATED",
+                            resource:
+                                "ContentItem",
+                            resourceId:
+                                content.id,
+                            userId: user.id,
+                            metadata: {
+                                title:
+                                    updateData.title ??
+                                    content.title,
+                                changedFields:
+                                    requestedDetailFields,
+                                organizationId:
+                                    content.project
+                                        .organizationId,
+                                creatorId:
+                                    content.project
+                                        .creator?.id ??
+                                    null,
+                            },
+                        },
+                    });
+
+                    return updated;
+                }
+            );
+
+        return NextResponse.json({
+            success: true,
+            content: {
+                id: updatedContent.id,
+                title: updatedContent.title,
+                description:
+                    updatedContent.description,
+                footageLink:
+                    updatedContent.footageLink,
+                contentType:
+                    updatedContent.contentType,
+                dueDate: updatedContent.dueDate,
+                status: updatedContent.status,
+                updatedAt:
+                    updatedContent.updatedAt,
+            },
+        });
     }
 
     if (!requestedStatus) {
@@ -534,6 +865,38 @@ export async function PATCH(
             });
 
             if (requestedStatus === "IN_REVIEW") {
+                const latestVideoVersion =
+                    await tx.assetVersion.findFirst({
+                        where: {
+                            asset: {
+                                contentId: content.id,
+                                assetType: "VIDEO",
+                            },
+                        },
+                        orderBy: {
+                            createdAt: "desc",
+                        },
+                        select: {
+                            id: true,
+                        },
+                    });
+
+                const latestAssetVersion =
+                    latestVideoVersion ??
+                    (await tx.assetVersion.findFirst({
+                        where: {
+                            asset: {
+                                contentId: content.id,
+                            },
+                        },
+                        orderBy: {
+                            createdAt: "desc",
+                        },
+                        select: {
+                            id: true,
+                        },
+                    }));
+
                 const existingPendingReview =
                     await tx.review.findFirst({
                         where: {
@@ -552,6 +915,8 @@ export async function PATCH(
                             authorId: user.id,
                             status: "PENDING",
                             notes: reviewNotes || null,
+                            assetVersionId:
+                                latestAssetVersion?.id ?? null,
                         },
                     });
                 }
@@ -590,12 +955,46 @@ export async function PATCH(
                         },
                     });
                 } else {
+                    const latestVideoVersion =
+                        await tx.assetVersion.findFirst({
+                            where: {
+                                asset: {
+                                    contentId: content.id,
+                                    assetType: "VIDEO",
+                                },
+                            },
+                            orderBy: {
+                                createdAt: "desc",
+                            },
+                            select: {
+                                id: true,
+                            },
+                        });
+
+                    const latestAssetVersion =
+                        latestVideoVersion ??
+                        (await tx.assetVersion.findFirst({
+                            where: {
+                                asset: {
+                                    contentId: content.id,
+                                },
+                            },
+                            orderBy: {
+                                createdAt: "desc",
+                            },
+                            select: {
+                                id: true,
+                            },
+                        }));
+
                     await tx.review.create({
                         data: {
                             contentId: content.id,
                             authorId: user.id,
                             status: reviewStatus,
                             notes: reviewNotes || null,
+                            assetVersionId:
+                                latestAssetVersion?.id ?? null,
                         },
                     });
                 }

@@ -67,6 +67,16 @@ export async function POST(
                 id: reviewId,
             },
             include: {
+                assetVersion: {
+                    include: {
+                        asset: {
+                            select: {
+                                id: true,
+                                assetType: true,
+                            },
+                        },
+                    },
+                },
                 content: {
                     include: {
                         project: {
@@ -209,6 +219,16 @@ export async function POST(
                                 : {}),
                         },
                         include: {
+                            assetVersion: {
+                                include: {
+                                    asset: {
+                                        select: {
+                                            id: true,
+                                            assetType: true,
+                                        },
+                                    },
+                                },
+                            },
                             author: {
                                 select: {
                                     id: true,
@@ -263,6 +283,12 @@ export async function POST(
                             contentTitle:
                                 review.content.title,
                             reviewId: review.id,
+                            assetVersionId:
+                                review.assetVersion?.id ?? null,
+                            assetVersion:
+                                review.assetVersion?.version ?? null,
+                            assetId:
+                                review.assetVersion?.assetId ?? null,
                             decision,
                             notes: notes || null,
                         },
@@ -304,8 +330,12 @@ export async function POST(
                 ? "Project approved"
                 : "Revision requested",
             decision === "APPROVE"
-                ? `${review.content.title} was approved.`
-                : `${review.content.title} needs revisions.`,
+                ? review.assetVersion
+                    ? `${review.content.title} v${review.assetVersion.version} was approved.`
+                    : `${review.content.title} was approved.`
+                : review.assetVersion
+                  ? `${review.content.title} v${review.assetVersion.version} needs revisions.`
+                  : `${review.content.title} needs revisions.`,
             user.id
         );
 

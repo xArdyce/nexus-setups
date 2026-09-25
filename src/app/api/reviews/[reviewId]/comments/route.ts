@@ -54,6 +54,16 @@ async function getAccessibleReview(
             id: reviewId,
         },
         include: {
+            assetVersion: {
+                include: {
+                    asset: {
+                        select: {
+                            id: true,
+                            assetType: true,
+                        },
+                    },
+                },
+            },
             content: {
                 include: {
                     project: {
@@ -331,6 +341,12 @@ export async function POST(
                             contentTitle:
                                 review.content.title,
                             reviewId: review.id,
+                            assetVersionId:
+                                review.assetVersion?.id ?? null,
+                            assetVersion:
+                                review.assetVersion?.version ?? null,
+                            assetId:
+                                review.assetVersion?.assetId ?? null,
                             timestamp,
                         },
                     },
@@ -349,7 +365,9 @@ export async function POST(
             await notifyUsers(
                 assignedEditorUserIds,
                 "New review comment",
-                `New feedback was added to ${review.content.title}.`,
+                review.assetVersion
+                    ? `New feedback was added to ${review.content.title} v${review.assetVersion.version}.`
+                    : `New feedback was added to ${review.content.title}.`,
                 user.id
             );
         } else {
@@ -361,7 +379,9 @@ export async function POST(
             await notifyUsers(
                 [creatorUserId],
                 "New review comment",
-                `New feedback was added to ${review.content.title}.`,
+                review.assetVersion
+                    ? `New feedback was added to ${review.content.title} v${review.assetVersion.version}.`
+                    : `New feedback was added to ${review.content.title}.`,
                 user.id
             );
         }

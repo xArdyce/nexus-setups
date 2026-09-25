@@ -200,6 +200,7 @@ export async function POST(request: Request) {
 
         let body: {
             contentId?: unknown;
+            assetId?: unknown;
             fileName?: unknown;
             fileSize?: unknown;
             mimeType?: unknown;
@@ -219,6 +220,10 @@ export async function POST(request: Request) {
 
         const contentId = String(
             body.contentId || ""
+        ).trim();
+
+        const assetId = String(
+            body.assetId || ""
         ).trim();
 
         const fileName = String(
@@ -280,6 +285,28 @@ export async function POST(request: Request) {
             );
         }
 
+        const versionTarget = assetId
+            ? await prisma.asset.findFirst({
+                  where: {
+                      id: assetId,
+                      contentId: content.id,
+                  },
+                  select: {
+                      id: true,
+                  },
+              })
+            : null;
+
+        if (assetId && !versionTarget) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Asset not found in this project or access denied.",
+                },
+                { status: 404 }
+            );
+        }
+
         const safeName =
             sanitizeR2FileName(fileName);
 
@@ -288,6 +315,13 @@ export async function POST(request: Request) {
             content.project.organizationId,
             "content",
             content.id,
+            ...(versionTarget
+                ? [
+                      "assets",
+                      versionTarget.id,
+                      "versions",
+                  ]
+                : []),
             `${Date.now()}-${randomUUID()}-${safeName}`,
         ].join("/");
 
