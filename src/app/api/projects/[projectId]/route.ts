@@ -145,6 +145,13 @@ async function getAccessibleContent(
                                 email: true,
                             },
                         },
+                        resolvedBy: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                            },
+                        },
                     },
                     orderBy: {
                         createdAt: "asc" as const,
@@ -422,7 +429,11 @@ export async function GET(
                 id: comment.id,
                 comment: comment.comment,
                 timestamp: comment.timestamp,
+                resolved: comment.resolved,
+                resolvedAt: comment.resolvedAt,
+                resolvedBy: comment.resolvedBy,
                 createdAt: comment.createdAt,
+                updatedAt: comment.updatedAt,
                 author: comment.author,
             })),
         })),

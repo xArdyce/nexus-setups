@@ -79,9 +79,10 @@ model User {
   contentAssignments ContentAssignment[]
   assignedTasks      Task[]               @relation("TaskAssignee")
   uploadedAssets     Asset[]              @relation("AssetUploader")
-  reviews            Review[]             @relation("ReviewAuthor")
-  reviewComments     ReviewComment[]
-  notifications      Notification[]
+  reviews                    Review[]         @relation("ReviewAuthor")
+  reviewComments             ReviewComment[]  @relation("ReviewCommentAuthor")
+  resolvedReviewComments     ReviewComment[]  @relation("ReviewCommentResolver")
+  notifications              Notification[]
   auditLogs          AuditLog[]
   passwordResetTokens PasswordResetToken[]
 }
@@ -284,18 +285,25 @@ model Review {
 }
 
 model ReviewComment {
-  id        String   @id @default(cuid())
-  comment   String
-  timestamp Float?
-  reviewId  String
-  authorId  String
-  createdAt DateTime @default(now())
+  id           String    @id @default(cuid())
+  comment      String
+  timestamp    Float?
+  reviewId     String
+  authorId     String
+  resolved     Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  author User   @relation(fields: [authorId], references: [id])
+  review     Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  author     User   @relation("ReviewCommentAuthor", fields: [authorId], references: [id])
+  resolvedBy User?  @relation("ReviewCommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([reviewId])
   @@index([authorId])
+  @@index([resolvedById])
+  @@index([resolved])
 }
 
 model Notification {

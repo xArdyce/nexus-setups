@@ -66,6 +66,17 @@ export default function CreatorDashboard({ user }) {
     const [reviewTimestamp, setReviewTimestamp] = useState("");
     const [reviewCommentSubmitting, setReviewCommentSubmitting] =
         useState(false);
+    const [reviewCommentUpdatingId, setReviewCommentUpdatingId] =
+        useState(null);
+    const [reviewCommentDeletingId, setReviewCommentDeletingId] =
+        useState(null);
+    const [reviewCommentEditingId, setReviewCommentEditingId] =
+        useState(null);
+    const [reviewCommentEditDraft, setReviewCommentEditDraft] =
+        useState({
+            comment: "",
+            timestamp: "",
+        });
     const [reviewError, setReviewError] = useState(null);
 
     const [selectedCreator, setSelectedCreator] = useState(null);
@@ -399,6 +410,34 @@ export default function CreatorDashboard({ user }) {
 
                 return `${actor} added review feedback to ${title}${versionLabel}${timestamp}.`;
             }
+
+            case "REVIEW_COMMENT_EDITED":
+                return `${actor} edited review feedback on ${title}${
+                    metadata.assetVersion
+                        ? ` v${metadata.assetVersion}`
+                        : ""
+                }.`;
+
+            case "REVIEW_COMMENT_RESOLVED":
+                return `${actor} resolved review feedback on ${title}${
+                    metadata.assetVersion
+                        ? ` v${metadata.assetVersion}`
+                        : ""
+                }.`;
+
+            case "REVIEW_COMMENT_REOPENED":
+                return `${actor} reopened review feedback on ${title}${
+                    metadata.assetVersion
+                        ? ` v${metadata.assetVersion}`
+                        : ""
+                }.`;
+
+            case "REVIEW_COMMENT_DELETED":
+                return `${actor} deleted review feedback from ${title}${
+                    metadata.assetVersion
+                        ? ` v${metadata.assetVersion}`
+                        : ""
+                }.`;
 
             case "REVIEW_APPROVED":
                 return `${actor} approved ${title}${
@@ -2628,6 +2667,224 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
+    const startEditingReviewComment = (comment) => {
+        setReviewCommentEditingId(comment.id);
+        setReviewCommentEditDraft({
+            comment: comment.comment || "",
+            timestamp:
+                comment.timestamp !== null &&
+                comment.timestamp !== undefined
+                    ? formatReviewTimestamp(
+                          comment.timestamp
+                      )
+                    : "",
+        });
+        setReviewError(null);
+    };
+
+    const cancelEditingReviewComment = () => {
+        setReviewCommentEditingId(null);
+        setReviewCommentEditDraft({
+            comment: "",
+            timestamp: "",
+        });
+    };
+
+    const updateReviewComment = async (
+        reviewId,
+        commentId
+    ) => {
+        const comment =
+            reviewCommentEditDraft.comment.trim();
+
+        if (!reviewId || !commentId || !comment) {
+            return;
+        }
+
+        const timestamp = parseReviewTimestamp(
+            reviewCommentEditDraft.timestamp
+        );
+
+        if (Number.isNaN(timestamp)) {
+            setReviewError(
+                "Use a timestamp like 1:23, 01:23:45, or leave it blank."
+            );
+            return;
+        }
+
+        setReviewCommentUpdatingId(commentId);
+        setReviewError(null);
+
+        try {
+            const res = await fetch(
+                `/api/reviews/${encodeURIComponent(
+                    reviewId
+                )}/comments`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        action: "EDIT",
+                        commentId,
+                        comment,
+                        timestamp,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to update review comment."
+                );
+            }
+
+            cancelEditingReviewComment();
+            await refreshProjectContext();
+        } catch (error) {
+            console.error(
+                "Failed to update review comment:",
+                error
+            );
+
+            setReviewError(
+                error.message ||
+                    "Failed to update review comment."
+            );
+        } finally {
+            setReviewCommentUpdatingId(null);
+        }
+    };
+
+    const setReviewCommentResolved = async (
+        reviewId,
+        commentId,
+        resolved
+    ) => {
+        if (!reviewId || !commentId) {
+            return;
+        }
+
+        setReviewCommentUpdatingId(commentId);
+        setReviewError(null);
+
+        try {
+            const res = await fetch(
+                `/api/reviews/${encodeURIComponent(
+                    reviewId
+                )}/comments`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        action: "RESOLVE",
+                        commentId,
+                        resolved,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to update review comment."
+                );
+            }
+
+            await refreshProjectContext();
+        } catch (error) {
+            console.error(
+                "Failed to resolve review comment:",
+                error
+            );
+
+            setReviewError(
+                error.message ||
+                    "Failed to update review comment."
+            );
+        } finally {
+            setReviewCommentUpdatingId(null);
+        }
+    };
+
+    const deleteReviewComment = async (
+        reviewId,
+        commentId
+    ) => {
+        if (!reviewId || !commentId) {
+            return;
+        }
+
+        const confirmed = window.confirm(
+            "Delete this review comment?"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setReviewCommentDeletingId(commentId);
+        setReviewError(null);
+
+        try {
+            const res = await fetch(
+                `/api/reviews/${encodeURIComponent(
+                    reviewId
+                )}/comments`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        commentId,
+                    }),
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(
+                    data.error ||
+                        "Failed to delete review comment."
+                );
+            }
+
+            if (
+                reviewCommentEditingId ===
+                commentId
+            ) {
+                cancelEditingReviewComment();
+            }
+
+            await refreshProjectContext();
+        } catch (error) {
+            console.error(
+                "Failed to delete review comment:",
+                error
+            );
+
+            setReviewError(
+                error.message ||
+                    "Failed to delete review comment."
+            );
+        } finally {
+            setReviewCommentDeletingId(null);
+        }
+    };
+
     const submitReviewDecision = async (reviewId, decision) => {
         if (!reviewId) {
             return;
@@ -3096,6 +3353,12 @@ export default function CreatorDashboard({ user }) {
                 currentProjectStatus === "REQUESTED" ||
                 currentProjectStatus === "IN_PRODUCTION"
             ));
+
+    const canManageAnyReviewComment =
+        activeSettingsWorkspace?.role ===
+            "ADMIN" ||
+        activeSettingsWorkspace?.role ===
+            "MANAGER";
 
     const canDeleteProject =
         isCreator ||
@@ -6996,51 +7259,272 @@ export default function CreatorDashboard({ user }) {
                                                                             {review.comments.map(
                                                                                 (
                                                                                     comment
-                                                                                ) => (
-                                                                                    <div
-                                                                                        key={
-                                                                                            comment.id
-                                                                                        }
-                                                                                        className="review-comment-card"
-                                                                                    >
-                                                                                        <div className="review-comment-top">
-                                                                                            <strong>
-                                                                                                {comment
-                                                                                                    .author
-                                                                                                    ?.name ||
-                                                                                                    comment
-                                                                                                        .author
-                                                                                                        ?.email ||
-                                                                                                    "Unknown user"}
-                                                                                            </strong>
+                                                                                ) => {
+                                                                                    const canEditOrDeleteComment =
+                                                                                        comment
+                                                                                            .author
+                                                                                            ?.id ===
+                                                                                            user
+                                                                                                ?.id ||
+                                                                                        canManageAnyReviewComment;
 
-                                                                                            <small>
-                                                                                                {comment.timestamp !==
-                                                                                                    null &&
-                                                                                                comment.timestamp !==
-                                                                                                    undefined
-                                                                                                    ? `${formatReviewTimestamp(
-                                                                                                          comment.timestamp
-                                                                                                      )} • `
-                                                                                                    : ""}
-                                                                                                {new Date(
-                                                                                                    comment.createdAt
-                                                                                                ).toLocaleString()}
-                                                                                            </small>
-                                                                                        </div>
+                                                                                    const isEditingComment =
+                                                                                        reviewCommentEditingId ===
+                                                                                        comment.id;
 
-                                                                                        <p
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={
+                                                                                                comment.id
+                                                                                            }
+                                                                                            className="review-comment-card"
                                                                                             style={{
-                                                                                                marginTop:
-                                                                                                    "6px",
+                                                                                                opacity:
+                                                                                                    comment.resolved
+                                                                                                        ? 0.72
+                                                                                                        : 1,
                                                                                             }}
                                                                                         >
-                                                                                            {
-                                                                                                comment.comment
-                                                                                            }
-                                                                                        </p>
-                                                                                    </div>
-                                                                                )
+                                                                                            <div className="review-comment-top">
+                                                                                                <strong>
+                                                                                                    {comment
+                                                                                                        .author
+                                                                                                        ?.name ||
+                                                                                                        comment
+                                                                                                            .author
+                                                                                                            ?.email ||
+                                                                                                        "Unknown user"}
+                                                                                                </strong>
+
+                                                                                                <small>
+                                                                                                    {comment.timestamp !==
+                                                                                                        null &&
+                                                                                                    comment.timestamp !==
+                                                                                                        undefined
+                                                                                                        ? `${formatReviewTimestamp(
+                                                                                                              comment.timestamp
+                                                                                                          )} • `
+                                                                                                        : ""}
+                                                                                                    {new Date(
+                                                                                                        comment.createdAt
+                                                                                                    ).toLocaleString()}
+                                                                                                </small>
+                                                                                            </div>
+
+                                                                                            {isEditingComment ? (
+                                                                                                <div
+                                                                                                    style={{
+                                                                                                        marginTop:
+                                                                                                            "8px",
+                                                                                                        display:
+                                                                                                            "grid",
+                                                                                                        gap:
+                                                                                                            "8px",
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <textarea
+                                                                                                        className="dash-input"
+                                                                                                        rows={3}
+                                                                                                        value={
+                                                                                                            reviewCommentEditDraft.comment
+                                                                                                        }
+                                                                                                        onChange={(
+                                                                                                            event
+                                                                                                        ) =>
+                                                                                                            setReviewCommentEditDraft(
+                                                                                                                (
+                                                                                                                    current
+                                                                                                                ) => ({
+                                                                                                                    ...current,
+                                                                                                                    comment:
+                                                                                                                        event
+                                                                                                                            .target
+                                                                                                                            .value,
+                                                                                                                })
+                                                                                                            )
+                                                                                                        }
+                                                                                                    />
+
+                                                                                                    <input
+                                                                                                        className="dash-input"
+                                                                                                        type="text"
+                                                                                                        placeholder="Timestamp, e.g. 1:23"
+                                                                                                        value={
+                                                                                                            reviewCommentEditDraft.timestamp
+                                                                                                        }
+                                                                                                        onChange={(
+                                                                                                            event
+                                                                                                        ) =>
+                                                                                                            setReviewCommentEditDraft(
+                                                                                                                (
+                                                                                                                    current
+                                                                                                                ) => ({
+                                                                                                                    ...current,
+                                                                                                                    timestamp:
+                                                                                                                        event
+                                                                                                                            .target
+                                                                                                                            .value,
+                                                                                                                })
+                                                                                                            )
+                                                                                                        }
+                                                                                                    />
+
+                                                                                                    <div
+                                                                                                        style={{
+                                                                                                            display:
+                                                                                                                "flex",
+                                                                                                            gap:
+                                                                                                                "8px",
+                                                                                                            flexWrap:
+                                                                                                                "wrap",
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            className="asset-action"
+                                                                                                            disabled={
+                                                                                                                reviewCommentUpdatingId ===
+                                                                                                                comment.id
+                                                                                                            }
+                                                                                                            onClick={() =>
+                                                                                                                updateReviewComment(
+                                                                                                                    review.id,
+                                                                                                                    comment.id
+                                                                                                                )
+                                                                                                            }
+                                                                                                        >
+                                                                                                            {reviewCommentUpdatingId ===
+                                                                                                            comment.id
+                                                                                                                ? "SAVING…"
+                                                                                                                : "SAVE"}
+                                                                                                        </button>
+
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            className="asset-action"
+                                                                                                            onClick={
+                                                                                                                cancelEditingReviewComment
+                                                                                                            }
+                                                                                                        >
+                                                                                                            CANCEL
+                                                                                                        </button>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <p
+                                                                                                    style={{
+                                                                                                        marginTop:
+                                                                                                            "6px",
+                                                                                                        textDecoration:
+                                                                                                            comment.resolved
+                                                                                                                ? "line-through"
+                                                                                                                : "none",
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {
+                                                                                                        comment.comment
+                                                                                                    }
+                                                                                                </p>
+                                                                                            )}
+
+                                                                                            {comment.resolved && (
+                                                                                                <small
+                                                                                                    style={{
+                                                                                                        display:
+                                                                                                            "block",
+                                                                                                        marginTop:
+                                                                                                            "8px",
+                                                                                                    }}
+                                                                                                >
+                                                                                                    RESOLVED
+                                                                                                    {comment
+                                                                                                        .resolvedBy
+                                                                                                        ? ` by ${
+                                                                                                              comment
+                                                                                                                  .resolvedBy
+                                                                                                                  .name ||
+                                                                                                              comment
+                                                                                                                  .resolvedBy
+                                                                                                                  .email ||
+                                                                                                              "Nexus user"
+                                                                                                          }`
+                                                                                                        : ""}
+                                                                                                </small>
+                                                                                            )}
+
+                                                                                            {!isEditingComment && (
+                                                                                                <div
+                                                                                                    style={{
+                                                                                                        display:
+                                                                                                            "flex",
+                                                                                                        gap:
+                                                                                                            "8px",
+                                                                                                        flexWrap:
+                                                                                                            "wrap",
+                                                                                                        marginTop:
+                                                                                                            "10px",
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        className="asset-action"
+                                                                                                        disabled={
+                                                                                                            reviewCommentUpdatingId ===
+                                                                                                            comment.id
+                                                                                                        }
+                                                                                                        onClick={() =>
+                                                                                                            setReviewCommentResolved(
+                                                                                                                review.id,
+                                                                                                                comment.id,
+                                                                                                                !comment.resolved
+                                                                                                            )
+                                                                                                        }
+                                                                                                    >
+                                                                                                        {comment.resolved
+                                                                                                            ? "REOPEN"
+                                                                                                            : "RESOLVE"}
+                                                                                                    </button>
+
+                                                                                                    {canEditOrDeleteComment && (
+                                                                                                        <>
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                className="asset-action"
+                                                                                                                onClick={() =>
+                                                                                                                    startEditingReviewComment(
+                                                                                                                        comment
+                                                                                                                    )
+                                                                                                                }
+                                                                                                            >
+                                                                                                                EDIT
+                                                                                                            </button>
+
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                className="asset-action"
+                                                                                                                disabled={
+                                                                                                                    reviewCommentDeletingId ===
+                                                                                                                    comment.id
+                                                                                                                }
+                                                                                                                onClick={() =>
+                                                                                                                    deleteReviewComment(
+                                                                                                                        review.id,
+                                                                                                                        comment.id
+                                                                                                                    )
+                                                                                                                }
+                                                                                                            >
+                                                                                                                {reviewCommentDeletingId ===
+                                                                                                                comment.id
+                                                                                                                    ? "DELETING…"
+                                                                                                                    : "DELETE"}
+                                                                                                            </button>
+                                                                                                        </>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                }
                                                                             )}
                                                                         </div>
                                                                     )}
