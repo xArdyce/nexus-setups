@@ -43,15 +43,40 @@ function isGoogleDriveFolderUrl(value: string) {
   }
 }
 
+type ProjectListItem = {
+  id: string;
+  projectId: string;
+  title: string;
+  contentType: string;
+  status: string;
+  dueDate: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  project: {
+    creator: {
+      id: string;
+      name: string;
+      email: string | null;
+      editorAssignments: {
+        user: {
+          id: string;
+          name: string | null;
+          email: string;
+        };
+      }[];
+    } | null;
+  };
+  editorAssignments: {
+    user: {
+      id: string;
+      name: string | null;
+      email: string;
+    };
+  }[];
+};
+
 function toDisplayItem(
-  item: {
-    id: string;
-    projectId: string;
-    title: string;
-    contentType: string;
-    status: string;
-    createdAt: Date;
-  },
+  item: ProjectListItem,
   queuePositionById: Map<string, number>
 ) {
   const uiStatus = DB_TO_UI_STATUS[item.status] || "queued";
@@ -61,14 +86,51 @@ function toDisplayItem(
       ? `Queue #${queuePositionById.get(item.id) ?? 1}`
       : ETA_LABELS[item.status] || item.status;
 
+  const editorMap = new Map<
+    string,
+    {
+      id: string;
+      name: string | null;
+      email: string;
+      inherited: boolean;
+    }
+  >();
+
+  item.project.creator?.editorAssignments.forEach(
+    (assignment) => {
+      editorMap.set(assignment.user.id, {
+        ...assignment.user,
+        inherited: true,
+      });
+    }
+  );
+
+  item.editorAssignments.forEach((assignment) => {
+    editorMap.set(assignment.user.id, {
+      ...assignment.user,
+      inherited: false,
+    });
+  });
+
   return {
     id: item.id,
     projectId: item.projectId,
     title: item.title,
     type: item.contentType,
     status: uiStatus,
+    rawStatus: item.status,
     eta,
+    dueDate: item.dueDate,
     createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    creator: item.project.creator
+      ? {
+          id: item.project.creator.id,
+          name: item.project.creator.name,
+          email: item.project.creator.email,
+        }
+      : null,
+    assignedEditors: Array.from(editorMap.values()),
   };
 }
 
@@ -105,6 +167,42 @@ async function getAuthenticatedUser() {
     },
   });
 }
+
+const PROJECT_LIST_INCLUDE = {
+  project: {
+    select: {
+      creator: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          editorAssignments: {
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  editorAssignments: {
+    select: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  },
+} as const;
 
 // GET /api/projects
 export async function GET(request: Request) {
@@ -191,6 +289,7 @@ export async function GET(request: Request) {
           creatorId: creator.id,
         },
       },
+      include: PROJECT_LIST_INCLUDE,
       orderBy: {
         createdAt: "desc",
       },
@@ -325,6 +424,7 @@ export async function GET(request: Request) {
           }
         : {}),
     },
+    include: PROJECT_LIST_INCLUDE,
     orderBy: {
       createdAt: "desc",
     },
@@ -521,10 +621,22 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        project: toDisplayItem(
-          contentItem,
-          new Map([[contentItem.id, 1]])
-        ),
+        project: {
+          id: contentItem.id,
+          projectId: contentItem.projectId,
+          title: contentItem.title,
+          type: contentItem.contentType,
+          status:
+            DB_TO_UI_STATUS[contentItem.status] ||
+            "queued",
+          rawStatus: contentItem.status,
+          eta: `Queue #1`,
+          dueDate: contentItem.dueDate,
+          createdAt: contentItem.createdAt,
+          updatedAt: contentItem.updatedAt,
+          creator: null,
+          assignedEditors: [],
+        },
         creatorId: creator.id,
       },
       { status: 201 }
@@ -618,10 +730,22 @@ export async function POST(request: Request) {
 
   return NextResponse.json(
     {
-      project: toDisplayItem(
-        contentItem,
-        new Map([[contentItem.id, 1]])
-      ),
+      project: {
+        id: contentItem.id,
+        projectId: contentItem.projectId,
+        title: contentItem.title,
+        type: contentItem.contentType,
+        status:
+          DB_TO_UI_STATUS[contentItem.status] ||
+          "queued",
+        rawStatus: contentItem.status,
+        eta: `Queue #1`,
+        dueDate: contentItem.dueDate,
+        createdAt: contentItem.createdAt,
+        updatedAt: contentItem.updatedAt,
+        creator: null,
+        assignedEditors: [],
+      },
     },
     { status: 201 }
   );

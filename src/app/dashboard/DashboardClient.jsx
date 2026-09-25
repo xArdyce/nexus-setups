@@ -27,6 +27,15 @@ export default function CreatorDashboard({ user }) {
     const [theme, setTheme] = useState("dark");
     const [currentView, setCurrentView] = useState("overview");
     const [projectFilter, setProjectFilter] = useState("all");
+    const [projectSearch, setProjectSearch] = useState("");
+    const [projectCreatorFilter, setProjectCreatorFilter] =
+        useState("all");
+    const [projectEditorFilter, setProjectEditorFilter] =
+        useState("all");
+    const [projectTypeFilter, setProjectTypeFilter] =
+        useState("all");
+    const [projectSort, setProjectSort] =
+        useState("updated-desc");
     const [assetSearch, setAssetSearch] = useState("");
     const [briefModalOpen, setBriefModalOpen] = useState(false);
     const [briefError, setBriefError] = useState(false);
@@ -513,10 +522,123 @@ export default function CreatorDashboard({ user }) {
         projectId: p.projectId,
         title: p.title,
         type: p.type,
-        status: normalizeProjectStatus(p.status),
+        status: normalizeProjectStatus(
+            p.rawStatus || p.status
+        ),
         eta: p.eta,
+        dueDate: p.dueDate || null,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt || p.createdAt,
+        creator: p.creator || null,
+        assignedEditors: p.assignedEditors || [],
         date: formatProjectDate(p.createdAt, p.type),
     });
+
+    const projectCreatorOptions = Array.from(
+        new Map(
+            projects
+                .filter((project) => project.creator?.id)
+                .map((project) => [
+                    project.creator.id,
+                    project.creator,
+                ])
+        ).values()
+    ).sort((a, b) =>
+        String(a.name || a.email || "").localeCompare(
+            String(b.name || b.email || "")
+        )
+    );
+
+    const projectEditorOptions = Array.from(
+        new Map(
+            projects.flatMap((project) =>
+                (project.assignedEditors || []).map(
+                    (editor) => [editor.id, editor]
+                )
+            )
+        ).values()
+    ).sort((a, b) =>
+        String(a.name || a.email || "").localeCompare(
+            String(b.name || b.email || "")
+        )
+    );
+
+    const filteredAndSortedProjects = projects
+        .filter((project) => {
+            const search =
+                projectSearch.trim().toLowerCase();
+
+            const matchesSearch =
+                !search ||
+                String(project.title || "")
+                    .toLowerCase()
+                    .includes(search) ||
+                String(
+                    project.creator?.name ||
+                        project.creator?.email ||
+                        ""
+                )
+                    .toLowerCase()
+                    .includes(search);
+
+            const matchesStatus =
+                projectFilter === "all" ||
+                normalizeProjectStatus(project.status) ===
+                    projectFilter;
+
+            const matchesCreator =
+                projectCreatorFilter === "all" ||
+                project.creator?.id ===
+                    projectCreatorFilter;
+
+            const matchesEditor =
+                projectEditorFilter === "all" ||
+                (project.assignedEditors || []).some(
+                    (editor) =>
+                        editor.id ===
+                        projectEditorFilter
+                );
+
+            const matchesType =
+                projectTypeFilter === "all" ||
+                project.type === projectTypeFilter;
+
+            return (
+                matchesSearch &&
+                matchesStatus &&
+                matchesCreator &&
+                matchesEditor &&
+                matchesType
+            );
+        })
+        .sort((a, b) => {
+            const createdA =
+                new Date(a.createdAt || 0).getTime();
+            const createdB =
+                new Date(b.createdAt || 0).getTime();
+            const updatedA =
+                new Date(a.updatedAt || 0).getTime();
+            const updatedB =
+                new Date(b.updatedAt || 0).getTime();
+            const dueA = a.dueDate
+                ? new Date(a.dueDate).getTime()
+                : Number.POSITIVE_INFINITY;
+            const dueB = b.dueDate
+                ? new Date(b.dueDate).getTime()
+                : Number.POSITIVE_INFINITY;
+
+            switch (projectSort) {
+                case "oldest":
+                    return createdA - createdB;
+                case "due-date":
+                    return dueA - dueB;
+                case "updated-desc":
+                    return updatedB - updatedA;
+                case "newest":
+                default:
+                    return createdB - createdA;
+            }
+        });
 
     // =========================
     // FETCH ORGANIZATIONS
@@ -4384,6 +4506,124 @@ export default function CreatorDashboard({ user }) {
                                     </div>
                                 </div>
 
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns:
+                                            "minmax(220px, 2fr) repeat(4, minmax(140px, 1fr))",
+                                        gap: "10px",
+                                        marginBottom: "16px",
+                                    }}
+                                >
+                                    <input
+                                        className="dash-input"
+                                        type="search"
+                                        placeholder="Search project or creator..."
+                                        value={projectSearch}
+                                        onChange={(event) =>
+                                            setProjectSearch(
+                                                event.target.value
+                                            )
+                                        }
+                                    />
+
+                                    <select
+                                        className="dash-input"
+                                        value={projectCreatorFilter}
+                                        onChange={(event) =>
+                                            setProjectCreatorFilter(
+                                                event.target.value
+                                            )
+                                        }
+                                    >
+                                        <option value="all">
+                                            All creators
+                                        </option>
+                                        {projectCreatorOptions.map(
+                                            (creator) => (
+                                                <option
+                                                    key={creator.id}
+                                                    value={creator.id}
+                                                >
+                                                    {creator.name ||
+                                                        creator.email}
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+
+                                    <select
+                                        className="dash-input"
+                                        value={projectEditorFilter}
+                                        onChange={(event) =>
+                                            setProjectEditorFilter(
+                                                event.target.value
+                                            )
+                                        }
+                                    >
+                                        <option value="all">
+                                            All editors
+                                        </option>
+                                        {projectEditorOptions.map(
+                                            (editor) => (
+                                                <option
+                                                    key={editor.id}
+                                                    value={editor.id}
+                                                >
+                                                    {editor.name ||
+                                                        editor.email}
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+
+                                    <select
+                                        className="dash-input"
+                                        value={projectTypeFilter}
+                                        onChange={(event) =>
+                                            setProjectTypeFilter(
+                                                event.target.value
+                                            )
+                                        }
+                                    >
+                                        <option value="all">
+                                            All types
+                                        </option>
+                                        <option value="Short-form">
+                                            Short-form
+                                        </option>
+                                        <option value="YouTube Long-form">
+                                            YouTube Long-form
+                                        </option>
+                                        <option value="Repurposed Cuts">
+                                            Repurposed Cuts
+                                        </option>
+                                    </select>
+
+                                    <select
+                                        className="dash-input"
+                                        value={projectSort}
+                                        onChange={(event) =>
+                                            setProjectSort(
+                                                event.target.value
+                                            )
+                                        }
+                                    >
+                                        <option value="updated-desc">
+                                            Recently updated
+                                        </option>
+                                        <option value="newest">
+                                            Newest
+                                        </option>
+                                        <option value="oldest">
+                                            Oldest
+                                        </option>
+                                        <option value="due-date">
+                                            Due date
+                                        </option>
+                                    </select>
+                                </div>
+
                                 <div className="full-project-table">
                                     <div className="table-row table-head">
                                         <span>
@@ -4437,18 +4677,22 @@ export default function CreatorDashboard({ user }) {
 
                                     {!projectsLoading &&
                                         !projectsError &&
-                                        projects
-                                            .filter(
-                                                (
-                                                    p
-                                                ) =>
-                                                    projectFilter ===
-                                                    "all" ||
-                                                    normalizeProjectStatus(
-                                                        p.status
-                                                    ) ===
-                                                    projectFilter
-                                            )
+                                        filteredAndSortedProjects.length ===
+                                            0 && (
+                                            <p
+                                                className="text-link"
+                                                style={{
+                                                    padding:
+                                                        "16px",
+                                                }}
+                                            >
+                                                No projects match these filters.
+                                            </p>
+                                        )}
+
+                                    {!projectsLoading &&
+                                        !projectsError &&
+                                        filteredAndSortedProjects
                                             .map(
                                                 (
                                                     proj
