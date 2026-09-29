@@ -12,7 +12,8 @@
  */
 
 import "./dashboard.css";
-import { useEffect, useState } from "react";
+import "./dashboard-target.css";
+import { useEffect, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
 import { InterfaceTranslator, LanguageSelector } from "@/components/InterfaceLanguage";
 
@@ -25,7 +26,45 @@ export default function CreatorDashboard({ user }) {
     // STATE MANAGEMENT
     // =========================
     const [theme, setTheme] = useState("dark");
+    const themeTransitionTimerRef = useRef(null);
     const [currentView, setCurrentView] = useState("overview");
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+    const sidebarRef = useRef(null);
+    const menuButtonRef = useRef(null);
+
+    useEffect(() => {
+        if (!mobileSidebarOpen) return;
+        const sidebar = sidebarRef.current;
+        const focusable = () => Array.from(sidebar.querySelectorAll(
+            'a[href], button:not(:disabled), [tabindex="0"]'
+        ));
+        focusable()[0]?.focus();
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") setMobileSidebarOpen(false);
+            if (event.key !== "Tab") return;
+            const items = focusable();
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        };
+        const media = window.matchMedia("(max-width: 680px)");
+        const onResize = () => {
+            if (!media.matches) setMobileSidebarOpen(false);
+        };
+        document.addEventListener("keydown", onKeyDown);
+        media.addEventListener("change", onResize);
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+            media.removeEventListener("change", onResize);
+            if (media.matches) menuButtonRef.current?.focus();
+        };
+    }, [mobileSidebarOpen]);
     const [projectFilter, setProjectFilter] = useState("all");
     const [projectSearch, setProjectSearch] = useState("");
     const [projectCreatorFilter, setProjectCreatorFilter] =
@@ -37,7 +76,31 @@ export default function CreatorDashboard({ user }) {
     const [projectSort, setProjectSort] =
         useState("updated-desc");
     const [assetSearch, setAssetSearch] = useState("");
+    const [assetDeletePrompt, setAssetDeletePrompt] = useState(null);
+    const assetDeleteDialogRef = useRef(null);
+    const assetDeleteResolveRef = useRef(null);
+    useEffect(() => {
+        if (assetDeletePrompt) assetDeleteDialogRef.current?.showModal();
+    }, [assetDeletePrompt]);
     const [briefModalOpen, setBriefModalOpen] = useState(false);
+    const briefDialogRef = useRef(null);
+    useEffect(() => {
+        if (!briefModalOpen) return;
+        const previousFocus = document.activeElement;
+        const dialog = briefDialogRef.current;
+        const controls = () => Array.from(dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]'));
+        controls()[0]?.focus();
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") setBriefModalOpen(false);
+            if (event.key !== "Tab") return;
+            const items = controls();
+            const first = items[0], last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        };
+        dialog.addEventListener("keydown", onKeyDown);
+        return () => { dialog.removeEventListener("keydown", onKeyDown); if (previousFocus instanceof HTMLElement) previousFocus.focus(); };
+    }, [briefModalOpen]);
     const [briefError, setBriefError] = useState(false);
     const [briefSubmitting, setBriefSubmitting] = useState(false);
 
@@ -170,6 +233,8 @@ export default function CreatorDashboard({ user }) {
     const [activity, setActivity] = useState([]);
     const [activityLoading, setActivityLoading] = useState(true);
     const [activityError, setActivityError] = useState(null);
+    const [showAllOverviewActivity, setShowAllOverviewActivity] =
+        useState(false);
 
     const [notifications, setNotifications] = useState([]);
     const [unreadNotificationCount, setUnreadNotificationCount] =
@@ -228,6 +293,10 @@ export default function CreatorDashboard({ user }) {
     const [workspaceNameDraft, setWorkspaceNameDraft] =
         useState("");
 
+    useEffect(() => {
+        setMobileSidebarOpen(false);
+    }, [currentView]);
+
     // =========================
     // PROJECT STATUS HELPERS
     // =========================
@@ -244,10 +313,10 @@ export default function CreatorDashboard({ user }) {
 
     const displayStatus = (status) => {
         const labels = {
-            REQUESTED: "QUEUED",
+            REQUESTED: "REQUESTED",
             IN_PRODUCTION: "IN PRODUCTION",
-            IN_REVIEW: "NEEDS REVIEW",
-            REVISION: "REVISION REQUESTED",
+            IN_REVIEW: "IN REVIEW",
+            REVISION: "REVISION",
             APPROVED: "APPROVED",
         };
 
@@ -365,6 +434,54 @@ export default function CreatorDashboard({ user }) {
             day: "2-digit",
             hour: "2-digit",
             minute: "2-digit",
+        });
+    };
+
+    const formatRelativeTime = (value) => {
+        if (!value) {
+            return "—";
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return "—";
+        }
+
+        const diffMs = Date.now() - date.getTime();
+        const future = diffMs < 0;
+        const diff = Math.abs(diffMs);
+
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+
+        if (minutes < 1) {
+            return future ? "in a moment" : "just now";
+        }
+
+        if (minutes < 60) {
+            return future
+                ? `in ${minutes} min`
+                : `${minutes} min ago`;
+        }
+
+        if (hours < 24) {
+            return future
+                ? `in ${hours} hour${hours === 1 ? "" : "s"}`
+                : `${hours} hour${hours === 1 ? "" : "s"} ago`;
+        }
+
+        if (days < 7) {
+            return future
+                ? `in ${days} day${days === 1 ? "" : "s"}`
+                : `${days} day${days === 1 ? "" : "s"} ago`;
+        }
+
+        return date.toLocaleDateString([], {
+            month: "short",
+            day: "2-digit",
+            year: "numeric",
         });
     };
 
@@ -572,6 +689,15 @@ export default function CreatorDashboard({ user }) {
     );
 
     const filteredAndSortedProjects = projects;
+    const hasProjectFilters = Boolean(projectSearch.trim()) || projectFilter !== "all" ||
+        projectCreatorFilter !== "all" || projectEditorFilter !== "all" || projectTypeFilter !== "all";
+    const clearProjectFilters = () => {
+        setProjectSearch("");
+        setProjectFilter("all");
+        setProjectCreatorFilter("all");
+        setProjectEditorFilter("all");
+        setProjectTypeFilter("all");
+    };
 
 
     // =========================
@@ -1075,9 +1201,10 @@ export default function CreatorDashboard({ user }) {
             return;
         }
 
-        const confirmed = window.confirm(
-            `Delete ${asset.fileName}? This removes the file from Cloudflare R2 and Nexus.`
-        );
+        const confirmed = await new Promise((resolve) => {
+            assetDeleteResolveRef.current = resolve;
+            setAssetDeletePrompt(asset);
+        });
 
         if (!confirmed) {
             return;
@@ -3291,22 +3418,39 @@ export default function CreatorDashboard({ user }) {
     useEffect(() => {
         const savedTheme = localStorage.getItem("nexus-theme");
 
-        if (savedTheme === "light") {
-            setTheme("light");
-            document.documentElement.setAttribute(
-                "data-theme",
-                "light"
-            );
-        } else {
+        if (savedTheme === "dark") {
             setTheme("dark");
             document.documentElement.setAttribute(
                 "data-theme",
                 "dark"
             );
+        } else {
+            setTheme("light");
+            document.documentElement.setAttribute(
+                "data-theme",
+                "light"
+            );
         }
     }, []);
 
+    useEffect(() => () => {
+        window.clearTimeout(themeTransitionTimerRef.current);
+        document.documentElement.classList.remove("theme-transitioning");
+    }, []);
+
     const toggleTheme = () => {
+        const root = document.documentElement;
+        window.clearTimeout(themeTransitionTimerRef.current);
+        root.classList.remove("theme-transitioning");
+
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            root.classList.add("theme-transitioning");
+            themeTransitionTimerRef.current = window.setTimeout(() => {
+                root.classList.remove("theme-transitioning");
+                themeTransitionTimerRef.current = null;
+            }, 350);
+        }
+
         const newTheme =
             theme === "light" ? "dark" : "light";
 
@@ -3598,197 +3742,242 @@ export default function CreatorDashboard({ user }) {
         user?.name ||
         "Nexus Studio";
 
+    const currentHour = new Date().getHours();
+    const dashboardGreeting =
+        currentHour < 12
+            ? "Good morning"
+            : currentHour < 18
+              ? "Good afternoon"
+              : "Good evening";
+
+    const dashboardDate = new Date().toLocaleDateString(
+        "en-US",
+        {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        }
+    );
+
     return (
         <>
             <InterfaceTranslator />
             <div className="noise"></div>
 
-            <div className="app-shell">
-                {/* SIDEBAR NAVIGATION */}
-                <aside className="sidebar">
+            <div className="app-shell nexus-minimal-ui">
+                {/* SIDEBAR */}
+                {mobileSidebarOpen && (
+                    <button
+                        type="button"
+                        className="mobile-sidebar-backdrop"
+                        aria-label="Close navigation"
+                        onClick={() => setMobileSidebarOpen(false)}
+                    />
+                )}
+
+                <aside
+                    id="dashboard-navigation"
+                    ref={sidebarRef}
+                    aria-label="Dashboard navigation"
+                    className={`sidebar ${
+                        mobileSidebarOpen ? "mobile-open" : ""
+                    }`}
+                >
                     <a href="/" className="brand">
-                        <span>NEXUS</span>
-                        <b>SETUPS</b>
+                        <span className="brand-text">
+                            <span>N</span>EXUS
+                        </span>
+                        <b className="brand-sub">SETUPS</b>
                     </a>
 
-                    <div className="sidebar-label">
-                        WORKSPACE
-                    </div>
-
                     <nav className="sidebar-nav">
-                        {[
-                            [
-                                "overview",
-                                "⚡",
-                                isEditor
-                                    ? "Overview"
-                                    : "My Overview",
-                            ],
+                        <button
+                            type="button"
+                            className={`nav-item ${currentView === "overview" ? "active" : ""}`}
+                            onClick={() => {
+                                setCurrentView("overview");
+                                setMobileSidebarOpen(false);
+                            }}
+                        >
+                            <span className="nav-icon">⌂</span>
+                            <span>Dashboard</span>
+                        </button>
 
-                            [
-                                "projects",
-                                "🎬",
-                                isEditor
-                                    ? "Projects & Edits"
-                                    : "My Projects",
-                            ],
+                        <button
+                            type="button"
+                            className={`nav-item ${currentView === "projects" ? "active" : ""}`}
+                            onClick={() => {
+                                setCurrentView("projects");
+                                setMobileSidebarOpen(false);
+                            }}
+                        >
+                            <span className="nav-icon">□</span>
+                            <span>Projects</span>
+                        </button>
 
-                            ...(isEditor
-                                ? [
-                                    [
-                                        "creators",
-                                        "👥",
-                                        "Creators",
-                                    ],
-                                ]
-                                : []),
-
-                            [
-                                "assets",
-                                "📁",
-                                isEditor
-                                    ? "Asset Vault"
-                                    : "My Assets",
-                            ],
-
-                            [
-                                "analytics",
-                                "📊",
-                                "Analytics",
-                            ],
-
-                            [
-                                "settings",
-                                "⚙️",
-                                "Settings",
-                            ],
-                        ].map(
-                            ([view, icon, label]) => (
-                                <button
-                                    key={view}
-                                    type="button"
-                                    className={`nav-item ${currentView === view
-                                        ? "active"
-                                        : ""
-                                        }`}
-                                    onClick={() =>
-                                        setCurrentView(
-                                            view
-                                        )
-                                    }
-                                >
-                                    <span className="icon">
-                                        {icon}
-                                    </span>
-
-                                    <span>
-                                        {label}
-                                    </span>
-                                </button>
-                            )
+                        {isEditor && (
+                            <button
+                                type="button"
+                                className={`nav-item ${currentView === "creators" ? "active" : ""}`}
+                                onClick={() => {
+                                    setCurrentView("creators");
+                                    setMobileSidebarOpen(false);
+                                }}
+                            >
+                                <span className="nav-icon">♙</span>
+                                <span>Creators</span>
+                            </button>
                         )}
+
+                        <button
+                            type="button"
+                            className={`nav-item ${currentView === "assets" ? "active" : ""}`}
+                            onClick={() => {
+                                setCurrentView("assets");
+                                setMobileSidebarOpen(false);
+                            }}
+                        >
+                            <span className="nav-icon">▧</span>
+                            <span>Assets</span>
+                        </button>
+
+                        <div className="sidebar-divider" />
+
+                        <button
+                            type="button"
+                            className="nav-item"
+                            onClick={() => {
+                                setMobileSidebarOpen(false);
+                                setNotificationMenuOpen(true);
+                                loadNotifications({ silent: true });
+                            }}
+                        >
+                            <span className="nav-icon">♢</span>
+                            {unreadNotificationCount > 0 && (
+                                <span className="nav-badge">
+                                    {unreadNotificationCount > 9
+                                        ? "9+"
+                                        : unreadNotificationCount}
+                                </span>
+                            )}
+                            <span>Notifications</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            className={`nav-item ${currentView === "settings" ? "active" : ""}`}
+                            onClick={() => {
+                                setCurrentView("settings");
+                                setMobileSidebarOpen(false);
+                            }}
+                        >
+                            <span className="nav-icon">⚙</span>
+                            <span>Settings</span>
+                        </button>
                     </nav>
 
-                    <div className="sidebar-user">
+                    <div
+                        className="sidebar-user"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                            setCurrentView("settings");
+                            setMobileSidebarOpen(false);
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setCurrentView("settings");
+                                setMobileSidebarOpen(false);
+                            }
+                        }}
+                    >
                         <div className="user-avatar">
                             {displayUserName
                                 .split(" ")
-                                .map(
-                                    (part) =>
-                                        part[0]
-                                )
+                                .map((part) => part[0])
                                 .join("")
                                 .slice(0, 2)
                                 .toUpperCase()}
                         </div>
 
                         <div className="user-meta">
-                            <strong>
-                                {displayUserName}
-                            </strong>
-
+                            <strong>{displayUserName}</strong>
                             <small>
-                                {accountType} ACCOUNT
+                                {activeSettingsWorkspace?.role ||
+                                    (isCreator ? "CREATOR" : "EDITOR")}
                             </small>
                         </div>
 
-                        <button
-                            type="button"
-                            className="logout-btn"
-                            title="Log Out"
-                            aria-label="Log out"
-                            onClick={confirmAndSignOut}
-                        >
-                            ↗
-                        </button>
+                        <span className="user-chevron">›</span>
                     </div>
                 </aside>
 
                 {/* MAIN DASHBOARD CONTENT */}
                 <main className="dashboard-main">
                     {/* TOP BAR */}
-                    <header className="dash-header">
-                        <div className="page-title">
-                            <span className="status-tag">
-                                ACTIVE SESSION
-                            </span>
+                    <header className="dash-header nexus-topbar">
+                        <button
+                            type="button"
+                            className="mobile-menu-button"
+                            ref={menuButtonRef}
+                            aria-controls="dashboard-navigation"
+                            aria-label="Open navigation"
+                            aria-expanded={mobileSidebarOpen}
+                            onClick={() =>
+                                setMobileSidebarOpen((current) => !current)
+                            }
+                        >
+                            <span />
+                            <span />
+                            <span />
+                        </button>
 
-                            <h2>
-                                {
-                                    viewTitles[
-                                    currentView
-                                    ]
+                        <div className="topbar-search-wrap">
+                            <span className="global-search-icon">⌕</span>
+                            <input
+                                type="search"
+                                placeholder="Search projects, creators, assets..."
+                                value={projectSearch}
+                                onChange={(event) =>
+                                    setProjectSearch(event.target.value)
                                 }
-                            </h2>
+                                onFocus={() => {
+                                    if (currentView === "overview") {
+                                        setCurrentView("projects");
+                                    }
+                                }}
+                            />
                         </div>
 
-                        <div className="dash-actions">
-                            <div className="organization-selector">
-                                <span className="organization-label">
-                                    {isEditor
-                                        ? "ORGANIZATION"
-                                        : "WORKSPACE"}
-                                </span>
-
+                        <div className="topbar-right-controls">
+                            <div className="organization-selector target-org-selector">
                                 <select
                                     className="organization-select"
-                                    value={
-                                        activeOrganizationId ||
-                                        ""
-                                    }
-                                    onChange={(e) => {
+                                    value={activeOrganizationId || ""}
+                                    onChange={(event) =>
                                         setActiveOrganizationId(
-                                            e.target.value
-                                        );
-                                    }}
+                                            event.target.value
+                                        )
+                                    }
                                     disabled={
                                         organizationsLoading ||
-                                        organizations.length ===
-                                        0
+                                        organizations.length === 0
                                     }
+                                    aria-label="Active workspace"
                                 >
                                     {organizationsLoading && (
-                                        <option value="">
-                                            LOADING...
-                                        </option>
+                                        <option value="">Loading...</option>
                                     )}
-
                                     {!organizationsLoading &&
                                         organizations.map(
-                                            (
-                                                organization
-                                            ) => (
+                                            (organization) => (
                                                 <option
-                                                    key={
-                                                        organization.id
-                                                    }
-                                                    value={
-                                                        organization.id
-                                                    }
+                                                    key={organization.id}
+                                                    value={organization.id}
                                                 >
-                                                    {
-                                                        organization.name
-                                                    }
+                                                    {organization.name}
                                                 </option>
                                             )
                                         )}
@@ -3797,93 +3986,41 @@ export default function CreatorDashboard({ user }) {
 
                             <LanguageSelector compact />
 
-                            <div
-                                style={{
-                                    position:
-                                        "relative",
-                                }}
+                            <button
+                                type="button"
+                                className="target-theme-button"
+                                onClick={toggleTheme}
+                                aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+                                title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
                             >
+                                {theme === "light" ? "☼" : "☾"}
+                            </button>
+
+                            <div className="notification-shell">
                                 <button
                                     type="button"
-                                    className="action-btn"
+                                    className="topbar-icon-btn notification-bell"
                                     aria-label="Notifications"
-                                    aria-expanded={
-                                        notificationMenuOpen
-                                    }
+                                    aria-expanded={notificationMenuOpen}
                                     onClick={() => {
                                         setNotificationMenuOpen(
-                                            (current) =>
-                                                !current
+                                            (current) => !current
                                         );
 
-                                        if (
-                                            !notificationMenuOpen
-                                        ) {
+                                        if (!notificationMenuOpen) {
                                             loadNotifications({
                                                 silent: true,
                                             });
                                         }
                                     }}
-                                    style={{
-                                        position:
-                                            "relative",
-                                        minWidth:
-                                            "42px",
-                                        minHeight:
-                                            "42px",
-                                        padding:
-                                            "0 12px",
-                                        display:
-                                            "inline-flex",
-                                        alignItems:
-                                            "center",
-                                        justifyContent:
-                                            "center",
-                                        fontSize:
-                                            "1.05rem",
-                                    }}
                                 >
-                                    🔔
+                                    <span className="notification-bell-icon">
+                                        ♧
+                                    </span>
 
-                                    {unreadNotificationCount >
-                                        0 && (
-                                        <span
-                                            style={{
-                                                position:
-                                                    "absolute",
-                                                top: "-6px",
-                                                right:
-                                                    "-6px",
-                                                minWidth:
-                                                    "20px",
-                                                height:
-                                                    "20px",
-                                                padding:
-                                                    "0 5px",
-                                                borderRadius:
-                                                    "999px",
-                                                display:
-                                                    "inline-flex",
-                                                alignItems:
-                                                    "center",
-                                                justifyContent:
-                                                    "center",
-                                                fontSize:
-                                                    "0.68rem",
-                                                fontWeight:
-                                                    800,
-                                                lineHeight:
-                                                    1,
-                                                background:
-                                                    "var(--accent)",
-                                                color:
-                                                    "var(--bg)",
-                                                border:
-                                                    "2px solid var(--bg)",
-                                            }}
-                                        >
-                                            {unreadNotificationCount >
-                                            99
+                                    {unreadNotificationCount > 0 && (
+                                        <span className="topbar-badge notification-count-badge">
+                                            {unreadNotificationCount > 99
                                                 ? "99+"
                                                 : unreadNotificationCount}
                                         </span>
@@ -3891,66 +4028,14 @@ export default function CreatorDashboard({ user }) {
                                 </button>
 
                                 {notificationMenuOpen && (
-                                    <div
-                                        style={{
-                                            position:
-                                                "absolute",
-                                            top:
-                                                "calc(100% + 10px)",
-                                            right: 0,
-                                            width:
-                                                "min(390px, calc(100vw - 32px))",
-                                            maxHeight:
-                                                "520px",
-                                            overflowY:
-                                                "auto",
-                                            zIndex:
-                                                1000,
-                                            padding:
-                                                "14px",
-                                            border:
-                                                "1px solid var(--line)",
-                                            borderRadius:
-                                                "10px",
-                                            background:
-                                                "var(--notification-bg)",
-                                            backdropFilter:
-                                                "blur(16px)",
-                                            WebkitBackdropFilter:
-                                                "blur(16px)",
-                                            boxShadow:
-                                                "var(--notification-shadow)",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display:
-                                                    "flex",
-                                                justifyContent:
-                                                    "space-between",
-                                                alignItems:
-                                                    "center",
-                                                gap:
-                                                    "12px",
-                                                marginBottom:
-                                                    "12px",
-                                            }}
-                                        >
+                                    <div className="notification-popover">
+                                        <div className="notification-popover-header">
                                             <div>
-                                                <strong>
+                                                <span className="notification-popover-kicker">
                                                     NOTIFICATIONS
-                                                </strong>
-
-                                                <p
-                                                    style={{
-                                                        margin:
-                                                            "4px 0 0",
-                                                        fontSize:
-                                                            "0.75rem",
-                                                        color:
-                                                            "var(--notification-muted)",
-                                                    }}
-                                                >
+                                                </span>
+                                                <h3>Notifications</h3>
+                                                <p>
                                                     {unreadNotificationCount}{" "}
                                                     unread
                                                 </p>
@@ -3958,219 +4043,157 @@ export default function CreatorDashboard({ user }) {
 
                                             <button
                                                 type="button"
-                                                className="text-link"
+                                                className="notification-mark-all"
                                                 disabled={
                                                     markingAllNotificationsRead ||
-                                                    unreadNotificationCount ===
-                                                        0
+                                                    unreadNotificationCount === 0
                                                 }
                                                 onClick={
                                                     markAllNotificationsRead
                                                 }
                                             >
                                                 {markingAllNotificationsRead
-                                                    ? "UPDATING…"
-                                                    : "MARK ALL READ"}
+                                                    ? "Updating…"
+                                                    : "Mark all read"}
                                             </button>
                                         </div>
 
-                                        {notificationsLoading && (
-                                            <p className="text-link">
-                                                Loading
-                                                notifications…
-                                            </p>
-                                        )}
-
-                                        {!notificationsLoading &&
-                                            notificationsError && (
-                                                <p className="brief-error-msg active">
-                                                    {
-                                                        notificationsError
-                                                    }
+                                        <div className="notification-popover-body">
+                                            {notificationsLoading && (
+                                                <p className="notification-empty-state">
+                                                    Loading notifications…
                                                 </p>
                                             )}
 
-                                        {!notificationsLoading &&
-                                            !notificationsError &&
-                                            notifications.length ===
-                                                0 && (
-                                                <p
-                                                    style={{
-                                                        color:
-                                                            "var(--notification-muted)",
-                                                        margin:
-                                                            0,
-                                                    }}
-                                                >
-                                                    No
-                                                    notifications
-                                                    yet.
-                                                </p>
-                                            )}
+                                            {!notificationsLoading &&
+                                                notificationsError && (
+                                                    <p className="notification-empty-state notification-error-state">
+                                                        {notificationsError}
+                                                    </p>
+                                                )}
 
-                                        {!notificationsLoading &&
-                                            notifications.length >
-                                                0 && (
-                                                <div
-                                                    style={{
-                                                        display:
-                                                            "grid",
-                                                        gap:
-                                                            "8px",
-                                                    }}
-                                                >
-                                                    {notifications.map(
-                                                        (
-                                                            notification
-                                                        ) => (
-                                                            <button
-                                                                key={
-                                                                    notification.id
-                                                                }
-                                                                type="button"
-                                                                disabled={
-                                                                    notificationUpdatingId ===
-                                                                    notification.id
-                                                                }
-                                                                onClick={() =>
-                                                                    markNotificationRead(
-                                                                        notification.id
-                                                                    )
-                                                                }
-                                                                style={{
-                                                                    width:
-                                                                        "100%",
-                                                                    textAlign:
-                                                                        "left",
-                                                                    padding:
-                                                                        "12px",
-                                                                    border:
-                                                                        "1px solid var(--line)",
-                                                                    borderRadius:
-                                                                        "8px",
-                                                                    background:
-                                                                        notification.read
-                                                                            ? "var(--notification-read-bg)"
-                                                                            : "var(--notification-unread-bg)",
-                                                                    color:
-                                                                        "inherit",
-                                                                    cursor:
-                                                                        notification.read
-                                                                            ? "default"
-                                                                            : "pointer",
-                                                                    opacity:
-                                                                        notificationUpdatingId ===
-                                                                        notification.id
-                                                                            ? 0.65
-                                                                            : 1,
-                                                                }}
-                                                            >
-                                                                <div
-                                                                    style={{
-                                                                        display:
-                                                                            "flex",
-                                                                        alignItems:
-                                                                            "center",
-                                                                        justifyContent:
-                                                                            "space-between",
-                                                                        gap:
-                                                                            "10px",
-                                                                    }}
-                                                                >
-                                                                    <strong>
-                                                                        {
-                                                                            notification.title
+                                            {!notificationsLoading &&
+                                                !notificationsError &&
+                                                notifications.length === 0 && (
+                                                    <div className="notification-empty-panel">
+                                                        <span>✓</span>
+                                                        <strong>
+                                                            You&apos;re all caught
+                                                            up
+                                                        </strong>
+                                                        <p>
+                                                            New project and review
+                                                            updates will appear
+                                                            here.
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                            {!notificationsLoading &&
+                                                notifications.length > 0 && (
+                                                    <div className="notification-list">
+                                                        {notifications.map(
+                                                            (
+                                                                notification,
+                                                                index
+                                                            ) => {
+                                                                const isUnread =
+                                                                    !notification.read;
+
+                                                                return (
+                                                                    <button
+                                                                        key={
+                                                                            notification.id
                                                                         }
-                                                                    </strong>
+                                                                        type="button"
+                                                                        disabled={
+                                                                            notificationUpdatingId ===
+                                                                            notification.id
+                                                                        }
+                                                                        onClick={() =>
+                                                                            markNotificationRead(
+                                                                                notification.id
+                                                                            )
+                                                                        }
+                                                                        className={`notification-item ${
+                                                                            isUnread
+                                                                                ? "unread"
+                                                                                : "read"
+                                                                        }`}
+                                                                    >
+                                                                        <div
+                                                                            className={`notification-item-icon notification-icon-${
+                                                                                index %
+                                                                                4
+                                                                            }`}
+                                                                        >
+                                                                            {index %
+                                                                                4 ===
+                                                                            0
+                                                                                ? "↗"
+                                                                                : index %
+                                                                                        4 ===
+                                                                                    1
+                                                                                  ? "□"
+                                                                                  : index %
+                                                                                          4 ===
+                                                                                      2
+                                                                                    ? "✓"
+                                                                                    : "⇧"}
+                                                                        </div>
 
-                                                                    {!notification.read && (
-                                                                        <span
-                                                                            title="Unread"
-                                                                            style={{
-                                                                                width:
-                                                                                    "8px",
-                                                                                height:
-                                                                                    "8px",
-                                                                                flex:
-                                                                                    "0 0 8px",
-                                                                                borderRadius:
-                                                                                    "999px",
-                                                                                background:
-                                                                                    "var(--accent)",
-                                                                            }}
-                                                                        />
-                                                                    )}
-                                                                </div>
+                                                                        <div className="notification-item-content">
+                                                                            <div className="notification-item-title-row">
+                                                                                <strong>
+                                                                                    {
+                                                                                        notification.title
+                                                                                    }
+                                                                                </strong>
 
-                                                                <p
-                                                                    style={{
-                                                                        margin:
-                                                                            "6px 0 0",
-                                                                        lineHeight:
-                                                                            1.45,
-                                                                        color:
-                                                                            "var(--notification-text)",
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        notification.message
-                                                                    }
-                                                                </p>
+                                                                                {isUnread && (
+                                                                                    <span
+                                                                                        className="notification-unread-dot"
+                                                                                        title="Unread"
+                                                                                    />
+                                                                                )}
+                                                                            </div>
 
-                                                                <span
-                                                                    className="text-link"
-                                                                    style={{
-                                                                        display:
-                                                                            "block",
-                                                                        marginTop:
-                                                                            "7px",
-                                                                        fontSize:
-                                                                            "0.72rem",
-                                                                    }}
-                                                                >
-                                                                    {formatActivityTime(
-                                                                        notification.createdAt
-                                                                    )}
-                                                                </span>
-                                                            </button>
-                                                        )
-                                                    )}
-                                                </div>
-                                            )}
+                                                                            <p>
+                                                                                {
+                                                                                    notification.message
+                                                                                }
+                                                                            </p>
+
+                                                                            <span className="notification-item-time">
+                                                                                {formatRelativeTime(
+                                                                                    notification.createdAt
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
+                                                                    </button>
+                                                                );
+                                                            }
+                                                        )}
+                                                    </div>
+                                                )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
 
                             <button
-                                className="theme-toggle"
                                 type="button"
-                                aria-label="Toggle Light/Dark Mode"
-                                onClick={toggleTheme}
+                                className="topbar-profile-pill"
+                                onClick={() => setCurrentView("settings")}
+                                aria-label="Open profile settings"
                             >
-                                <span className="toggle-track">
-                                    <span className="stars"></span>
-                                    <span className="clouds"></span>
-
-                                    <span className="toggle-thumb">
-                                        <span className="crater c1"></span>
-                                        <span className="crater c2"></span>
-                                    </span>
-                                </span>
+                                {displayUserName
+                                    .split(" ")
+                                    .map((part) => part[0])
+                                    .join("")
+                                    .slice(0, 2)
+                                    .toUpperCase()}
                             </button>
-
-                            {isCreator && (
-                                <button
-                                    type="button"
-                                    className="button button-primary"
-                                    onClick={() =>
-                                        setBriefModalOpen(
-                                            true
-                                        )
-                                    }
-                                >
-                                    + NEW PROJECT BRIEF
-                                </button>
-                            )}
                         </div>
                     </header>
 
@@ -4178,353 +4201,737 @@ export default function CreatorDashboard({ user }) {
                         VIEW 1: OVERVIEW
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
-                            "overview"
-                            ? "active"
-                            : ""
-                            }`}
+                        className={`view-panel ${currentView === "overview" ? "active" : ""}`}
                     >
-                        <div className="panel-scroll-container">
-                            <section className="metrics-grid">
-                                <div className="metric-card">
-                                    <span className="metric-label">ACTIVE EDITS</span>
-                                    <strong className="metric-value">
-                                        {projectsLoading
-                                            ? "—"
-                                            : String(
-                                                projects.filter(
-                                                    (p) =>
-                                                        ![
-                                                            "APPROVED",
-                                                        ].includes(
-                                                            normalizeProjectStatus(p.status)
-                                                        )
-                                                ).length
-                                            ).padStart(2, "0")}
-                                    </strong>
-                                    <span className="metric-delta">
-                                        {projectsLoading
-                                            ? "Loading…"
-                                            : `${projects.filter(
-                                                (p) =>
-                                                    normalizeProjectStatus(p.status) ===
-                                                    "IN_PRODUCTION"
-                                            ).length} in production`}
+                        <div className="panel-scroll-container target-overview-scroll">
+                            <section className="greeting-section">
+                                <div>
+                                    <span className="greeting-kicker">
+                                        DASHBOARD
                                     </span>
+                                    <h1 className="page-title">
+                                        {dashboardGreeting}, 
+                                        <span>
+                                            {displayUserName.split(" ")[0]}
+                                        </span>
+                                    </h1>
+                                    <p>
+                                        Here&apos;s what&apos;s happening with your projects.
+                                    </p>
                                 </div>
 
-                                <div className="metric-card">
-                                    <span className="metric-label">APPROVED</span>
-                                    <strong className="metric-value">
-                                        {projectsLoading
-                                            ? "—"
-                                            : String(
-                                                projects.filter(
-                                                    (p) =>
-                                                        normalizeProjectStatus(p.status) ===
-                                                        "APPROVED"
-                                                ).length
-                                            ).padStart(2, "0")}
-                                    </strong>
-                                    <span className="metric-delta">Final approved cuts</span>
-                                </div>
-
-                                <div className="metric-card">
-                                    <span className="metric-label">ASSETS</span>
-                                    <strong className="metric-value">
-                                        {assetsLoading
-                                            ? "—"
-                                            : String(assets.length).padStart(2, "0")}
-                                    </strong>
-                                    <span className="metric-delta">
-                                        {assetsLoading ? "Loading…" : "Files in asset vault"}
-                                    </span>
-                                </div>
-
-                                <div className="metric-card">
-                                    <span className="metric-label">IN REVIEW</span>
-                                    <strong className="metric-value">
-                                        {projectsLoading
-                                            ? "—"
-                                            : String(
-                                                projects.filter(
-                                                    (p) =>
-                                                        normalizeProjectStatus(p.status) ===
-                                                        "IN_REVIEW"
-                                                ).length
-                                            ).padStart(2, "0")}
-                                    </strong>
-                                    <span className="metric-delta">Awaiting review</span>
+                                <div className="greeting-date-block">
+                                    <strong>{dashboardDate}</strong>
+                                    <div className="greeting-date-divider" />
+                                    <span>{dashboardGreeting}</span>
                                 </div>
                             </section>
 
-                            <section className="content-grid">
-                                <div className="panel pipeline-panel">
-                                    <div className="panel-header">
-                                        <h3>
-                                            ACTIVE PRODUCTION
-                                            QUEUE
-                                        </h3>
-
-                                        <button
-                                            type="button"
-                                            className="text-link"
-                                            onClick={() =>
-                                                setCurrentView(
-                                                    "projects"
-                                                )
-                                            }
+                            <section className="metrics-row">
+                                <article className="metric-box metric-purple">
+                                    <div className="metric-top">
+                                        <div className="metric-icon-wrap">□</div>
+                                        <span className="metric-title">
+                                            ACTIVE PROJECTS
+                                        </span>
+                                    </div>
+                                    <strong className="metric-number">
+                                        {projectsLoading
+                                            ? "—"
+                                            : projects.filter(
+                                                  (project) =>
+                                                      normalizeProjectStatus(
+                                                          project.status
+                                                      ) !== "APPROVED"
+                                              ).length}
+                                    </strong>
+                                    <div className="metric-bottom">
+                                        <span className="metric-trend green">
+                                            ↗ 
+                                            {
+                                                projects.filter(
+                                                    (project) =>
+                                                        normalizeProjectStatus(
+                                                            project.status
+                                                        ) === "IN_PRODUCTION"
+                                                ).length
+                                            } 
+                                            in production
+                                        </span>
+                                        <svg
+                                            className="metric-sparkline"
+                                            viewBox="0 0 65 24"
+                                            aria-hidden="true"
                                         >
-                                            VIEW ALL →
-                                        </button>
+                                            <path
+                                                d="M2 21 C12 20 17 12 25 13 C34 14 38 19 46 12 C53 6 58 3 63 5"
+                                                stroke="var(--nx-purple)"
+                                            />
+                                        </svg>
+                                    </div>
+                                </article>
+
+                                <article className="metric-box metric-amber">
+                                    <div className="metric-top">
+                                        <div className="metric-icon-wrap">◷</div>
+                                        <span className="metric-title">
+                                            IN REVIEW
+                                        </span>
+                                    </div>
+                                    <strong className="metric-number">
+                                        {projectsLoading
+                                            ? "—"
+                                            : projects.filter(
+                                                  (project) =>
+                                                      normalizeProjectStatus(
+                                                          project.status
+                                                      ) === "IN_REVIEW"
+                                              ).length}
+                                    </strong>
+                                    <div className="metric-bottom">
+                                        <span className="metric-trend amber">
+                                            ● Needs attention
+                                        </span>
+                                        <svg
+                                            className="metric-sparkline"
+                                            viewBox="0 0 65 24"
+                                            aria-hidden="true"
+                                        >
+                                            <path
+                                                d="M2 22 C13 21 18 15 25 13 C35 10 38 17 46 11 C54 5 59 5 63 7"
+                                                stroke="var(--nx-amber)"
+                                            />
+                                        </svg>
+                                    </div>
+                                </article>
+
+                                <article className="metric-box metric-green">
+                                    <div className="metric-top">
+                                        <div className="metric-icon-wrap">✓</div>
+                                        <span className="metric-title">
+                                            DELIVERED
+                                        </span>
+                                    </div>
+                                    <strong className="metric-number">
+                                        {projectsLoading
+                                            ? "—"
+                                            : projects.filter(
+                                                  (project) =>
+                                                      normalizeProjectStatus(
+                                                          project.status
+                                                      ) === "APPROVED"
+                                              ).length}
+                                    </strong>
+                                    <div className="metric-bottom">
+                                        <span className="metric-trend green">
+                                            ↑ Final approved cuts
+                                        </span>
+                                        <svg
+                                            className="metric-sparkline"
+                                            viewBox="0 0 65 24"
+                                            aria-hidden="true"
+                                        >
+                                            <path
+                                                d="M2 22 C12 20 18 18 25 14 C34 8 40 10 47 7 C54 4 59 6 63 4"
+                                                stroke="var(--nx-green)"
+                                            />
+                                        </svg>
+                                    </div>
+                                </article>
+
+                                <article className="metric-box metric-purple">
+                                    <div className="metric-top">
+                                        <div className="metric-icon-wrap">◫</div>
+                                        <span className="metric-title">
+                                            TOTAL ASSETS
+                                        </span>
+                                    </div>
+                                    <strong className="metric-number">
+                                        {assetsLoading ? "—" : assets.length}
+                                    </strong>
+                                    <div className="metric-bottom">
+                                        <span className="metric-trend green">
+                                            ↑ Files in asset vault
+                                        </span>
+                                        <svg
+                                            className="metric-sparkline"
+                                            viewBox="0 0 65 24"
+                                            aria-hidden="true"
+                                        >
+                                            <path
+                                                d="M2 21 C12 20 18 15 25 13 C34 10 39 15 47 9 C54 4 59 7 63 6"
+                                                stroke="var(--nx-purple)"
+                                            />
+                                        </svg>
+                                    </div>
+                                </article>
+                            </section>
+
+                            <section className="content-split-layout">
+                                <div className="projects-panel-box">
+                                    <div className="projects-panel-toolbar">
+                                        <h2>Projects</h2>
+
+                                        <div className="toolbar-controls-cluster">
+                                            <div className="toolbar-search">
+                                                <span>⌕</span>
+                                                <input
+                                                    type="search"
+                                                    placeholder="Search projects..."
+                                                    value={projectSearch}
+                                                    onChange={(event) =>
+                                                        setProjectSearch(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+
+                                            <select
+                                                className="toolbar-select-pill" aria-label="Project status"
+                                                value={projectFilter}
+                                                onChange={(event) =>
+                                                    setProjectFilter(
+                                                        event.target.value
+                                                    )
+                                                }
+                                            >
+                                                <option value="all">
+                                                    Status
+                                                </option>
+                                                <option value="REQUESTED">
+                                                    Requested
+                                                </option>
+                                                <option value="IN_PRODUCTION">
+                                                    In Production
+                                                </option>
+                                                <option value="IN_REVIEW">
+                                                    In Review
+                                                </option>
+                                                <option value="REVISION">
+                                                    Revision
+                                                </option>
+                                                <option value="APPROVED">
+                                                    Approved
+                                                </option>
+                                            </select>
+
+                                            <select
+                                                className="toolbar-select-pill" aria-label="Creator filter"
+                                                value={projectCreatorFilter}
+                                                onChange={(event) =>
+                                                    setProjectCreatorFilter(
+                                                        event.target.value
+                                                    )
+                                                }
+                                            >
+                                                <option value="all">
+                                                    Creator
+                                                </option>
+                                                {projectCreatorOptions.map(
+                                                    (creator) => (
+                                                        <option
+                                                            key={creator.id}
+                                                            value={creator.id}
+                                                        >
+                                                            {creator.name ||
+                                                                creator.email}
+                                                        </option>
+                                                    )
+                                                )}
+                                            </select>
+
+                                            <select
+                                                className="toolbar-select-pill" aria-label="Editor filter"
+                                                value={projectEditorFilter}
+                                                onChange={(event) =>
+                                                    setProjectEditorFilter(
+                                                        event.target.value
+                                                    )
+                                                }
+                                            >
+                                                <option value="all">
+                                                    Editor
+                                                </option>
+                                                {projectEditorOptions.map(
+                                                    (editor) => (
+                                                        <option
+                                                            key={editor.id}
+                                                            value={editor.id}
+                                                        >
+                                                            {editor.name ||
+                                                                editor.email}
+                                                        </option>
+                                                    )
+                                                )}
+                                            </select>
+
+                                            <select
+                                                className="toolbar-select-pill" aria-label="Project sort"
+                                                value={projectSort}
+                                                onChange={(event) =>
+                                                    setProjectSort(
+                                                        event.target.value
+                                                    )
+                                                }
+                                            >
+                                                <option value="updated-desc">
+                                                    ⇅ Sort
+                                                </option>
+                                                <option value="newest">
+                                                    Newest
+                                                </option>
+                                                <option value="oldest">
+                                                    Oldest
+                                                </option>
+                                                <option value="due-date">
+                                                    Due date
+                                                </option>
+                                            </select>
+
+                                            {isCreator && (
+                                                <button
+                                                    type="button"
+                                                    className="btn-new-project-purple"
+                                                    onClick={() =>
+                                                        setBriefModalOpen(true)
+                                                    }
+                                                >
+                                                    + New Project
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div className="project-list">
+                                    <div className="projects-table-head">
+                                        <span>PROJECT</span>
+                                        <span>CREATOR</span>
+                                        <span>EDITOR</span>
+                                        <span>STATUS</span>
+                                        <span>DUE DATE</span>
+                                        <span>UPDATED</span>
+                                        <span />
+                                    </div>
+
+                                    <div className="projects-table-body">
                                         {projectsLoading && (
-                                            <p className="text-link">
-                                                Loading
-                                                projects…
-                                            </p>
+                                            <div className="target-empty-state">
+                                                Loading projects…
+                                            </div>
                                         )}
 
                                         {!projectsLoading &&
                                             projectsError && (
-                                                <p className="brief-error-msg active">
-                                                    {
-                                                        projectsError
-                                                    }
-                                                </p>
+                                                <div className="target-empty-state target-error">
+                                                    {projectsError}
+                                                </div>
                                             )}
 
                                         {!projectsLoading &&
                                             !projectsError &&
-                                            projects.length ===
-                                            0 && (
-                                                <p className="text-link">
-                                                    No projects
-                                                    yet —
-                                                    submit a
-                                                    brief to
-                                                    get
-                                                    started.
-                                                </p>
+                                            projects.length === 0 && (
+                                                <div className="target-empty-state">
+                                                    No projects yet.
+                                                </div>
                                             )}
 
                                         {!projectsLoading &&
                                             !projectsError &&
                                             projects
-                                                .slice(
-                                                    0,
-                                                    3
-                                                )
-                                                .map(
-                                                    (
-                                                        proj
-                                                    ) => (
+                                                .slice(0, 5)
+                                                .map((project) => {
+                                                    const editor =
+                                                        project
+                                                            .assignedEditors?.[0];
+                                                    const normalizedStatus =
+                                                        normalizeProjectStatus(
+                                                            project.status
+                                                        );
+                                                    const statusClass =
+                                                        normalizedStatus
+                                                            .toLowerCase()
+                                                            .replaceAll(
+                                                                "_",
+                                                                "-"
+                                                            );
+
+                                                    return (
                                                         <div
-                                                            className={`project-item production-queue-item status-row-${normalizeProjectStatus(
-                                                                proj.status
-                                                            )
-                                                                .toLowerCase()
-                                                                .replaceAll(
-                                                                    "_",
-                                                                    "-"
-                                                                )}`}
-                                                            key={
-                                                                proj.id
-                                                            }
-                                                        >
-                                                            <div className="project-info">
-                                                                <strong>
-                                                                    {
-                                                                        proj.title
-                                                                    }
-                                                                </strong>
-
-                                                                <small>
-                                                                    {
-                                                                        proj.type
-                                                                    }{" "}
-                                                                    •{" "}
-                                                                    {resolutionForType(
-                                                                        proj.type
-                                                                    )}
-                                                                </small>
-                                                            </div>
-
-                                                            <div
-                                                                className={`project-status status-${normalizeProjectStatus(
-                                                                    proj.status
+                                                            className="projects-table-row"
+                                                            key={project.id}
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() =>
+                                                                openProjectDetails(
+                                                                    project
                                                                 )
-                                                                    .toLowerCase()
-                                                                    .replaceAll(
-                                                                        "_",
-                                                                        "-"
-                                                                    )}`}
-                                                            >
-                                                                {displayStatus(
-                                                                    proj.status
-                                                                )}
+                                                            }
+                                                            onKeyDown={(
+                                                                event
+                                                            ) => {
+                                                                if (event.target !== event.currentTarget) return;
+                                                                if (
+                                                                    event.key ===
+                                                                        "Enter" ||
+                                                                    event.key ===
+                                                                        " "
+                                                                ) {
+                                                                    event.preventDefault();
+                                                                    openProjectDetails(
+                                                                        project
+                                                                    );
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className="project-media-cell">
+                                                                <div
+                                                                    className="project-thumbnail-img target-thumbnail-placeholder"
+                                                                    aria-hidden="true"
+                                                                >
+                                                                    <span>▶</span>
+                                                                </div>
+
+                                                                <div className="project-title-cluster">
+                                                                    <strong>
+                                                                        {
+                                                                            project.title
+                                                                        }
+                                                                    </strong>
+                                                                    <div className="project-sub-row">
+                                                                        <span className="project-type-tag">
+                                                                            {
+                                                                                project.type
+                                                                            }
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
 
-                                                            <div className="project-eta">
-                                                                {
-                                                                    proj.eta
-                                                                }
+                                                            <div className="person-cell">
+                                                                <span className="person-avatar">
+                                                                    {String(
+                                                                        project
+                                                                            .creator
+                                                                            ?.name ||
+                                                                            project
+                                                                                .creator
+                                                                                ?.email ||
+                                                                            "C"
+                                                                    )
+                                                                        .split(
+                                                                            " "
+                                                                        )
+                                                                        .map(
+                                                                            (
+                                                                                part
+                                                                            ) =>
+                                                                                part[0]
+                                                                        )
+                                                                        .join(
+                                                                            ""
+                                                                        )
+                                                                        .slice(
+                                                                            0,
+                                                                            2
+                                                                        )
+                                                                        .toUpperCase()}
+                                                                </span>
+                                                                <span className="person-name">
+                                                                    {project
+                                                                        .creator
+                                                                        ?.name ||
+                                                                        project
+                                                                            .creator
+                                                                            ?.email ||
+                                                                        "—"}
+                                                                </span>
                                                             </div>
+
+                                                            <div className="person-cell">
+                                                                <span className="person-avatar target-editor-avatar">
+                                                                    {editor
+                                                                        ? String(
+                                                                              editor.name ||
+                                                                                  editor.email
+                                                                          )
+                                                                              .split(
+                                                                                  " "
+                                                                              )
+                                                                              .map(
+                                                                                  (
+                                                                                      part
+                                                                                  ) =>
+                                                                                      part[0]
+                                                                              )
+                                                                              .join(
+                                                                                  ""
+                                                                              )
+                                                                              .slice(
+                                                                                  0,
+                                                                                  2
+                                                                              )
+                                                                              .toUpperCase()
+                                                                        : "—"}
+                                                                </span>
+                                                                <span className="person-name">
+                                                                    {editor
+                                                                        ? editor.name ||
+                                                                          editor.email
+                                                                        : "Unassigned"}
+                                                                </span>
+                                                            </div>
+
+                                                            <div>
+                                                                <span
+                                                                    className={`status-pill ${statusClass}`}
+                                                                >
+                                                                    {
+                                                                        normalizedStatus ===
+                                                                        "IN_REVIEW"
+                                                                            ? "IN REVIEW"
+                                                                            : normalizedStatus ===
+                                                                                "IN_PRODUCTION"
+                                                                              ? "IN PRODUCTION"
+                                                                              : normalizedStatus
+                                                                                    .replaceAll(
+                                                                                        "_",
+                                                                                        " "
+                                                                                    )
+                                                                    }
+                                                                </span>
+                                                            </div>
+
+                                                            <span className="date-text">
+                                                                {project.dueDate
+                                                                    ? new Date(
+                                                                          project.dueDate
+                                                                      ).toLocaleDateString(
+                                                                          "en-US",
+                                                                          {
+                                                                              month: "short",
+                                                                              day: "2-digit",
+                                                                              year: "numeric",
+                                                                          }
+                                                                      )
+                                                                    : "No date"}
+                                                            </span>
+
+                                                            <span className="date-text">
+                                                                {formatRelativeTime(
+                                                                    project.updatedAt
+                                                                )}
+                                                            </span>
+
+                                                            <button
+                                                                type="button"
+                                                                className="row-actions-btn"
+                                                                onClick={(
+                                                                    event
+                                                                ) => {
+                                                                    event.stopPropagation();
+                                                                    openProjectDetails(
+                                                                        project
+                                                                    );
+                                                                }}
+                                                                aria-label={`Open ${project.title}`}
+                                                            >
+                                                                ⋯
+                                                            </button>
                                                         </div>
+                                                    );
+                                                })}
+                                    </div>
+
+                                    <div className="projects-table-footer">
+                                        <span>
+                                            1–
+                                            {Math.min(
+                                                projects.length,
+                                                5
+                                            )} 
+                                            of {projects.length} loaded
+                                            projects
+                                        </span>
+
+                                        {projectsHasMore ? (
+                                            <button
+                                                type="button"
+                                                className="btn-load-more"
+                                                onClick={loadMoreProjects}
+                                                disabled={
+                                                    projectsLoadingMore
+                                                }
+                                            >
+                                                {projectsLoadingMore
+                                                    ? "Loading…"
+                                                    : "Load More⌄"}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className="btn-load-more"
+                                                onClick={() =>
+                                                    setCurrentView(
+                                                        "projects"
                                                     )
-                                                )}
+                                                }
+                                            >
+                                                View All
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
-                                <div className="panel activity-panel">
-                                    <div className="panel-header">
-                                        <h3>SYSTEM ACTIVITY</h3>
-
-                                        <button
-                                            type="button"
-                                            className="text-link"
-                                            onClick={() =>
-                                                loadActivity(
-                                                    activeOrganizationId
-                                                )
-                                            }
-                                            disabled={
-                                                activityLoading ||
-                                                !activeOrganizationId
-                                            }
-                                        >
-                                            {activityLoading
-                                                ? "LOADING…"
-                                                : "REFRESH ↻"}
-                                        </button>
-                                    </div>
-
-                                    <div className="activity-panel-body">
-                                    {activityLoading && (
-                                        <div
-                                            style={{
-                                                padding: "18px 0",
-                                            }}
-                                        >
-                                            <p className="text-link">
-                                                Loading system
-                                                activity…
-                                            </p>
+                                <div className="right-column-stack">
+                                    <aside className="activity-card-box">
+                                        <div className="activity-card-header">
+                                            <h3>Recent Activity</h3>
+                                            <button
+                                                type="button"
+                                                className="view-all-purple"
+                                                onClick={() =>
+                                                    setShowAllOverviewActivity(
+                                                        (current) =>
+                                                            !current
+                                                    )
+                                                }
+                                            >
+                                                {showAllOverviewActivity
+                                                    ? "Show less"
+                                                    : "View all →"}
+                                            </button>
                                         </div>
-                                    )}
 
-                                    {!activityLoading &&
-                                        activityError && (
-                                            <div
-                                                style={{
-                                                    padding:
-                                                        "18px 0",
-                                                }}
-                                            >
-                                                <p className="brief-error-msg active">
-                                                    {
-                                                        activityError
-                                                    }
+                                        <div className="activity-items-stack">
+                                            {activityLoading && (
+                                                <p className="target-activity-empty">
+                                                    Loading activity…
                                                 </p>
-                                            </div>
-                                        )}
+                                            )}
 
-                                    {!activityLoading &&
-                                        !activityError &&
-                                        activity.length ===
-                                            0 && (
-                                            <div
-                                                style={{
-                                                    padding:
-                                                        "18px 0",
-                                                }}
-                                            >
-                                                <strong>
-                                                    NO ACTIVITY YET
-                                                </strong>
+                                            {!activityLoading &&
+                                                activityError && (
+                                                    <p className="target-activity-empty target-error">
+                                                        {activityError}
+                                                    </p>
+                                                )}
 
-                                                <p
-                                                    className="text-link"
-                                                    style={{
-                                                        marginTop:
-                                                            "8px",
-                                                    }}
-                                                >
-                                                    Project,
-                                                    assignment,
-                                                    and review
-                                                    activity
-                                                    will appear
-                                                    here.
-                                                </p>
-                                            </div>
-                                        )}
+                                            {!activityLoading &&
+                                                !activityError &&
+                                                activity.length === 0 && (
+                                                    <p className="target-activity-empty">
+                                                        No activity yet.
+                                                    </p>
+                                                )}
 
-                                    {!activityLoading &&
-                                        !activityError &&
-                                        activity.length >
-                                            0 && (
-                                            <div
-                                                style={{
-                                                    display:
-                                                        "grid",
-                                                }}
-                                            >
-                                                {activity.map(
+                                            {!activityLoading &&
+                                                !activityError &&
+                                                (showAllOverviewActivity
+                                                    ? activity
+                                                    : activity.slice(
+                                                          0,
+                                                          5
+                                                      )
+                                                ).map(
                                                     (
                                                         entry,
                                                         index
-                                                    ) => (
-                                                        <div
-                                                            key={
-                                                                entry.id
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "14px 0",
-                                                                borderTop:
-                                                                    index ===
-                                                                    0
-                                                                        ? "none"
-                                                                        : "1px solid var(--line)",
-                                                            }}
-                                                        >
-                                                            <p
-                                                                style={{
-                                                                    margin:
-                                                                        0,
-                                                                    lineHeight:
-                                                                        1.5,
-                                                                }}
-                                                            >
-                                                                {formatActivityDescription(
-                                                                    entry
-                                                                )}
-                                                            </p>
+                                                    ) => {
+                                                        const action =
+                                                            entry.action ||
+                                                            "";
+                                                        const isComment =
+                                                            action.includes(
+                                                                "COMMENT"
+                                                            );
+                                                        const isApproved =
+                                                            action.includes(
+                                                                "APPROVED"
+                                                            );
+                                                        const isReview =
+                                                            action.includes(
+                                                                "REVIEW"
+                                                            );
+                                                        const bubbleClass =
+                                                            isApproved
+                                                                ? "bubble-green"
+                                                                : isComment
+                                                                  ? "bubble-amber"
+                                                                  : isReview
+                                                                    ? "bubble-blue"
+                                                                    : "bubble-purple";
+                                                        const icon =
+                                                            isApproved
+                                                                ? "✓"
+                                                                : isComment
+                                                                  ? "□"
+                                                                  : isReview
+                                                                    ? "♙"
+                                                                    : index %
+                                                                          2 ===
+                                                                      0
+                                                                      ? "↗"
+                                                                      : "⇧";
 
-                                                            <span
-                                                                className="text-link"
-                                                                style={{
-                                                                    display:
-                                                                        "block",
-                                                                    marginTop:
-                                                                        "5px",
-                                                                    fontSize:
-                                                                        "0.75rem",
-                                                                }}
+                                                        return (
+                                                            <div
+                                                                className="activity-row-item"
+                                                                key={
+                                                                    entry.id
+                                                                }
                                                             >
-                                                                {formatActivityTime(
-                                                                    entry.createdAt
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    )
+                                                                <div
+                                                                    className={`activity-bubble-icon ${bubbleClass}`}
+                                                                >
+                                                                    {icon}
+                                                                </div>
+                                                                <div className="activity-content-meta">
+                                                                    <p>
+                                                                        {formatActivityDescription(
+                                                                            entry
+                                                                        )}
+                                                                    </p>
+                                                                    <span>
+                                                                        {formatRelativeTime(
+                                                                            entry.createdAt
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
                                                 )}
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    </aside>
+
+                                    <aside className="quick-actions-card-box">
+                                        <h4>Quick Actions</h4>
+                                        <div className="quick-action-buttons-wrap">
+                                            {isCreator && (
+                                                <button
+                                                    type="button"
+                                                    className="action-btn-new-proj"
+                                                    onClick={() =>
+                                                        setBriefModalOpen(true)
+                                                    }
+                                                >
+                                                    □ New Project
+                                                </button>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                className="action-btn-upload"
+                                                onClick={() =>
+                                                    setCurrentView(
+                                                        "assets"
+                                                    )
+                                                }
+                                            >
+                                                ⇧ Upload Asset
+                                            </button>
+                                        </div>
+                                    </aside>
                                 </div>
                             </section>
                         </div>
@@ -4533,72 +4940,33 @@ export default function CreatorDashboard({ user }) {
                     {/* =========================================
                         VIEW 2: PROJECTS
                     ========================================= */}
-                    <div
-                        className={`view-panel ${currentView ===
-                            "projects"
-                            ? "active"
-                            : ""
-                            }`}
-                    >
+                    <div className={`view-panel projects-view ${currentView === "projects" ? "active" : ""}`}>
                         <div className="panel-scroll-container">
-                            <div className="panel">
-                                <div className="panel-header">
-                                    <h3>
-                                        ALL CREATOR PROJECTS
-                                    </h3>
-
-                                    <div className="filter-pills">
-                                        {[
-                                            "all",
-                                            "REQUESTED",
-                                            "IN_PRODUCTION",
-                                            "IN_REVIEW",
-                                            "REVISION",
-                                            "APPROVED",
-                                        ].map(
-                                            (filter) => (
-                                                <button
-                                                    key={
-                                                        filter
-                                                    }
-                                                    type="button"
-                                                    className={`filter-pill ${projectFilter ===
-                                                        filter
-                                                        ? "active"
-                                                        : ""
-                                                        }`}
-                                                    onClick={() =>
-                                                        setProjectFilter(
-                                                            filter
-                                                        )
-                                                    }
-                                                >
-                                                    {filter ===
-                                                        "all"
-                                                        ? "ALL"
-                                                        : displayStatus(
-                                                            filter
-                                                        )}
-                                                </button>
-                                            )
-                                        )}
-                                    </div>
+                            <header className="projects-page-header">
+                                <div>
+                                    <span className="greeting-kicker">PRODUCTION WORKSPACE</span>
+                                    <h1 className="page-title">Projects</h1>
+                                    <p>Manage production, track feedback, and keep every project moving.</p>
                                 </div>
-
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns:
-                                            "minmax(220px, 2fr) repeat(4, minmax(140px, 1fr))",
-                                        gap: "10px",
-                                        marginBottom: "16px",
-                                    }}
-                                >
+                                {isCreator && <button type="button" className="btn-new-project-purple" onClick={() => setBriefModalOpen(true)}>+ New Project</button>}
+                            </header>
+                            <p className="projects-summary-caption">Status counts reflect loaded results and current filters.</p>
+                            <div className="projects-summary" aria-label="Filter by project status">
+                                {["all", "REQUESTED", "IN_PRODUCTION", "IN_REVIEW", "REVISION", "APPROVED"].map((status) => (
+                                    <button type="button" key={status} className={`projects-summary-chip ${projectFilter === status ? "selected" : ""}`}
+                                        aria-pressed={projectFilter === status} onClick={() => setProjectFilter(status)}>
+                                        <span>{status === "all" ? "All Projects" : displayStatus(status)}</span>
+                                        <strong>{projectsLoading || projectsError ? "—" : status === "all" ? projects.length : projects.filter((project) => normalizeProjectStatus(project.status) === status).length}</strong>
+                                    </button>
+                                ))}
+                            </div>
+                            <section className="projects-list-card" aria-label="Projects">
+                                <div className="projects-list-toolbar">
                                     <input
                                         className="dash-input"
                                         type="search"
                                         placeholder="Search project or creator..."
-                                        value={projectSearch}
+                                        aria-label="Search projects" value={projectSearch}
                                         onChange={(event) =>
                                             setProjectSearch(
                                                 event.target.value
@@ -4608,7 +4976,7 @@ export default function CreatorDashboard({ user }) {
 
                                     <select
                                         className="dash-input"
-                                        value={projectCreatorFilter}
+                                        aria-label="Creator" value={projectCreatorFilter}
                                         onChange={(event) =>
                                             setProjectCreatorFilter(
                                                 event.target.value
@@ -4633,7 +5001,7 @@ export default function CreatorDashboard({ user }) {
 
                                     <select
                                         className="dash-input"
-                                        value={projectEditorFilter}
+                                        aria-label="Assigned editor" value={projectEditorFilter}
                                         onChange={(event) =>
                                             setProjectEditorFilter(
                                                 event.target.value
@@ -4658,7 +5026,7 @@ export default function CreatorDashboard({ user }) {
 
                                     <select
                                         className="dash-input"
-                                        value={projectTypeFilter}
+                                        aria-label="Content type" value={projectTypeFilter}
                                         onChange={(event) =>
                                             setProjectTypeFilter(
                                                 event.target.value
@@ -4681,7 +5049,7 @@ export default function CreatorDashboard({ user }) {
 
                                     <select
                                         className="dash-input"
-                                        value={projectSort}
+                                        aria-label="Sort projects" value={projectSort}
                                         onChange={(event) =>
                                             setProjectSort(
                                                 event.target.value
@@ -4701,246 +5069,84 @@ export default function CreatorDashboard({ user }) {
                                             Due date
                                         </option>
                                     </select>
+
                                 </div>
-
-                                <div className="full-project-table">
-                                    <div className="table-row table-head">
-                                        <span>
-                                            TITLE & FORMAT
-                                        </span>
-
-                                        <span>
-                                            TYPE
-                                        </span>
-
-                                        <span>
-                                            STATUS
-                                        </span>
-
-                                        <span>
-                                            ETA / VERSION
-                                        </span>
-
-                                        <span>
-                                            ACTION
-                                        </span>
+                                <div className="projects-list-heading" aria-hidden="true">
+                                    <span>Project</span><span>Creator</span><span>Editor</span><span>Status</span><span>Due Date</span><span>Updated</span><span>Actions</span>
+                                </div>
+                                {projectsLoading && <div className="projects-list-state" role="status"><span className="projects-loading-dot" />Loading projects…</div>}
+                                {!projectsLoading && projectsError && <div className="projects-list-state projects-list-error" role="alert">{projectsError}</div>}
+                                {!projectsLoading && !projectsError && filteredAndSortedProjects.length === 0 && (
+                                    <div className="projects-list-state">
+                                        <strong>{hasProjectFilters ? "No projects match these filters" : "No projects yet"}</strong>
+                                        <p>{hasProjectFilters ? "Try a different search or clear your filters." : "Your production work will appear here."}</p>
+                                        {hasProjectFilters ? <button type="button" className="btn-new-project-purple" onClick={clearProjectFilters}>Clear filters</button> : isCreator && <button type="button" className="btn-new-project-purple" onClick={() => setBriefModalOpen(true)}>+ New Project</button>}
                                     </div>
-
-                                    {projectsLoading && (
-                                        <p
-                                            className="text-link"
-                                            style={{
-                                                padding:
-                                                    "16px",
-                                            }}
-                                        >
-                                            Loading
-                                            projects…
-                                        </p>
-                                    )}
-
-                                    {!projectsLoading &&
-                                        projectsError && (
-                                            <p
-                                                className="brief-error-msg active"
-                                                style={{
-                                                    padding:
-                                                        "16px",
-                                                }}
-                                            >
-                                                {
-                                                    projectsError
-                                                }
-                                            </p>
-                                        )}
-
-                                    {!projectsLoading &&
-                                        !projectsError &&
-                                        filteredAndSortedProjects.length ===
-                                            0 && (
-                                            <p
-                                                className="text-link"
-                                                style={{
-                                                    padding:
-                                                        "16px",
-                                                }}
-                                            >
-                                                No projects match these filters.
-                                            </p>
-                                        )}
-
-                                    {!projectsLoading &&
-                                        !projectsError &&
-                                        filteredAndSortedProjects
-                                            .map(
-                                                (
-                                                    proj
-                                                ) => (
-                                                    <div
-                                                        className={`table-row project-table-row status-row-${normalizeProjectStatus(
-                                                            proj.status
-                                                        )
-                                                            .toLowerCase()
-                                                            .replaceAll(
-                                                                "_",
-                                                                "-"
-                                                            )}`}
-                                                        key={
-                                                            proj.id
-                                                        }
-                                                    >
-                                                        <div className="project-title-cell">
-                                                            <strong>
-                                                                {
-                                                                    proj.title
-                                                                }
-                                                            </strong>
-
-                                                            <small>
-                                                                {
-                                                                    proj.date
-                                                                }
-                                                            </small>
-                                                        </div>
-
-                                                        <span className="cell-type">
-                                                            {
-                                                                proj.type
-                                                            }
-                                                        </span>
-
-                                                        <div>
-                                                            <span
-                                                                className={`project-status status-${normalizeProjectStatus(
-                                                                    proj.status
-                                                                )
-                                                                    .toLowerCase()
-                                                                    .replaceAll(
-                                                                        "_",
-                                                                        "-"
-                                                                    )}`}
-                                                            >
-                                                                {displayStatus(
-                                                                    proj.status
-                                                                )}
-                                                            </span>
-                                                        </div>
-
-                                                        <span className="cell-eta">
-                                                            {
-                                                                proj.eta
-                                                            }
-                                                        </span>
-
-                                                        <div>
-                                                            <button
-                                                                type="button"
-                                                                className={`action-btn ${proj.status ===
-                                                                    "IN_REVIEW" ||
-                                                                    proj.status ===
-                                                                    "REVISION"
-                                                                    ? "active"
-                                                                    : ""
-                                                                    }`}
-                                                                onClick={() =>
-                                                                    openProjectDetails(
-                                                                        proj
-                                                                    )
-                                                                }
-                                                            >
-                                                                {proj.status ===
-                                                                    "IN_REVIEW"
-                                                                    ? "REVIEW CUT ↗"
-                                                                    : proj.status ===
-                                                                        "REVISION"
-                                                                        ? "VIEW REVISION ↗"
-                                                                        : proj.status ===
-                                                                          "APPROVED"
-                                                                            ? "VIEW PROJECT ↗"
-                                                                            : "VIEW BRIEF"}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            )}
-
-                                    {!projectsLoading &&
-                                        !projectsError &&
-                                        projectsHasMore && (
-                                            <div
-                                                style={{
-                                                    display:
-                                                        "flex",
-                                                    justifyContent:
-                                                        "center",
-                                                    padding:
-                                                        "18px 12px 4px",
-                                                }}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    className="action-btn active"
-                                                    onClick={
-                                                        loadMoreProjects
-                                                    }
-                                                    disabled={
-                                                        projectsLoadingMore
-                                                    }
-                                                >
-                                                    {projectsLoadingMore
-                                                        ? "LOADING…"
-                                                        : "LOAD MORE PROJECTS"}
+                                )}
+                                {!projectsLoading && !projectsError && filteredAndSortedProjects.map((proj) => {
+                                    const creatorName = proj.creator?.name || proj.creator?.email || "Creator";
+                                    const editors = proj.assignedEditors || [];
+                                    const statusClass = normalizeProjectStatus(proj.status).toLowerCase().replaceAll("_", "-");
+                                    return (
+                                        <article className="projects-list-row" key={proj.id} aria-label={proj.title} onClick={() => openProjectDetails(proj)}>
+                                            <div className="projects-list-identity">
+                                                <span className="project-thumbnail-img target-thumbnail-placeholder" aria-hidden="true">▶</span>
+                                                <div>
+                                                    <button type="button" className="projects-title-button" onClick={(event) => { event.stopPropagation(); openProjectDetails(proj); }}>{proj.title}</button>
+                                                    <span className="projects-secondary">{proj.type}</span>
+                                                    <span className="projects-secondary">{proj.date}{proj.eta ? ` · ${proj.eta}` : ""}</span>
+                                                </div>
+                                            </div>
+                                            <div className="projects-list-meta" data-label="Creator">
+                                                <span className="projects-person"><span className="person-avatar" aria-hidden="true">{creatorName.slice(0, 1).toUpperCase()}</span><span>{creatorName}</span></span>
+                                            </div>
+                                            <div className="projects-list-meta" data-label="Editor">
+                                                {editors.length ? editors.map((editor) => <span className="projects-person" key={editor.id}><span className="person-avatar" aria-hidden="true">{(editor.name || editor.email || "E").slice(0, 1).toUpperCase()}</span><span>{editor.name || editor.email}</span></span>) : <span className="projects-secondary">Unassigned</span>}
+                                            </div>
+                                            <div className="projects-list-meta" data-label="Status"><span className={`status-pill ${statusClass}`}>{displayStatus(proj.status)}</span></div>
+                                            <div className="projects-list-meta" data-label="Due Date">{proj.dueDate ? new Date(proj.dueDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : "No date"}</div>
+                                            <div className="projects-list-meta" data-label="Updated">{formatRelativeTime(proj.updatedAt)}</div>
+                                            <div className="projects-list-actions">
+                                                <button type="button" className="projects-detail-button" onClick={(event) => { event.stopPropagation(); openProjectDetails(proj); }}>
+                                                    {proj.status === "IN_REVIEW" ? "Review Cut ↗" : proj.status === "REVISION" ? "View Revision ↗" : proj.status === "APPROVED" ? "View Project ↗" : "View Brief"}
                                                 </button>
                                             </div>
-                                        )}
-                                </div>
-                            </div>
+                                        </article>
+                                    );
+                                })}
+                                {!projectsLoading && !projectsError && (
+                                    <footer className="projects-list-footer">
+                                        <span>{projects.length} {projects.length === 1 ? "project" : "projects"} loaded{hasProjectFilters ? " matching current filters" : ""}</span>
+                                        {projectsHasMore && <button type="button" className="btn-load-more" onClick={loadMoreProjects} disabled={projectsLoadingMore}>{projectsLoadingMore ? "Loading…" : "Load More Projects"}</button>}
+                                    </footer>
+                                )}
+                            </section>
                         </div>
                     </div>
-
                     {/* =========================================
                         VIEW 3: CREATORS
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel creators-view ${currentView ===
                             "creators"
                             ? "active"
                             : ""
                             }`}
                     >
                         <div className="panel-scroll-container">
-                            <div className="panel">
-                                <div className="panel-header">
-                                    <div>
-                                        <span className="status-tag">
-                                            EDITOR WORKSPACE
-                                        </span>
-
-                                        <h3>
-                                            ALL CREATORS
-                                        </h3>
-                                    </div>
-
-                                    <span className="graph-tag">
-                                        {creatorsLoading
-                                            ? "LOADING..."
-                                            : `${creators.length} CREATOR${creators.length ===
-                                                1
-                                                ? ""
-                                                : "S"
-                                            }`}
-                                    </span>
+                            <div className="panel creators-page">
+                                <header className="creators-page-header"><h1 className="page-title">Creators</h1><p>Manage creator workspaces and the people behind each production.</p></header>
+                                <p className="creators-summary-caption">Profiles available in this organization</p>
+                                <div className="creators-summary" aria-label="Loaded creator profiles">
+                                    {[["Creators", creators.length], ["Linked accounts", creators.filter((creator) => creator.userId).length], ["Email provided", creators.filter((creator) => creator.email).length]].map(([label, count]) => <div key={label}><span>{label}</span><strong>{creatorsLoading || creatorsError ? "—" : count}</strong></div>)}
                                 </div>
-
                                 {creatorsLoading && (
-                                    <p className="text-link">
-                                        Loading creators…
-                                    </p>
+                                    <div className="creators-state creators-loading" role="status"><div className="creators-skeleton" aria-hidden="true"><span /><span /><span /></div><p>Loading creator workspaces...</p></div>
                                 )}
 
                                 {!creatorsLoading &&
                                     creatorsError && (
-                                        <p className="brief-error-msg active">
+                                        <p className="brief-error-msg active creators-state" role="alert">
                                             {
                                                 creatorsError
                                             }
@@ -4951,11 +5157,7 @@ export default function CreatorDashboard({ user }) {
                                     !creatorsError &&
                                     creators.length ===
                                     0 && (
-                                        <p className="text-link">
-                                            No creators have
-                                            been added to this
-                                            organization yet.
-                                        </p>
+                                        <div className="creators-state"><strong>No creators yet</strong><p>Creator workspaces will appear here when profiles are added to this organization.</p></div>
                                     )}
 
                                 {!creatorsLoading &&
@@ -4973,6 +5175,7 @@ export default function CreatorDashboard({ user }) {
                                                             creator.id
                                                         }
                                                     >
+                                                        <span className="person-avatar creator-profile-avatar" aria-hidden="true">{(creator.name || creator.email || "C").slice(0, 1).toUpperCase()}</span>
                                                         <div className="project-info">
                                                             <strong>
                                                                 {
@@ -4986,9 +5189,7 @@ export default function CreatorDashboard({ user }) {
                                                             </small>
                                                         </div>
 
-                                                        <div className="project-status completed">
-                                                            ACTIVE
-                                                        </div>
+                                                        <div className="creator-profile-meta"><span>Profile added</span><strong>{creator.createdAt ? new Date(creator.createdAt).toLocaleDateString() : "Date unavailable"}</strong></div>
 
                                                         <button
                                                             type="button"
@@ -5011,8 +5212,7 @@ export default function CreatorDashboard({ user }) {
                                                                 );
                                                             }}
                                                         >
-                                                            OPEN
-                                                            WORKSPACE
+                                                            Open workspace
                                                             ↗
                                                         </button>
                                                     </div>
@@ -5028,23 +5228,23 @@ export default function CreatorDashboard({ user }) {
                         VIEW 4: CREATOR WORKSPACE
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel creator-workspace-view ${currentView ===
                             "creator-workspace"
                             ? "active"
                             : ""
                             }`}
                     >
                         <div className="panel-scroll-container">
-                            <div className="panel">
+                            <div className="panel creator-workspace-page">
                                 <div className="panel-header">
                                     <div>
                                         <span className="status-tag">
                                             CREATOR WORKSPACE
                                         </span>
 
-                                        <h3>
+                                        <h3 className="creator-workspace-title page-title"><span className="person-avatar creator-profile-avatar" aria-hidden="true">{(selectedCreator?.name || "C").slice(0, 1).toUpperCase()}</span>
                                             {selectedCreator
-                                                ? selectedCreator.name.toUpperCase()
+                                                ? selectedCreator.name
                                                 : "CREATOR WORKSPACE"}
                                         </h3>
                                     </div>
@@ -5066,8 +5266,7 @@ export default function CreatorDashboard({ user }) {
                                             );
                                         }}
                                     >
-                                        ← BACK TO
-                                        CREATORS
+                                        ← Back to Creators
                                     </button>
                                 </div>
 
@@ -5078,7 +5277,7 @@ export default function CreatorDashboard({ user }) {
                                     </p>
                                 ) : (
                                     <>
-                                        <div className="metrics-grid creator-summary-grid">
+                                        <div className="metrics-grid creator-summary-grid" aria-busy={projectsLoading}>
                                             <div className="metric-card">
                                                 <span className="metric-label">
                                                     CREATOR
@@ -5179,7 +5378,7 @@ export default function CreatorDashboard({ user }) {
                                         {isEditor &&
                                             canManageCreatorAssignments && (
                                                 <div
-                                                    className="panel"
+                                                    className="panel creator-assignment-panel"
                                                     style={{
                                                         marginBottom:
                                                             "20px",
@@ -5193,9 +5392,7 @@ export default function CreatorDashboard({ user }) {
                                                             </span>
 
                                                             <h3>
-                                                                ASSIGN
-                                                                ENTIRE
-                                                                CREATOR
+                                                                Creator-wide access
                                                             </h3>
                                                         </div>
 
@@ -5253,7 +5450,7 @@ export default function CreatorDashboard({ user }) {
                                                                                 assignment.assignmentId
                                                                             }
                                                                         >
-                                                                            <div className="project-info">
+                                                                            <span className="person-avatar" aria-hidden="true">{(assignment.user?.name || assignment.user?.email || "E").slice(0, 1).toUpperCase()}</span><div className="project-info">
                                                                                 <strong>
                                                                                     {assignment
                                                                                         .user
@@ -5279,7 +5476,7 @@ export default function CreatorDashboard({ user }) {
 
                                                                             <button
                                                                                 type="button"
-                                                                                className="action-btn"
+                                                                                className="action-btn creator-remove-action"
                                                                                 disabled={
                                                                                     creatorAssignmentUpdatingUserId ===
                                                                                     assignment
@@ -5329,8 +5526,7 @@ export default function CreatorDashboard({ user }) {
                                                     >
                                                         <div className="panel-header">
                                                             <h3>
-                                                                AVAILABLE
-                                                                EDITORS
+                                                                Available editors
                                                             </h3>
 
                                                             <span className="graph-tag">
@@ -5369,7 +5565,7 @@ export default function CreatorDashboard({ user }) {
                                                                                     editor.id
                                                                                 }
                                                                             >
-                                                                                <div className="project-info">
+                                                                                <span className="person-avatar" aria-hidden="true">{(editor.name || editor.email || "E").slice(0, 1).toUpperCase()}</span><div className="project-info">
                                                                                     <strong>
                                                                                         {editor.name ||
                                                                                             editor.email ||
@@ -5410,12 +5606,10 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
                                             )}
 
-                                        <div className="panel">
+                                        <div className="panel creator-projects-panel">
                                             <div className="panel-header">
                                                 <h3>
-                                                    CREATOR
-                                                    PROJECT
-                                                    QUEUE
+                                                    Creator projects
                                                 </h3>
 
                                                 <span className="graph-tag">
@@ -5521,21 +5715,19 @@ export default function CreatorDashboard({ user }) {
                                                                     </div>
 
                                                                     <div
-                                                                        className={`project-status ${project.status}`}
+                                                                        className={`status-pill ${normalizeProjectStatus(project.status).toLowerCase().replaceAll("_", "-")}`}
                                                                     >
                                                                         {displayStatus(
                                                                             project.status
                                                                         )}
                                                                     </div>
 
-                                                                    <div className="project-eta">
-                                                                        {project.status ===
-                                                                            "IN_REVIEW" ||
-                                                                            project.status ===
-                                                                            "REVISION"
-                                                                            ? "REVIEW CUT ↗"
-                                                                            : project.eta}
+                                                                    <div className="creator-project-meta">
+                                                                        <span>Editors: {project.assignedEditors?.map((editor) => editor.name || editor.email).join(", ") || "Unassigned"}</span>
+                                                                        <span>Due {project.dueDate ? new Date(project.dueDate).toLocaleDateString() : "date not set"}</span>
+                                                                        <span>Updated {formatRelativeTime(project.updatedAt)}</span>
                                                                     </div>
+                                                                    <span className="creator-project-open">Open project &rarr;</span>
                                                                 </div>
                                                             )
                                                         )}
@@ -5552,21 +5744,21 @@ export default function CreatorDashboard({ user }) {
                         VIEW 5: PROJECT DETAILS / REVIEW
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel project-detail-view ${currentView ===
                             "project-details"
                             ? "active"
                             : ""
                             }`}
                     >
                         <div className="panel-scroll-container">
-                            <div className="panel">
+                            <div className="panel detail-page">
                                 <div className="panel-header">
                                     <div>
                                         <span className="status-tag">
                                             PROJECT DETAILS
                                         </span>
 
-                                        <h3>
+                                        <h3 className="page-title">
                                             {selectedProject
                                                 ?.content
                                                 ?.title ||
@@ -5575,6 +5767,7 @@ export default function CreatorDashboard({ user }) {
                                     </div>
 
                                     <div
+                                        className="detail-header-actions"
                                         style={{
                                             display: "flex",
                                             alignItems: "center",
@@ -5583,53 +5776,9 @@ export default function CreatorDashboard({ user }) {
                                             justifyContent: "flex-end",
                                         }}
                                     >
-                                        {canEditProjectDetails &&
-                                            selectedProject && (
-                                                <button
-                                                    type="button"
-                                                    className="action-btn"
-                                                    onClick={
-                                                        projectEditing
-                                                            ? cancelProjectEditing
-                                                            : startProjectEditing
-                                                    }
-                                                    disabled={
-                                                        projectEditSaving
-                                                    }
-                                                >
-                                                    {projectEditing
-                                                        ? "CANCEL EDIT"
-                                                        : "EDIT PROJECT"}
-                                                </button>
-                                            )}
-
-                                        {canDeleteProject &&
-                                            selectedProject && (
-                                                <button
-                                                    type="button"
-                                                    className="action-btn"
-                                                    onClick={
-                                                        deleteProject
-                                                    }
-                                                    disabled={
-                                                        projectDeleting
-                                                    }
-                                                    style={{
-                                                        borderColor:
-                                                            "var(--red)",
-                                                        color:
-                                                            "var(--red)",
-                                                    }}
-                                                >
-                                                    {projectDeleting
-                                                        ? "DELETING..."
-                                                        : "DELETE PROJECT"}
-                                                </button>
-                                            )}
-
                                         <button
                                             type="button"
-                                            className="action-btn"
+                                            className="action-btn detail-back-action"
                                             onClick={() => {
                                                 setProjectEditing(false);
                                                 setProjectEditError(null);
@@ -5658,11 +5807,65 @@ export default function CreatorDashboard({ user }) {
                                                 }
                                             }}
                                         >
-                                            ← BACK
+                                            ← Back to Projects
                                         </button>
+                                        {canEditProjectDetails &&
+                                            selectedProject && (
+                                                <button
+                                                    type="button"
+                                                    className="action-btn detail-edit-action"
+                                                    onClick={
+                                                        projectEditing
+                                                            ? cancelProjectEditing
+                                                            : startProjectEditing
+                                                    }
+                                                    disabled={
+                                                        projectEditSaving
+                                                    }
+                                                >
+                                                    {projectEditing
+                                                        ? "Cancel Edit"
+                                                        : "Edit Project"}
+                                                </button>
+                                            )}
+
+                                        {canDeleteProject &&
+                                            selectedProject && (
+                                                <button
+                                                    type="button"
+                                                    className="action-btn detail-delete-action"
+                                                    onClick={
+                                                        deleteProject
+                                                    }
+                                                    disabled={
+                                                        projectDeleting
+                                                    }
+                                                    style={{
+                                                        borderColor:
+                                                            "var(--red)",
+                                                        color:
+                                                            "var(--red)",
+                                                    }}
+                                                >
+                                                    {projectDeleting
+                                                        ? "DELETING..."
+                                                        : "Delete Project"}
+                                                </button>
+                                            )}
+
+
                                     </div>
                                 </div>
 
+                                {selectedProject && !projectDetailsLoading && (
+                                    <div className="detail-header-meta">
+                                        <span>{selectedProject.content.contentType}</span>
+                                        <span>{selectedProject.project?.creator?.name || selectedProject.project?.creator?.email || "Unassigned creator"}</span>
+                                        <span className={`status-pill ${currentProjectStatus.toLowerCase().replaceAll("_", "-")}`}>{currentProjectStatus.replaceAll("_", " ")}</span>
+                                        <span>Due {selectedProject.content.dueDate ? new Date(selectedProject.content.dueDate).toLocaleDateString() : "date not set"}</span>
+                                        <span>Editors: {(projects.find((project) => project.id === selectedProject.content.id)?.assignedEditors || []).map((editor) => editor.name || editor.email).join(", ") || "Unassigned"}</span>
+                                    </div>
+                                )}
                                 {projectDetailsLoading && (
                                     <p className="text-link">
                                         Loading project
@@ -5683,109 +5886,45 @@ export default function CreatorDashboard({ user }) {
                                     !projectDetailsError &&
                                     selectedProject && (
                                         <>
-                                            {/* PROJECT INFORMATION */}
-                                            <div className="metrics-grid">
-                                                <div className="metric-card">
-                                                    <span className="metric-label">
-                                                        CONTENT TYPE
-                                                    </span>
-
-                                                    <strong className="metric-value">
-                                                        {selectedProject
-                                                            .content
-                                                            ?.contentType ||
-                                                            "—"}
-                                                    </strong>
-
-                                                    <span className="metric-delta">
-                                                        {selectedProject
-                                                            .content
-                                                            ?.title ||
-                                                            ""}
-                                                    </span>
-                                                </div>
-
-                                                <div className="metric-card">
-                                                    <span className="metric-label">
-                                                        CREATOR
-                                                    </span>
-
-                                                    <strong className="metric-value">
-                                                        {selectedProject
-                                                            .project
-                                                            ?.creator
-                                                            ?.name ||
-                                                            "Unassigned"}
-                                                    </strong>
-
-                                                    <span className="metric-delta">
-                                                        {selectedProject
-                                                            .project
-                                                            ?.creator
-                                                            ?.email ||
-                                                            ""}
-                                                    </span>
-                                                </div>
-
-                                                <div className="metric-card">
-                                                    <span className="metric-label">
-                                                        CURRENT
-                                                        STATUS
-                                                    </span>
-
-                                                    <strong
-                                                        className={`project-status ${selectedProject
-                                                            .content
-                                                            ?.status?.toLowerCase() ||
-                                                            ""
-                                                            }`}
-                                                    >
-                                                        {displayStatus(
-                                                            selectedProject
-                                                                .content
-                                                                ?.status
-                                                        )}
-                                                    </strong>
-
-                                                    <span className="metric-delta">
-                                                        Last updated{" "}
-                                                        {selectedProject
-                                                            .content
-                                                            ?.updatedAt
-                                                            ? new Date(
-                                                                selectedProject
-                                                                    .content
-                                                                    .updatedAt
-                                                            ).toLocaleDateString()
-                                                            : "—"}
-                                                    </span>
-                                                </div>
-
-                                                <div className="metric-card">
-                                                    <span className="metric-label">
-                                                        SUBMITTED
-                                                    </span>
-
-                                                    <strong className="metric-value">
-                                                        {selectedProject
-                                                            .content
-                                                            ?.createdAt
-                                                            ? new Date(
-                                                                selectedProject
-                                                                    .content
-                                                                    .createdAt
-                                                            ).toLocaleDateString()
-                                                            : "—"}
-                                                    </strong>
-
-                                                    <span className="metric-delta">
-                                                        Nexus
-                                                        production
-                                                        queue
-                                                    </span>
-                                                </div>
+                                            <section className="detail-progress" aria-label="Production progress">
+                                                <div className="detail-section-heading"><h3>Production progress</h3><span className={`status-pill ${currentProjectStatus.toLowerCase().replaceAll("_", "-")}`}>{currentProjectStatus.replaceAll("_", " ")}</span></div>
+                                                <ol>
+                                                    {["REQUESTED", "IN_PRODUCTION", "IN_REVIEW", "REVISION", "APPROVED"].map((status, index) => {
+                                                        const stages = ["REQUESTED", "IN_PRODUCTION", "IN_REVIEW", "REVISION", "APPROVED"];
+                                                        const isCurrent = currentProjectStatus === status;
+                                                        // Revision is a loop, not a required completed stage on approval.
+                                                        const completed = status !== "REVISION" && !isCurrent && stages.indexOf(currentProjectStatus) > index;
+                                                        return <li key={status} className={isCurrent ? "is-current" : completed ? "is-complete" : ""} aria-current={isCurrent ? "step" : undefined}>
+                                                            <span aria-hidden="true">{completed ? "✓" : index + 1}</span><strong>{status.replaceAll("_", " ")}</strong>
+                                                            <small>{isCurrent ? "Current stage" : completed ? "Completed" : status === "REVISION" ? "If requested" : ""}</small>
+                                                        </li>;
+                                                    })}
+                                                </ol>
+                                                <p>Revisions return to production and review. Approval completes Nexus production.</p>
+                                            </section>
+                                            <div className="detail-overview-grid">
+                                                <section className="panel detail-information">
+                                                    <div className="panel-header"><h3>Project information</h3></div>
+                                                    <h4>{selectedProject.content.title}</h4>
+                                                    <p className="detail-description">{selectedProject.content.description || "No description provided."}</p>
+                                                    <dl className="detail-facts">
+                                                        <div><dt>Content type</dt><dd>{selectedProject.content.contentType || "—"}</dd></div>
+                                                        <div><dt>Due date</dt><dd>{selectedProject.content.dueDate ? new Date(selectedProject.content.dueDate).toLocaleDateString() : "No due date"}</dd></div>
+                                                        <div><dt>Submitted</dt><dd>{selectedProject.content.createdAt ? new Date(selectedProject.content.createdAt).toLocaleDateString() : "—"}</dd></div>
+                                                        <div><dt>Updated</dt><dd>{formatRelativeTime(selectedProject.content.updatedAt)}</dd></div>
+                                                    </dl>
+                                                    {selectedProject.content.footageLink ? <a className="asset-action" href={selectedProject.content.footageLink} target="_blank" rel="noopener noreferrer">Open footage folder ↗</a> : <p className="text-link">No footage folder linked.</p>}
+                                                </section>
+                                                <aside className="panel detail-people">
+                                                    <div className="panel-header"><h3>People</h3></div>
+                                                    <span className="detail-person-label">Creator</span>
+                                                    <strong>{selectedProject.project?.creator?.name || selectedProject.project?.creator?.email || "Unassigned"}</strong>
+                                                    <small>{selectedProject.project?.creator?.email}</small>
+                                                    <span className="detail-person-label">Assigned editors</span>
+                                                    {(projects.find((project) => project.id === selectedProject.content.id)?.assignedEditors || []).map((editor) => <div className="detail-person projects-person" key={editor.id}><span className="person-avatar" aria-hidden="true">{(editor.name || editor.email || "E").slice(0, 1).toUpperCase()}</span><span>{editor.name || editor.email}</span></div>)}
+                                                    {!(projects.find((project) => project.id === selectedProject.content.id)?.assignedEditors?.length) && <p className="text-link">No editors listed.</p>}
+                                                </aside>
                                             </div>
-
                                             {projectEditing && (
                                                 <div
                                                     className="panel"
@@ -6017,15 +6156,7 @@ export default function CreatorDashboard({ user }) {
                                             >
                                                 <div className="panel-header">
                                                     <div>
-                                                        <span className="status-tag">
-                                                            PRODUCTION
-                                                            TASKS
-                                                        </span>
-
-                                                        <h3>
-                                                            PROJECT
-                                                            TASKS
-                                                        </h3>
+                                                        <h3>Production Tasks</h3>
                                                     </div>
 
                                                     <span className="graph-tag">
@@ -6073,15 +6204,7 @@ export default function CreatorDashboard({ user }) {
                                                             }}
                                                         >
                                                             <div className="panel-header">
-                                                                <h3>
-                                                                    CREATE
-                                                                    TASK
-                                                                </h3>
-
-                                                                <span className="graph-tag">
-                                                                    MANAGER
-                                                                    CONTROL
-                                                                </span>
+                                                                <div><h3>New task</h3><p className="detail-task-help">Add a production step and assign it to your team.</p></div>
                                                             </div>
 
                                                             <div className="form-row">
@@ -6304,7 +6427,7 @@ export default function CreatorDashboard({ user }) {
                                                             >
                                                                 {taskCreating
                                                                     ? "CREATING…"
-                                                                    : "+ CREATE TASK"}
+                                                                    : "+ Create Task"}
                                                             </button>
                                                         </form>
                                                     )}
@@ -6395,6 +6518,10 @@ export default function CreatorDashboard({ user }) {
                                                                                             task.title
                                                                                         }
                                                                                     </strong>
+                                                                                    <div className="detail-task-meta">
+                                                                                        {task.assignedTo && <span>Assigned to {task.assignedTo.name || task.assignedTo.email}</span>}
+                                                                                        {task.dueDate && <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>}
+                                                                                    </div>
                                                                                 </div>
 
                                                                                 <div className="task-completed-controls">
@@ -6464,6 +6591,7 @@ export default function CreatorDashboard({ user }) {
                                                                                 </span>
                                                                             </div>
 
+                                                                            <div className="detail-task-meta">{task.assignedTo && <span>Assigned to {task.assignedTo.name || task.assignedTo.email}</span>}{task.dueDate && <span>Due {new Date(task.dueDate).toLocaleDateString()}</span>}</div>
                                                                             <div className="form-row">
                                                                                 <div className="form-field">
                                                                                     <label>
@@ -7200,163 +7328,24 @@ export default function CreatorDashboard({ user }) {
                                                 )}
                                             </div>
 
-                                            {/* PRODUCTION WORKFLOW */}
-                                            <div
-                                                className="panel"
-                                                style={{
-                                                    marginTop:
-                                                        "20px",
-                                                }}
-                                            >
-                                                <div className="panel-header">
-                                                    <h3>
-                                                        PRODUCTION
-                                                        WORKFLOW
-                                                    </h3>
-
-                                                    <span className="graph-tag">
-                                                        {displayStatus(
-                                                            selectedProject
-                                                                .content
-                                                                ?.status
-                                                        )}
-                                                    </span>
+                                            <section className="panel detail-files">
+                                                <div className="panel-header"><div><span className="status-tag">PROJECT FILES</span><h3>Assets &amp; versions</h3></div>
+                                                    <button type="button" className="action-btn" onClick={() => { setAssetUploadContentId(selectedProject.content.id); setCurrentView("assets"); }}>Manage / upload files ↗</button>
                                                 </div>
-
-                                                <div
-                                                    style={{
-                                                        display:
-                                                            "grid",
-                                                        gap: "10px",
-                                                    }}
-                                                >
-                                                    {[
-                                                        [
-                                                            "REQUESTED",
-                                                            "REQUEST RECEIVED",
-                                                        ],
-                                                        [
-                                                            "IN_PRODUCTION",
-                                                            "IN PRODUCTION",
-                                                        ],
-                                                        [
-                                                            "IN_REVIEW",
-                                                            "IN REVIEW",
-                                                        ],
-                                                        [
-                                                            "REVISION",
-                                                            "REVISION",
-                                                        ],
-                                                        [
-                                                            "APPROVED",
-                                                            "APPROVED",
-                                                        ],
-                                                    ].map(
-                                                        (
-                                                            [
-                                                                status,
-                                                                label,
-                                                            ],
-                                                            index
-                                                        ) => {
-                                                            const current =
-                                                                normalizeProjectStatus(
-                                                                    selectedProject
-                                                                        .content
-                                                                        ?.status
-                                                                );
-
-                                                            const statusOrder =
-                                                                [
-                                                                    "REQUESTED",
-                                                                    "IN_PRODUCTION",
-                                                                    "IN_REVIEW",
-                                                                    "REVISION",
-                                                                    "APPROVED",
-                                                                ];
-
-                                                            const currentIndex =
-                                                                statusOrder.indexOf(
-                                                                    current
-                                                                );
-
-                                                            const statusIndex =
-                                                                statusOrder.indexOf(
-                                                                    status
-                                                                );
-
-                                                            const completed =
-                                                                statusIndex <=
-                                                                currentIndex &&
-                                                                current !==
-                                                                "REVISION";
-
-                                                            const isCurrent =
-                                                                current ===
-                                                                status;
-
-                                                            return (
-                                                                <div
-                                                                    key={
-                                                                        status
-                                                                    }
-                                                                    style={{
-                                                                        display:
-                                                                            "flex",
-                                                                        alignItems:
-                                                                            "center",
-                                                                        gap: "12px",
-                                                                        padding:
-                                                                            "10px 14px",
-                                                                        border:
-                                                                            "1px solid var(--line)",
-                                                                        borderRadius:
-                                                                            "8px",
-                                                                        opacity:
-                                                                            completed ||
-                                                                                isCurrent
-                                                                                ? 1
-                                                                                : 0.45,
-                                                                    }}
-                                                                >
-                                                                    <span
-                                                                        style={{
-                                                                            fontWeight:
-                                                                                700,
-                                                                            minWidth:
-                                                                                "28px",
-                                                                        }}
-                                                                    >
-                                                                        {completed
-                                                                            ? "✓"
-                                                                            : index +
-                                                                            1}
-                                                                    </span>
-
-                                                                    <strong>
-                                                                        {
-                                                                            label
-                                                                        }
-                                                                    </strong>
-
-                                                                    {isCurrent && (
-                                                                        <span
-                                                                            className="graph-tag"
-                                                                            style={{
-                                                                                marginLeft:
-                                                                                    "auto",
-                                                                            }}
-                                                                        >
-                                                                            CURRENT
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        }
-                                                    )}
-                                                </div>
-                                            </div>
-
+                                                <p className="text-link">Upload, replace versions, and manage files in the Asset Vault. Review links below stay bound to their reviewed version.</p>
+                                                {(selectedProject.assets || []).length === 0 && <p className="detail-empty">No files have been added to this project.</p>}
+                                                {(selectedProject.assets || []).map((asset) => {
+                                                    const loadedAsset = assets.find((item) => item.id === asset.id);
+                                                    return <div className="detail-file" key={asset.id}>
+                                                        <div><strong>{asset.fileName}</strong><small>{asset.assetType} · {formatAssetSize(asset.fileSize)} · {formatRelativeTime(asset.createdAt)}{loadedAsset?.latestVersion ? ` · Latest v${loadedAsset.latestVersion}` : ""}</small></div>
+                                                        <div className="detail-file-actions">
+                                                            {asset.assetType === "VIDEO" && <a className="asset-action" href={`/api/assets/${encodeURIComponent(asset.id)}/download?mode=inline`} target="_blank" rel="noopener noreferrer">Open / stream</a>}
+                                                            <a className="asset-action" href={`/api/assets/${encodeURIComponent(asset.id)}/download?mode=attachment`}>Download</a>
+                                                        </div>
+                                                        {!!loadedAsset?.versions?.length && <details className="detail-file-versions"><summary>Version history ({loadedAsset.versions.length})</summary>{loadedAsset.versions.map((version) => <div key={version.id || version.version}><span>v{version.version} · {version.fileName} · {formatRelativeTime(version.createdAt)}</span><a className="asset-action" href={`/api/assets/${encodeURIComponent(asset.id)}/download?version=${encodeURIComponent(version.version)}&mode=attachment`}>Download v{version.version}</a></div>)}</details>}
+                                                    </div>;
+                                                })}
+                                            </section>
                                             {/* PRODUCTION ACTIONS */}
                                             {isEditor && (
                                                 <div
@@ -7467,7 +7456,7 @@ export default function CreatorDashboard({ user }) {
                                             {currentProjectStatus ===
                                                 "APPROVED" && (
                                                 <div
-                                                    className="panel review-panel"
+                                                    className="panel review-panel detail-final-delivery"
                                                     style={{
                                                         marginBottom:
                                                             "20px",
@@ -7490,6 +7479,8 @@ export default function CreatorDashboard({ user }) {
                                                             COMPLETE
                                                         </span>
                                                     </div>
+
+                                                    <p className="detail-delivery-complete">Final cut approved. Nexus production is complete.</p>
 
                                                     {approvedAssetVersion ? (
                                                         <>
@@ -7611,7 +7602,7 @@ export default function CreatorDashboard({ user }) {
                                                         </>
                                                     ) : (
                                                         <div
-                                                            className="review-history-card"
+                                                            className="review-history-card detail-approved-project"
                                                             style={{
                                                                 marginBottom:
                                                                     "16px",
@@ -8150,7 +8141,7 @@ export default function CreatorDashboard({ user }) {
                                                                                             key={
                                                                                                 comment.id
                                                                                             }
-                                                                                            className="review-comment-card"
+                                                                                            className={`review-comment-card ${comment.resolvedAt ? "is-resolved" : "is-unresolved"}`}
                                                                                             style={{
                                                                                                 opacity:
                                                                                                     comment.resolved
@@ -8159,6 +8150,7 @@ export default function CreatorDashboard({ user }) {
                                                                                             }}
                                                                                         >
                                                                                             <div className="review-comment-top">
+                                                                                                <span className="graph-tag">{comment.resolvedAt ? "Resolved" : "Unresolved"}</span>
                                                                                                 <strong>
                                                                                                     {comment
                                                                                                         .author
@@ -8419,7 +8411,7 @@ export default function CreatorDashboard({ user }) {
                                                     </p>
                                                 )}
 
-                                                {pendingReview?.assetVersion && (
+                                                {pendingReview && (
                                                     <div
                                                         className="review-history-card"
                                                         style={{
@@ -8427,19 +8419,9 @@ export default function CreatorDashboard({ user }) {
                                                                 "16px",
                                                         }}
                                                     >
-                                                        <div className="review-history-top">
-                                                            <strong>
-                                                                CURRENT REVIEW CUT
-                                                            </strong>
-                                                            <span className="graph-tag">
-                                                                v{
-                                                                    pendingReview
-                                                                        .assetVersion
-                                                                        .version
-                                                                }
-                                                            </span>
-                                                        </div>
-
+                                                        <div className="review-history-top"><strong>Current review</strong><span className="status-pill">{pendingReview.status.replaceAll("_", " ")}</span></div>
+                                                        <dl className="detail-review-meta"><div><dt>Reviewed version</dt><dd>{pendingReview.assetVersion ? `Version ${pendingReview.assetVersion.version}` : "Legacy review - no asset version attached"}</dd></div><div><dt>Submitted by</dt><dd>{pendingReview.author?.name || pendingReview.author?.email || "Unknown user"}</dd></div><div><dt>Submitted time</dt><dd>{new Date(pendingReview.createdAt).toLocaleString()}</dd></div></dl>
+                                                        {pendingReview.assetVersion && <>
                                                         <p
                                                             style={{
                                                                 marginTop:
@@ -8487,6 +8469,7 @@ export default function CreatorDashboard({ user }) {
                                                                 ? "OPEN REVIEW CUT"
                                                                 : "DOWNLOAD REVIEW VERSION"}
                                                         </a>
+                                                        </>}
                                                     </div>
                                                 )}
 
@@ -8624,12 +8607,12 @@ export default function CreatorDashboard({ user }) {
                                                                 >
                                                                     {projectStatusUpdating
                                                                         ? "UPDATING…"
-                                                                        : "✓ APPROVE CUT"}
+                                                                        : "✓ Approve Cut"}
                                                                 </button>
 
                                                                 <button
                                                                     type="button"
-                                                                    className="action-btn active"
+                                                                    className="action-btn detail-revision-action"
                                                                     disabled={
                                                                         projectStatusUpdating ||
                                                                         !reviewNote.trim()
@@ -8641,8 +8624,7 @@ export default function CreatorDashboard({ user }) {
                                                                         )
                                                                     }
                                                                 >
-                                                                    ↻ REQUEST
-                                                                    REVISION
+                                                                    ↻ Request Revision
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -8696,39 +8678,37 @@ export default function CreatorDashboard({ user }) {
                         VIEW 6: ASSET VAULT
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView === "assets"
+                        className={`view-panel assets-view ${currentView === "assets"
                             ? "active"
                             : ""
                             }`}
                     >
+                        <dialog ref={assetDeleteDialogRef} className="vault-delete-dialog" aria-labelledby="vault-delete-title" aria-describedby="vault-delete-description" onCancel={() => { if (assetDeleteDialogRef.current) assetDeleteDialogRef.current.returnValue = "cancel"; }} onClose={() => {
+                            assetDeleteResolveRef.current?.(assetDeleteDialogRef.current?.returnValue === "delete");
+                            assetDeleteResolveRef.current = null;
+                            setAssetDeletePrompt(null);
+                        }}>
+                            <h2 id="vault-delete-title">Delete asset?</h2>
+                            <p id="vault-delete-description">Delete <strong>{assetDeletePrompt?.fileName}</strong>? This permanently removes this asset and all its versions from storage and Nexus.</p>
+                            <form method="dialog"><button className="asset-action" value="cancel" autoFocus>Cancel</button><button className="asset-action vault-delete" value="delete">Delete asset</button></form>
+                        </dialog>
                         <div className="panel-scroll-container">
                             <div className="panel asset-vault-panel">
-                                <div className="panel-header asset-vault-header">
-                                    <div>
-                                        <span className="status-tag">
-                                            CLOUDFLARE R2
-                                        </span>
-
-                                        <h3>
-                                            CREATOR ASSET VAULT
-                                        </h3>
-                                    </div>
-
-                                    <input
-                                        type="text"
-                                        className="dash-input asset-search-input"
-                                        placeholder="Search assets..."
-                                        value={
-                                            assetSearch
-                                        }
-                                        onChange={(e) =>
-                                            setAssetSearch(
-                                                e.target.value
-                                            )
-                                        }
-                                    />
+                                <header className="asset-vault-header">
+                                    <div><h1 className="page-title">Assets</h1><p>Manage project deliverables, revisions, and supporting files.</p></div>
+                                    <button type="button" className="asset-action vault-primary" disabled={assetUploading || !projects.length} onClick={() => document.getElementById("assetUploadProject")?.focus()}>+ Upload Asset</button>
+                                </header>
+                                <p className="vault-summary-caption">{assetSearch.trim() ? "Summary of matching assets" : "Summary of loaded assets"}</p>
+                                <div className="vault-summary" aria-label="Asset summary">
+                                    {[
+                                        ["Assets", assets.length],
+                                        ["Video", assets.filter((asset) => asset.assetType === "VIDEO").length],
+                                        ["Images", assets.filter((asset) => asset.assetType === "IMAGE").length],
+                                        ["Audio", assets.filter((asset) => asset.assetType === "AUDIO").length],
+                                        ["Documents / Other", assets.filter((asset) => !["VIDEO", "IMAGE", "AUDIO"].includes(asset.assetType)).length],
+                                        ["Projects with assets", new Set(assets.map((asset) => asset.contentId).filter(Boolean)).size],
+                                    ].map(([label, count]) => <div className="vault-summary-item" key={label}><span>{label}</span><strong>{assetsLoading || assetsError ? "—" : count}</strong></div>)}
                                 </div>
-
                                 <div className="asset-vault-surface">
                                     <form
                                         onSubmit={uploadAsset}
@@ -8737,15 +8717,15 @@ export default function CreatorDashboard({ user }) {
                                     <div className="asset-upload-card-header">
                                         <div>
                                             <span className="asset-upload-kicker">
-                                                PRIVATE STORAGE
+                                                NEW FILE
                                             </span>
                                             <strong>
-                                                UPLOAD NEW ASSET
+                                                Upload a new asset
                                             </strong>
                                         </div>
 
                                         <span className="asset-upload-limit">
-                                            MAX 5 GiB
+                                            Up to 5 GiB
                                         </span>
                                     </div>
 
@@ -8897,14 +8877,11 @@ export default function CreatorDashboard({ user }) {
 
                                     <div className="asset-upload-footer">
                                         <span>
-                                            Files upload directly
-                                            from your browser to
-                                            private Cloudflare R2.
+                                            Create a separate asset for this project.
                                         </span>
 
                                         <span>
-                                            Deliverables and
-                                            supporting files only
+                                            To revise an existing file, use its New Version action.
                                         </span>
                                     </div>
                                 </form>
@@ -8915,18 +8892,21 @@ export default function CreatorDashboard({ user }) {
                                         </p>
                                     )}
 
+                                    <div className="vault-toolbar">
+                                        <label className="vault-search"><span>Search assets</span><input type="search" className="dash-input asset-search-input" placeholder="Search filenames..." value={assetSearch} onChange={(event) => setAssetSearch(event.target.value)} /></label>
+                                        {assetSearch && <button type="button" className="asset-action" onClick={() => setAssetSearch("")}>Clear search</button>}
+                                        <span className="vault-result-count" role="status">{assetsLoading ? "Loading assets..." : assetsError ? "Assets unavailable" : `${assets.length} ${assets.length === 1 ? "asset" : "assets"}${assetSearch.trim() ? " found" : " loaded"}`}</span>
+                                    </div>
                                     <div className="asset-grid">
                                     {assetsLoading ? (
-                                        <div className="asset-state-card">
-                                            <span className="asset-state-icon">
-                                                ◌
-                                            </span>
+                                        <div className="asset-state-card vault-loading" role="status">
+                                            <div className="vault-skeleton" aria-hidden="true"><span /><span /><span /></div>
                                             <strong>
-                                                LOADING ASSETS...
+                                                Loading your assets...
                                             </strong>
                                         </div>
                                     ) : assetsError ? (
-                                        <div className="asset-state-card asset-state-error">
+                                        <div className="asset-state-card asset-state-error" role="alert">
                                             <p>
                                                 {
                                                     assetsError
@@ -8948,15 +8928,13 @@ export default function CreatorDashboard({ user }) {
                                     ) : assets.length ===
                                       0 ? (
                                         <div className="asset-empty-state">
-                                            <div className="asset-empty-icon">
-                                                📁
-                                            </div>
+                                            <div className="asset-empty-icon" aria-hidden="true">&#9633;</div>
 
                                             <div>
                                                 <strong>
                                                     {assetSearch.trim()
-                                                        ? "NO ASSETS FOUND"
-                                                        : "ASSET VAULT EMPTY"}
+                                                        ? "No matching assets"
+                                                        : "Your asset vault is ready"}
                                                 </strong>
 
                                                 <p>
@@ -8964,6 +8942,7 @@ export default function CreatorDashboard({ user }) {
                                                         ? "Try another file name or clear the search."
                                                         : "Upload a finished deliverable, thumbnail, document, audio file, or other supporting asset."}
                                                 </p>
+                                                {assetSearch.trim() ? <button type="button" className="asset-action" onClick={() => setAssetSearch("")}>Clear search</button> : <button type="button" className="asset-action vault-primary" disabled={assetUploading || !projects.length} onClick={() => document.getElementById("assetUploadProject")?.focus()}>+ Upload Asset</button>}
                                             </div>
                                         </div>
                                     ) : (
@@ -8990,10 +8969,8 @@ export default function CreatorDashboard({ user }) {
                                                                 "flex-start",
                                                         }}
                                                     >
-                                                        <div className="asset-icon">
-                                                            {assetIcon(
-                                                                asset.assetType
-                                                            )}
+                                                        <div className={`asset-icon vault-type-${String(asset.assetType).toLowerCase()}`} aria-hidden="true">
+                                                            {({ VIDEO: "VID", IMAGE: "IMG", AUDIO: "AUD", DOCUMENT: "DOC" })[asset.assetType] || "FILE"}
                                                         </div>
 
                                                         <div
@@ -9013,28 +8990,16 @@ export default function CreatorDashboard({ user }) {
                                                                 )}
                                                             </small>
 
-                                                            {asset.content
-                                                                ?.title && (
-                                                                <small
-                                                                    style={{
-                                                                        display:
-                                                                            "block",
-                                                                        marginTop:
-                                                                            "4px",
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        asset
-                                                                            .content
-                                                                            .title
-                                                                    }
-                                                                </small>
-                                                            )}
-
+                                                            <dl className="vault-asset-meta">
+                                                                <div><dt>Project</dt><dd>{asset.content?.title || asset.project?.name || "Project unavailable"}</dd></div>
+                                                                <div><dt>Uploaded by</dt><dd>{asset.uploadedBy?.name || asset.uploadedBy?.email || (asset.uploadedById === user?.id ? (user?.name || user?.email || "You") : "Name unavailable")}</dd></div>
+                                                                <div><dt>Latest version</dt><dd><span className="vault-version-badge">v{latestVersion}</span></dd></div>
+                                                                <div><dt>Updated</dt><dd>{asset.updatedAt || asset.createdAt ? new Date(asset.updatedAt || asset.createdAt).toLocaleString() : "Date unavailable"}</dd></div>
+                                                            </dl>
                                                             {expandedAssetVersions[
                                                                 asset.id
                                                             ] && (
-                                                                <div
+                                                                <div id={`vault-versions-${asset.id}`} className="vault-version-history"
                                                                     style={{
                                                                         marginTop:
                                                                             "12px",
@@ -9044,9 +9009,11 @@ export default function CreatorDashboard({ user }) {
                                                                             "8px",
                                                                     }}
                                                                 >
+                                                                    <h4>Version history</h4>
+                                                                    {!versions.length && <p className="vault-muted">No historical versions available.</p>}
                                                                     {versions.map(
                                                                         (version) => (
-                                                                            <div
+                                                                            <div className="vault-version-row"
                                                                                 key={
                                                                                     version.id ||
                                                                                     `${asset.id}-${version.version}`
@@ -9101,6 +9068,7 @@ export default function CreatorDashboard({ user }) {
                                                                                             version.fileSize
                                                                                         )}
                                                                                     </small>
+                                                                                    <small className="vault-version-date">Uploaded {version.createdAt ? new Date(version.createdAt).toLocaleString() : "date unavailable"}{version.uploadedBy?.name || version.uploadedBy?.email ? ` by ${version.uploadedBy.name || version.uploadedBy.email}` : ""}</small>
                                                                                 </div>
 
                                                                                 <a
@@ -9120,8 +9088,8 @@ export default function CreatorDashboard({ user }) {
                                                                                 >
                                                                                     {asset.assetType ===
                                                                                     "VIDEO"
-                                                                                        ? "STREAM"
-                                                                                        : "DOWNLOAD"}
+                                                                                        ? "Stream"
+                                                                                        : "Download"}
                                                                                 </a>
                                                                             </div>
                                                                         )
@@ -9130,7 +9098,7 @@ export default function CreatorDashboard({ user }) {
                                                             )}
                                                         </div>
 
-                                                        <div
+                                                        <div className="vault-asset-actions"
                                                             style={{
                                                                 display:
                                                                     "flex",
@@ -9156,13 +9124,13 @@ export default function CreatorDashboard({ user }) {
                                                             >
                                                                 {asset.assetType ===
                                                                 "VIDEO"
-                                                                    ? "STREAM LATEST"
-                                                                    : "DOWNLOAD LATEST"}
+                                                                    ? "Stream latest"
+                                                                    : "Download latest"}
                                                             </a>
 
                                                             <button
                                                                 type="button"
-                                                                className="asset-action"
+                                                                className="asset-action" aria-expanded={Boolean(expandedAssetVersions[asset.id])} aria-controls={`vault-versions-${asset.id}`}
                                                                 onClick={() =>
                                                                     toggleAssetVersions(
                                                                         asset.id
@@ -9172,8 +9140,8 @@ export default function CreatorDashboard({ user }) {
                                                                 {expandedAssetVersions[
                                                                     asset.id
                                                                 ]
-                                                                    ? "HIDE VERSIONS"
-                                                                    : `VERSIONS (${versions.length})`}
+                                                                    ? "Hide versions"
+                                                                    : `Version history (${versions.length})`}
                                                             </button>
 
                                                             <input
@@ -9195,11 +9163,7 @@ export default function CreatorDashboard({ user }) {
                                                                 }
                                                             />
 
-                                                            <label
-                                                                htmlFor={
-                                                                    versionInputId
-                                                                }
-                                                                className="asset-action"
+                                                            <button type="button" className="asset-action vault-new-version" title="Upload a new revision of this asset" disabled={assetVersionUploadingId !== null} onClick={() => document.getElementById(versionInputId)?.click()}
                                                                 style={{
                                                                     cursor:
                                                                         assetVersionUploadingId !==
@@ -9216,12 +9180,12 @@ export default function CreatorDashboard({ user }) {
                                                                 {assetVersionUploadingId ===
                                                                 asset.id
                                                                     ? `UPLOADING ${assetVersionUploadProgress}%`
-                                                                    : "NEW VERSION"}
-                                                            </label>
+                                                                    : "New Version"}
+                                                            </button>
 
                                                             <button
                                                                 type="button"
-                                                                className="asset-action"
+                                                                className="asset-action vault-delete"
                                                                 disabled={
                                                                     assetDeletingId ===
                                                                     asset.id
@@ -9235,7 +9199,7 @@ export default function CreatorDashboard({ user }) {
                                                                 {assetDeletingId ===
                                                                 asset.id
                                                                     ? "DELETING…"
-                                                                    : "DELETE"}
+                                                                    : "Delete"}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -9415,7 +9379,7 @@ export default function CreatorDashboard({ user }) {
                         VIEW 8: SETTINGS
                     ========================================= */}
                     <div
-                        className={`view-panel ${currentView ===
+                        className={`view-panel settings-view ${currentView ===
                             "settings"
                             ? "active"
                             : ""
@@ -9423,19 +9387,14 @@ export default function CreatorDashboard({ user }) {
                     >
                         <div className="panel-scroll-container">
                             <div className="panel settings-panel">
-                                <div className="panel-header">
+                                <div className="panel-header settings-page-header">
                                     <div>
-                                        <span className="status-tag">
-                                            ACCOUNT CONTROL
-                                        </span>
-                                        <h3>
-                                            ACCOUNT & WORKSPACE
-                                        </h3>
+                                        <h1 className="page-title">Settings</h1><p className="settings-subtitle">Manage your account, workspace, security, and appearance.</p>
                                     </div>
 
                                     <button
                                         type="button"
-                                        className="text-link"
+                                        className="action-btn settings-refresh"
                                         onClick={() =>
                                             loadSettings()
                                         }
@@ -9450,13 +9409,13 @@ export default function CreatorDashboard({ user }) {
                                 </div>
 
                                 {settingsError && (
-                                    <p className="brief-error-msg active">
+                                    <p className="brief-error-msg active settings-feedback settings-feedback-error" role="alert">
                                         {settingsError}
                                     </p>
                                 )}
 
                                 {settingsSuccess && (
-                                    <div
+                                    <div className="settings-feedback settings-feedback-success" role="status"
                                         style={{
                                             marginBottom:
                                                 "16px",
@@ -9477,12 +9436,10 @@ export default function CreatorDashboard({ user }) {
                                 )}
 
                                 {settingsLoading ? (
-                                    <p className="text-link">
-                                        Loading account
-                                        settings…
-                                    </p>
+                                    <div className="settings-loading" role="status"><div className="settings-skeleton" aria-hidden="true"><span /><span /><span /></div><p>Loading account settings...</p></div>
                                 ) : (
                                     <div className="settings-grid">
+<div className="settings-column">
                                         {/* PROFILE */}
                                         <form
                                             className="settings-form settings-card"
@@ -9496,9 +9453,7 @@ export default function CreatorDashboard({ user }) {
                                                         "16px",
                                                 }}
                                             >
-                                                <strong>
-                                                    PROFILE
-                                                </strong>
+                                                <h2>Account</h2>
                                                 <p
                                                     className="text-link"
                                                     style={{
@@ -9589,7 +9544,7 @@ export default function CreatorDashboard({ user }) {
                                                     <input
                                                         type="text"
                                                         id="stgAccountType"
-                                                        className="dash-input"
+                                                        className="dash-input settings-readonly"
                                                         value={
                                                             settingsProfile?.accountType ||
                                                             accountType
@@ -9606,7 +9561,7 @@ export default function CreatorDashboard({ user }) {
                                                     <input
                                                         type="text"
                                                         id="stgRole"
-                                                        className="dash-input"
+                                                        className="dash-input settings-readonly"
                                                         value={
                                                             activeSettingsWorkspace?.role ||
                                                             "NO ACTIVE ROLE"
@@ -9618,15 +9573,11 @@ export default function CreatorDashboard({ user }) {
 
                                             <div className="form-field">
                                                 <label htmlFor="stgProfilePassword">
-                                                    CURRENT
-                                                    PASSWORD
-                                                    (ONLY NEEDED
-                                                    TO CHANGE
-                                                    EMAIL)
+                                                    CURRENT PASSWORD
                                                 </label>
                                                 <input
                                                     type="password"
-                                                    id="stgProfilePassword"
+                                                    id="stgProfilePassword" aria-describedby="settings-email-password-help"
                                                     className="dash-input"
                                                     autoComplete="current-password"
                                                     value={
@@ -9647,7 +9598,7 @@ export default function CreatorDashboard({ user }) {
                                                             })
                                                         )
                                                     }
-                                                />
+                                                /><p id="settings-email-password-help" className="settings-help">Required only when changing your email address.</p>
                                             </div>
 
                                             <button
@@ -9661,133 +9612,13 @@ export default function CreatorDashboard({ user }) {
                                                 {settingsSaving ===
                                                 "profile"
                                                     ? "SAVING…"
-                                                    : "SAVE PROFILE"}
+                                                    : "Save account"}
                                             </button>
-                                        </form>
-
-                                        {/* WORKSPACE */}
-                                        <form
-                                            className="settings-form settings-card"
-                                            onSubmit={
-                                                saveWorkspaceSettings
-                                            }
-                                        >
-                                            <div
-                                                style={{
-                                                    marginBottom:
-                                                        "16px",
-                                                }}
-                                            >
-                                                <strong>
-                                                    WORKSPACE
-                                                </strong>
-                                                <p
-                                                    className="text-link"
-                                                    style={{
-                                                        marginTop:
-                                                            "5px",
-                                                    }}
-                                                >
-                                                    Workspace
-                                                    names can be
-                                                    changed by
-                                                    Admins and
-                                                    Managers.
-                                                </p>
-                                            </div>
-
-                                            <div className="form-row">
-                                                <div className="form-field">
-                                                    <label htmlFor="stgWorkspace">
-                                                        ACTIVE
-                                                        WORKSPACE
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        id="stgWorkspace"
-                                                        className="dash-input"
-                                                        value={
-                                                            activeSettingsWorkspace?.name ||
-                                                            ""
-                                                        }
-                                                        readOnly
-                                                    />
-                                                </div>
-
-                                                <div className="form-field">
-                                                    <label htmlFor="stgWorkspaceRole">
-                                                        YOUR ROLE
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        id="stgWorkspaceRole"
-                                                        className="dash-input"
-                                                        value={
-                                                            activeSettingsWorkspace?.role ||
-                                                            ""
-                                                        }
-                                                        readOnly
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="form-field">
-                                                <label htmlFor="stgWorkspaceName">
-                                                    WORKSPACE
-                                                    NAME
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    id="stgWorkspaceName"
-                                                    className="dash-input"
-                                                    value={
-                                                        workspaceNameDraft
-                                                    }
-                                                    onChange={(
-                                                        e
-                                                    ) =>
-                                                        setWorkspaceNameDraft(
-                                                            e
-                                                                .target
-                                                                .value
-                                                        )
-                                                    }
-                                                    readOnly={
-                                                        !canManageWorkspaceSettings
-                                                    }
-                                                    required
-                                                />
-                                            </div>
-
-                                            {canManageWorkspaceSettings ? (
-                                                <button
-                                                    type="submit"
-                                                    className="button button-primary"
-                                                    disabled={
-                                                        settingsSaving ===
-                                                        "workspace" ||
-                                                        !activeSettingsWorkspace
-                                                    }
-                                                >
-                                                    {settingsSaving ===
-                                                    "workspace"
-                                                        ? "SAVING…"
-                                                        : "SAVE WORKSPACE"}
-                                                </button>
-                                            ) : (
-                                                <p className="text-link">
-                                                    Your role
-                                                    has
-                                                    read-only
-                                                    workspace
-                                                    settings.
-                                                </p>
-                                            )}
                                         </form>
 
                                         {/* SECURITY */}
                                         <form
-                                            className="settings-form settings-card"
+                                            className="settings-form settings-card settings-security"
                                             onSubmit={
                                                 savePasswordSettings
                                             }
@@ -9798,9 +9629,7 @@ export default function CreatorDashboard({ user }) {
                                                         "16px",
                                                 }}
                                             >
-                                                <strong>
-                                                    SECURITY
-                                                </strong>
+                                                <h2>Security</h2>
                                                 <p
                                                     className="text-link"
                                                     style={{
@@ -9856,7 +9685,7 @@ export default function CreatorDashboard({ user }) {
                                                     </label>
                                                     <input
                                                         type="password"
-                                                        id="stgNewPassword"
+                                                        id="stgNewPassword" aria-describedby="settings-password-rules"
                                                         className="dash-input"
                                                         autoComplete="new-password"
                                                         minLength={
@@ -9881,7 +9710,7 @@ export default function CreatorDashboard({ user }) {
                                                             )
                                                         }
                                                         required
-                                                    />
+                                                    /><p id="settings-password-rules" className="settings-help">Use at least 8 characters.</p>
                                                 </div>
                                             </div>
 
@@ -9932,7 +9761,7 @@ export default function CreatorDashboard({ user }) {
                                                 {settingsSaving ===
                                                 "password"
                                                     ? "UPDATING…"
-                                                    : "CHANGE PASSWORD"}
+                                                    : "Change password"}
                                             </button>
 
                                             {!settingsProfile?.hasPassword && (
@@ -9952,16 +9781,133 @@ export default function CreatorDashboard({ user }) {
                                             )}
                                         </form>
 
+</div>
+<div className="settings-column">
+                                        {/* WORKSPACE */}
+                                        <form
+                                            className="settings-form settings-card"
+                                            onSubmit={
+                                                saveWorkspaceSettings
+                                            }
+                                        >
+                                            <div
+                                                style={{
+                                                    marginBottom:
+                                                        "16px",
+                                                }}
+                                            >
+                                                <h2>Workspace</h2>
+                                                <p
+                                                    className="text-link"
+                                                    style={{
+                                                        marginTop:
+                                                            "5px",
+                                                    }}
+                                                >
+                                                    Workspace
+                                                    names can be
+                                                    changed by
+                                                    Admins and
+                                                    Managers.
+                                                </p>
+                                            </div>
+
+                                            <div className="form-row">
+                                                <div className="form-field">
+                                                    <label htmlFor="stgWorkspace">
+                                                        ACTIVE
+                                                        WORKSPACE
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="stgWorkspace"
+                                                        className="dash-input"
+                                                        value={
+                                                            activeSettingsWorkspace?.name ||
+                                                            ""
+                                                        }
+                                                        readOnly
+                                                    />
+                                                </div>
+
+                                                <div className="form-field">
+                                                    <label htmlFor="stgWorkspaceRole">
+                                                        YOUR ROLE
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id="stgWorkspaceRole"
+                                                        className="dash-input settings-readonly"
+                                                        value={
+                                                            activeSettingsWorkspace?.role ||
+                                                            ""
+                                                        }
+                                                        readOnly
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-field">
+                                                <label htmlFor="stgWorkspaceName">
+                                                    WORKSPACE
+                                                    NAME
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    id="stgWorkspaceName"
+                                                    className="dash-input"
+                                                    value={
+                                                        workspaceNameDraft
+                                                    }
+                                                    onChange={(
+                                                        e
+                                                    ) =>
+                                                        setWorkspaceNameDraft(
+                                                            e
+                                                                .target
+                                                                .value
+                                                        )
+                                                    }
+                                                    readOnly={
+                                                        !canManageWorkspaceSettings
+                                                    }
+                                                    required
+                                                />
+                                            </div>
+
+                                            {canManageWorkspaceSettings ? (
+                                                <button
+                                                    type="submit"
+                                                    className="button button-primary"
+                                                    disabled={
+                                                        settingsSaving ===
+                                                        "workspace" ||
+                                                        !activeSettingsWorkspace
+                                                    }
+                                                >
+                                                    {settingsSaving ===
+                                                    "workspace"
+                                                        ? "SAVING…"
+                                                        : "Save workspace"}
+                                                </button>
+                                            ) : (
+                                                <p className="text-link">
+                                                    Your role
+                                                    has
+                                                    read-only
+                                                    workspace
+                                                    settings.
+                                                </p>
+                                            )}
+                                        </form>
+
                                         {/* APPEARANCE + SESSION */}
                                         <div
                                             className="settings-form settings-card"
                                         >
-                                            <strong>
-                                                APPEARANCE &
-                                                SESSION
-                                            </strong>
+                                            <div className="settings-section-heading"><h2>Appearance</h2><p className="text-link">Choose the theme for this browser.</p></div>
 
-                                            <div
+                                            <div className="settings-theme-options" role="group" aria-label="Color theme"
                                                 style={{
                                                     display:
                                                         "flex",
@@ -9973,7 +9919,7 @@ export default function CreatorDashboard({ user }) {
                                                 }}
                                             >
                                                 <button
-                                                    type="button"
+                                                    type="button" aria-pressed={theme === "dark"}
                                                     className={`action-btn ${
                                                         theme ===
                                                         "dark"
@@ -9993,7 +9939,7 @@ export default function CreatorDashboard({ user }) {
                                                 </button>
 
                                                 <button
-                                                    type="button"
+                                                    type="button" aria-pressed={theme === "light"}
                                                     className={`action-btn ${
                                                         theme ===
                                                         "light"
@@ -10012,13 +9958,7 @@ export default function CreatorDashboard({ user }) {
                                                     LIGHT
                                                 </button>
 
-                                                <button
-                                                    type="button"
-                                                    className="action-btn"
-                                                    onClick={confirmAndSignOut}
-                                                >
-                                                    SIGN OUT ↗
-                                                </button>
+                                                
                                             </div>
 
                                             <p
@@ -10028,14 +9968,16 @@ export default function CreatorDashboard({ user }) {
                                                         "12px",
                                                 }}
                                             >
-                                                Theme preference
-                                                is stored on this
-                                                browser.
-                                                Account deletion
-                                                is not enabled in
-                                                this version.
+                                                Your theme preference is saved on this browser.
                                             </p>
-                                        </div>
+                                        </div><section className="settings-card settings-session"><div><h2>Session</h2><p className="text-link">Sign out of your Nexus account on this browser.</p></div><button
+                                                    type="button"
+                                                    className="action-btn settings-signout"
+                                                    onClick={confirmAndSignOut}
+                                                >
+                                                    SIGN OUT ↗
+                                                </button></section>
+</div>
                                     </div>
                                 )}
                             </div>
@@ -10049,7 +9991,9 @@ export default function CreatorDashboard({ user }) {
                 NEW PROJECT BRIEF MODAL
             ========================================= */}
             <div
-                className={`modal-overlay ${briefModalOpen
+                inert={!briefModalOpen}
+                aria-hidden={!briefModalOpen}
+                className={`modal-overlay nexus-form-surface ${briefModalOpen
                     ? "active"
                     : ""
                     }`}
@@ -10062,9 +10006,10 @@ export default function CreatorDashboard({ user }) {
                     }
                 }}
             >
-                <div className="brief-card">
+                <div className="brief-card" ref={briefDialogRef} role="dialog" aria-modal="true" aria-labelledby="brief-dialog-title">
                     <button
                         className="modal-close"
+                        aria-label="Close project brief"
                         type="button"
                         onClick={() =>
                             setBriefModalOpen(
@@ -10080,7 +10025,7 @@ export default function CreatorDashboard({ user }) {
                             INTAKE ENGINE
                         </span>
 
-                        <h3>
+                        <h3 id="brief-dialog-title">
                             SUBMIT NEW PROJECT BRIEF
                         </h3>
                     </div>
