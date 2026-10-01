@@ -2146,7 +2146,7 @@ export default function NexusHomepage() {
                 <h4>RESET PASSWORD</h4>
 
                 <p>
-                  Enter your account email to request a password reset link.
+                  We&apos;ll send a secure password reset link to your email address.
                 </p>
               </div>
 
@@ -2183,8 +2183,8 @@ export default function NexusHomepage() {
                 disabled={resetLoading}
               >
                 {resetLoading
-                  ? "CREATING RESET LINK..."
-                  : "CREATE RESET LINK ↗"}
+                  ? "SENDING RESET EMAIL..."
+                  : "SEND RESET EMAIL ↗"}
               </button>
             </form>
           )}
