@@ -3015,6 +3015,10 @@
 }
 :root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) select,
 :root[data-theme="dark"] .nexus-minimal-ui .target-org-selector select.organization-select {
+    /* Override background shorthand resets from controls such as .toolbar-select-pill. */
+    background-repeat: no-repeat !important;
+    background-position: right 14px center !important;
+    background-size: 16px 16px !important;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23B59AFF' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
 }
 :root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) select:is([multiple], [size]:not([size="1"]):not([size="0"])) { background-image: none !important; }
