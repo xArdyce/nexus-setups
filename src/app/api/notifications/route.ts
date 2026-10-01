@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -72,7 +73,7 @@ export async function GET(request: Request) {
             unreadCount,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/notifications failed:",
             error
         );
@@ -167,7 +168,7 @@ export async function PATCH(request: Request) {
             success: true,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "PATCH /api/notifications failed:",
             error
         );

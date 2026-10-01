@@ -271,6 +271,7 @@ export default function NexusHomepage() {
       const result = await signIn("credentials", {
         email,
         password,
+        rememberSession: String(formData.get("rememberSession") === "on"),
         redirect: false,
       });
 
@@ -2103,6 +2104,13 @@ export default function NexusHomepage() {
                 </div>
               </div>
 
+              <div className="auth-options">
+                <label className="checkbox-label" htmlFor="rememberSession">
+                  <input type="checkbox" id="rememberSession" name="rememberSession" />
+                  Remember me
+                </label>
+              </div>
+
               {loginError && (
                 <p className="auth-error-msg active">
                   {loginError}
@@ -2138,8 +2146,7 @@ export default function NexusHomepage() {
                 <h4>RESET PASSWORD</h4>
 
                 <p>
-                  Enter your account email. During local development,
-                  Nexus will generate a secure reset link for testing.
+                  Enter your account email to request a password reset link.
                 </p>
               </div>
 

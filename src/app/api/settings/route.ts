@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
@@ -99,7 +100,7 @@ export async function GET() {
             profile: serializeSettingsUser(user),
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/settings failed:",
             error
         );
@@ -415,6 +416,7 @@ export async function PATCH(request: Request) {
                 data: {
                     password:
                         hashedPassword,
+                    sessionVersion: { increment: 1 },
                 },
             });
 
@@ -538,7 +540,7 @@ export async function PATCH(request: Request) {
             { status: 400 }
         );
     } catch (error) {
-        console.error(
+        logServerError(
             "PATCH /api/settings failed:",
             error
         );

@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -392,7 +393,7 @@ export async function POST(
             },
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "POST /api/reviews/[reviewId]/decision failed:",
             error
         );

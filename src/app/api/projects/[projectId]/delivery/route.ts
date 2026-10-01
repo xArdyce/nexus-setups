@@ -1,5 +1,6 @@
-import { ZipArchive } from "archiver";
-import { PassThrough, Readable } from "node:stream";
+import { Readable } from "node:stream";
+import { createDeliveryZip } from "@/lib/delivery-zip";
+import { logServerError } from "@/lib/server-log";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
@@ -243,7 +244,7 @@ async function getAccessibleApprovedContent(
 
 function asNodeReadable(
     body: unknown
-): NodeJS.ReadableStream {
+): Readable {
     if (
         body &&
         typeof body === "object" &&
@@ -251,7 +252,7 @@ function asNodeReadable(
         typeof (body as { pipe?: unknown }).pipe ===
             "function"
     ) {
-        return body as NodeJS.ReadableStream;
+        return body as Readable;
     }
 
     if (
@@ -345,94 +346,14 @@ export async function GET(
         const r2 = getR2Client();
         const bucket = getR2BucketName();
 
-        const passThrough = new PassThrough();
-        const archive = new ZipArchive({
-            zlib: {
-                level: 0,
-            },
-        });
-
         const usedNames = new Set<string>();
-
-        archive.on("warning", (error) => {
-            console.warn(
-                "Delivery ZIP warning:",
-                error
-            );
-        });
-
-        archive.on("error", (error) => {
-            console.error(
-                "Delivery ZIP failed:",
-                error
-            );
-
-            passThrough.destroy(error);
-        });
-
-        archive.pipe(passThrough);
-
-        const approvedObject =
-            await r2.send(
-                new GetObjectCommand({
-                    Bucket: bucket,
-                    Key: approvedVersion.storageKey,
-                })
-            );
-
-        if (!approvedObject.Body) {
-            return NextResponse.json(
-                {
-                    error:
-                        "The approved cut could not be read from storage.",
-                },
-                { status: 502 }
-            );
-        }
-
-        archive.append(
-            asNodeReadable(
-                approvedObject.Body
-            ) as never,
-            {
-                name: uniqueZipName(
-                    "Approved Cut",
-                    approvedVersion.fileName,
-                    usedNames
-                ),
-            }
-        );
-
-        for (const asset of supportingAssets) {
-            const object =
-                await r2.send(
-                    new GetObjectCommand({
-                        Bucket: bucket,
-                        Key: asset.storageKey,
-                    })
-                );
-
-            if (!object.Body) {
-                throw new Error(
-                    `Could not read ${asset.fileName} from R2.`
-                );
-            }
-
-            archive.append(
-                asNodeReadable(
-                    object.Body
-                ) as never,
-                {
-                    name: uniqueZipName(
-                        "Supporting Files",
-                        asset.fileName,
-                        usedNames
-                    ),
-                }
-            );
-        }
-
-        void archive.finalize();
+        const entries = [
+            { key: approvedVersion.storageKey, name: uniqueZipName("Approved Cut", approvedVersion.fileName, usedNames) },
+            ...supportingAssets.map(asset => ({
+                key: asset.storageKey,
+                name: uniqueZipName("Supporting Files", asset.fileName, usedNames),
+            })),
+        ];
 
         const zipFileName =
             safeFileName(
@@ -447,6 +368,7 @@ export async function GET(
                 resourceId: content.id,
                 userId: user.id,
                 metadata: {
+                    transferStatus: "initiated",
                     title: content.title,
                     organizationId:
                         content.project.organizationId,
@@ -464,27 +386,33 @@ export async function GET(
             },
         });
 
-        const webStream =
-            Readable.toWeb(
-                passThrough
-            ) as ReadableStream<Uint8Array>;
-
-        return new Response(webStream, {
-            status: 200,
-            headers: {
-                "Content-Type":
-                    "application/zip",
-                "Content-Disposition":
-                    `attachment; filename="${zipFileName.replace(
-                        /"/g,
-                        "_"
-                    )}"`,
-                "Cache-Control":
-                    "private, no-store",
-            },
-        });
+        const delivery = createDeliveryZip(entries, async (key, signal) => {
+            const object = await r2.send(
+                new GetObjectCommand({ Bucket: bucket, Key: key }),
+                { abortSignal: signal },
+            );
+            if (!object.Body) throw new Error("Storage object body missing.");
+            return asNodeReadable(object.Body);
+        }, request.signal);
+        // Audit failures happen before opening any R2 source stream.
+        let response: Response;
+        try {
+            response = new Response(delivery.stream, {
+                status: 200,
+                headers: {
+                    "Content-Type": "application/zip",
+                    "Content-Disposition": `attachment; filename="${zipFileName.replace(/"/g, "_")}"`,
+                    "Cache-Control": "private, no-store",
+                },
+            });
+        } catch (error) {
+            delivery.cancel(error);
+            throw error;
+        }
+        delivery.start();
+        return response;
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/projects/[projectId]/delivery failed:",
             error
         );

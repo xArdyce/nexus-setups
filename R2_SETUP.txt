@@ -20,6 +20,12 @@ NEXUS SETUPS - CLOUDFLARE R2 ASSET VAULT
 
 5. In the R2 bucket CORS settings, paste the contents of R2_CORS.json.
 
+   Production origin: https://nexus-setups.vercel.app
+   Development origin: http://localhost:3000
+   Add each Preview deployment origin explicitly if uploads are needed there.
+   Editing this file does not update Cloudflare; apply the policy in the bucket settings.
+   Set the four R2 variables above in Vercel Production and Preview as needed.
+
    If you use another development origin, add it to AllowedOrigins.
    Examples:
    http://localhost:3000

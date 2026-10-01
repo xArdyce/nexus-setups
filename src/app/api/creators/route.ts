@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 // CREATOR:
 //   Returns only their own creator profile.
 export async function GET(request: Request) {
+  try {
   const session = await auth();
 
   if (!session?.user?.email) {
@@ -190,6 +192,11 @@ export async function GET(request: Request) {
     creators,
     organizationId: targetOrganizationId,
   });
+
+  } catch (error) {
+    logServerError("API request failed", error);
+    return NextResponse.json({ error: "Unable to complete this request." }, { status: 500 });
+  }
 }
 
 // POST /api/creators
@@ -197,6 +204,7 @@ export async function GET(request: Request) {
 // Creates a Creator profile and, when supplied, links it to a
 // Creator account.
 export async function POST(request: Request) {
+  try {
   const session = await auth();
 
   if (!session?.user?.email) {
@@ -388,4 +396,9 @@ export async function POST(request: Request) {
     },
     { status: 201 }
   );
+
+  } catch (error) {
+    logServerError("POST /api/creators failed", error);
+    return NextResponse.json({ error: "Unable to complete this request." }, { status: 500 });
+  }
 }

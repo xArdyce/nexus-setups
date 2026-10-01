@@ -1,3 +1,4 @@
+import { logServerError } from "../src/lib/server-log";
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -28,12 +29,12 @@ async function main() {
     },
   });
 
-  console.log(`Updated ${admin.email} -> EDITOR`);
+  console.log("Account type updated.");
 }
 
 main()
   .catch((error) => {
-    console.error(error);
+    logServerError("Maintenance script failed", error);
     process.exit(1);
   })
   .finally(async () => {

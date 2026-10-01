@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     });
 
     if (!nexusOrganization) {
-      console.error(
+      logServerError(
         `Nexus organization ${NEXUS_ORGANIZATION_ID} was not found.`
       );
 
@@ -166,7 +167,7 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Signup error:", error);
+    logServerError("Signup error:", error);
 
     return NextResponse.json(
       {

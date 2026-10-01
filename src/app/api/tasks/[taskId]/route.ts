@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -396,7 +397,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedTask);
   } catch (error) {
-    console.error(
+    logServerError(
       "PATCH /api/tasks/[taskId] error:",
       error
     );
@@ -460,7 +461,7 @@ export async function DELETE(
       success: true,
     });
   } catch (error) {
-    console.error(
+    logServerError(
       "DELETE /api/tasks/[taskId] error:",
       error
     );

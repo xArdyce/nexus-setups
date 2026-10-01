@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -205,7 +206,7 @@ export async function GET(
             comments,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/reviews/[reviewId]/comments failed:",
             error
         );
@@ -407,7 +408,7 @@ export async function POST(
             { status: 201 }
         );
     } catch (error) {
-        console.error(
+        logServerError(
             "POST /api/reviews/[reviewId]/comments failed:",
             error
         );
@@ -790,7 +791,7 @@ export async function PATCH(
             { status: 400 }
         );
     } catch (error) {
-        console.error(
+        logServerError(
             "PATCH /api/reviews/[reviewId]/comments failed:",
             error
         );
@@ -946,7 +947,7 @@ export async function DELETE(
                 existingComment.id,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "DELETE /api/reviews/[reviewId]/comments failed:",
             error
         );

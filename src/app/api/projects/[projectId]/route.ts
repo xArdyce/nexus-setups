@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -320,6 +321,7 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ projectId: string }> }
 ) {
+  try {
     const user = await getAuthenticatedUser();
 
     if (!user) {
@@ -476,6 +478,11 @@ export async function GET(
             })),
         })),
     });
+
+  } catch (error) {
+    logServerError("API request failed", error);
+    return NextResponse.json({ error: "Unable to complete this request." }, { status: 500 });
+  }
 }
 
 // PATCH /api/projects/[projectId]
@@ -483,6 +490,7 @@ export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ projectId: string }> }
 ) {
+  try {
     const user = await getAuthenticatedUser();
 
     if (!user) {
@@ -1126,6 +1134,11 @@ export async function PATCH(
             updatedAt: updatedContent.updatedAt,
         },
     });
+
+  } catch (error) {
+    logServerError("PATCH /api/projects/[projectId] failed", error);
+    return NextResponse.json({ error: "Unable to complete this request." }, { status: 500 });
+  }
 }
 
 // DELETE /api/projects/[projectId]
@@ -1223,7 +1236,7 @@ export async function DELETE(
             deletedProjectId: content.id,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "DELETE /api/projects/[projectId] failed:",
             error
         );

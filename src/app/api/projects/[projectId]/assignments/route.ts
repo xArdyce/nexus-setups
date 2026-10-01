@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -229,7 +230,7 @@ export async function GET(
                 })),
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/projects/[projectId]/assignments failed:",
             error
         );
@@ -436,7 +437,7 @@ export async function POST(
             { status: 201 }
         );
     } catch (error) {
-        console.error(
+        logServerError(
             "POST /api/projects/[projectId]/assignments failed:",
             error
         );
@@ -577,7 +578,7 @@ export async function DELETE(
             userId: editorUserId,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "DELETE /api/projects/[projectId]/assignments failed:",
             error
         );

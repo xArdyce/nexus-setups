@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -375,7 +376,7 @@ export async function GET(request: Request) {
             organizationId,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/activity failed:",
             error
         );

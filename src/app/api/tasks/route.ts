@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -277,7 +278,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(tasks);
   } catch (error) {
-    console.error("GET /api/tasks error:", error);
+    logServerError("GET /api/tasks error:", error);
 
     return NextResponse.json(
       { error: "Failed to load tasks" },
@@ -434,7 +435,7 @@ export async function POST(request: NextRequest) {
       status: 201,
     });
   } catch (error) {
-    console.error("POST /api/tasks error:", error);
+    logServerError("POST /api/tasks error:", error);
 
     return NextResponse.json(
       { error: "Failed to create task" },

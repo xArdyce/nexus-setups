@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -404,7 +405,7 @@ export async function GET(request: Request) {
             assets: assets.map(serializeAsset),
         });
     } catch (error) {
-        console.error("GET /api/assets failed:", error);
+        logServerError("GET /api/assets failed:", error);
 
         return NextResponse.json(
             {
@@ -964,7 +965,7 @@ export async function POST(request: Request) {
             { status: 201 }
         );
     } catch (error) {
-        console.error(
+        logServerError(
             "POST /api/assets failed:",
             error
         );

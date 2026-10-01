@@ -13,12 +13,14 @@ declare module "next-auth" {
   }
 
   interface User {
+    sessionVersion?: number;
     accountType: "CREATOR" | "EDITOR";
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
+    sessionVersion?: number;
     accountType?: "CREATOR" | "EDITOR";
   }
 }

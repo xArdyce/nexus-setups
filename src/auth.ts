@@ -2,12 +2,19 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { allowAuthAttempt } from "@/lib/rate-limit";
+import { logServerError } from "@/lib/server-log";
 
 const REMEMBERED_SESSION_SECONDS = 30 * 24 * 60 * 60;
 const TEMPORARY_SESSION_SECONDS = 8 * 60 * 60;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
+  logger: {
+    error: (error) => logServerError("Authentication failed", error),
+    warn: () => logServerError("Authentication configuration warning"),
+    debug: () => {},
+  },
 
   session: {
     strategy: "jwt",
@@ -26,7 +33,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         rememberSession: {},
       },
 
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (
           typeof credentials?.email !== "string" ||
           typeof credentials?.password !== "string"
@@ -36,9 +43,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const email = credentials.email.trim().toLowerCase();
 
-        if (!email || !credentials.password) {
+        if (!email || email.length > 254 || !credentials.password) {
           return null;
         }
+
+        if (!(await allowAuthAttempt("login", email, request))) return null;
 
         const user = await prisma.user.findUnique({
           where: {
@@ -68,6 +77,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           accountType: user.accountType,
           rememberSession,
+          sessionVersion: user.sessionVersion,
         };
       },
     }),
@@ -91,6 +101,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.name = user.name;
         token.email = user.email;
         token.rememberSession = rememberSession;
+        token.sessionVersion = user.sessionVersion;
         token.sessionExpiresAt =
           Date.now() + lifetimeSeconds * 1000;
         token.sessionExpired = false;
@@ -123,9 +134,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             name: true,
             email: true,
             accountType: true,
+            sessionVersion: true,
           },
         });
 
+        if (!currentUser || currentUser.sessionVersion !== (token.sessionVersion ?? 0)) {
+          token.sessionExpired = true;
+          token.sub = undefined;
+          return token;
+        }
         if (currentUser) {
           token.name = currentUser.name;
           token.email = currentUser.email;

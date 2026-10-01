@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -248,7 +249,7 @@ export async function GET(
             },
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/assets/[assetId] failed:",
             error
         );
@@ -366,7 +367,7 @@ export async function DELETE(
             deletedAssetId: assetId,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "DELETE /api/assets/[assetId] failed:",
             error
         );

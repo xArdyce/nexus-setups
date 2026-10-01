@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { randomUUID } from "crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -355,7 +356,7 @@ export async function POST(request: Request) {
                 MAX_SINGLE_UPLOAD_BYTES,
         });
     } catch (error) {
-        console.error(
+        logServerError(
             "POST /api/assets/upload-url failed:",
             error
         );

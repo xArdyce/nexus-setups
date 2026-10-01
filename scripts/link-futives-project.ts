@@ -1,3 +1,4 @@
+import { logServerError } from "../src/lib/server-log";
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 
@@ -50,7 +51,7 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error(error);
+    logServerError("Maintenance script failed", error);
     process.exit(1);
   })
   .finally(async () => {

@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +25,7 @@ async function getAuthenticatedUser() {
 
 // GET /api/organizations
 export async function GET() {
+  try {
   const user = await getAuthenticatedUser();
 
   if (!user) {
@@ -218,10 +220,16 @@ export async function GET() {
       };
     }),
   });
+
+  } catch (error) {
+    logServerError("API request failed", error);
+    return NextResponse.json({ error: "Unable to complete this request." }, { status: 500 });
+  }
 }
 
 // POST /api/organizations
 export async function POST(request: Request) {
+  try {
   const user = await getAuthenticatedUser();
 
   if (!user) {
@@ -299,4 +307,9 @@ export async function POST(request: Request) {
     },
     { status: 201 }
   );
+
+  } catch (error) {
+    logServerError("POST /api/organizations failed", error);
+    return NextResponse.json({ error: "Unable to complete this request." }, { status: 500 });
+  }
 }

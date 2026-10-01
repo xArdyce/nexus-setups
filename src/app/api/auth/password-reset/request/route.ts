@@ -1,87 +1,64 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { allowAuthAttempt } from "@/lib/rate-limit";
+import { sendPasswordResetEmail } from "@/lib/password-reset-email";
+import { logServerError } from "@/lib/server-log";
 
-const RESET_TOKEN_TTL_MINUTES = 30;
-
-const hashToken = (token: string) =>
-  crypto.createHash("sha256").update(token).digest("hex");
+const genericMessage = "If that account exists, a password reset link has been requested.";
+const genericResponse = () => NextResponse.json({ message: genericMessage });
 
 export async function POST(request: Request) {
+  let body;
+  try { body = await request.json(); }
+  catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || email.length > 254) {
+    return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
+  }
+  let stage = "rate_limit";
   try {
-    const body = await request.json();
-
-    const email =
-      typeof body.email === "string"
-        ? body.email.trim().toLowerCase()
-        : "";
-
-    if (!email) {
-      return NextResponse.json(
-        { error: "Email is required." },
-        { status: 400 }
-      );
+    // Same response for throttled, unknown, failed-delivery and known accounts.
+    if (!(await allowAuthAttempt("reset-request", email, request))) {
+      console.log("Password reset request", { stage, allowed: false });
+      return genericResponse();
     }
+    stage = "user_lookup";
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true } });
+    console.log("Password reset request", { stage, userFound: Boolean(user) });
+    if (!user) return genericResponse();
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true, email: true },
-    });
-
-    const genericMessage =
-      "If that account exists, a password reset link has been created.";
-
-    if (!user) {
-      return NextResponse.json(
-        { message: genericMessage },
-        { status: 200 }
-      );
-    }
-
-    await prisma.passwordResetToken.deleteMany({
-      where: {
-        userId: user.id,
-        usedAt: null,
-      },
-    });
-
+    stage = "reset_url";
     const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(
-      Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000
-    );
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const origin = new URL(process.env.AUTH_URL || process.env.NEXTAUTH_URL || request.url);
+    if (process.env.NODE_ENV === "production" && origin.protocol !== "https:") {
+      throw new Error("Password reset requires an HTTPS origin.");
+    }
+    const resetUrl = new URL("/", origin.origin);
+    resetUrl.searchParams.set("resetToken", rawToken);
 
-    await prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash,
-        expiresAt,
-      },
+    stage = "token_persistence";
+    await prisma.$transaction(async tx => {
+      // Serialize issuance and consumption for this user, including different tokens.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`;
+      await tx.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+      await tx.passwordResetToken.create({ data: {
+        userId: user.id, tokenHash, expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      } });
     });
 
-    const origin = new URL(request.url).origin;
-    const resetUrl =
-      `${origin}/?resetToken=${encodeURIComponent(rawToken)}`;
+    stage = "email_delivery";
+    try { await sendPasswordResetEmail(user.email, resetUrl.toString()); }
+    catch (error) { logServerError("Password reset email delivery failed", error); }
 
-    console.log(
-      `[Nexus password reset] ${user.email}: ${resetUrl}`
-    );
-
-    return NextResponse.json(
-      {
-        message: genericMessage,
-        ...(process.env.NODE_ENV !== "production"
-          ? { debugResetUrl: resetUrl }
-          : {}),
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({
+      message: genericMessage,
+      ...(process.env.NODE_ENV === "development" ? { debugResetUrl: resetUrl.toString() } : {}),
+    });
   } catch (error) {
-    console.error("Password reset request error:", error);
-
-    return NextResponse.json(
-      { error: "Could not create a password reset request." },
-      { status: 500 }
-    );
+    console.log("Password reset request", { stage, failed: true });
+    logServerError("Password reset request failed", error);
+    return genericResponse();
   }
 }

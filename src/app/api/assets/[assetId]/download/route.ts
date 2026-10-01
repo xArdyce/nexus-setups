@@ -1,3 +1,4 @@
+import { logServerError } from "@/lib/server-log";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { NextResponse } from "next/server";
@@ -326,7 +327,7 @@ export async function GET(
             signedUrl
         );
     } catch (error) {
-        console.error(
+        logServerError(
             "GET /api/assets/[assetId]/download failed:",
             error
         );
