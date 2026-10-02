@@ -27,7 +27,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   if (!["true", "false"].includes(secureValue) || !Number.isInteger(port) || port < 1 || port > 65535) {
     throw Object.assign(new Error("SMTP configuration is invalid."), { code: "SMTP_CONFIG_INVALID" });
   }
-  const from = required("SMTP_FROM");
+  const smtpFrom = required("SMTP_FROM");
   const transport = nodemailer.createTransport({
     host: required("SMTP_HOST"), port, secure: secureValue === "true",
     requireTLS: secureValue !== "true",
@@ -39,7 +39,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   try {
     console.log("Password reset email", { stage: "smtp_send", deliveryAttempted: true });
     await transport.sendMail({
-      from, to: { address: to, name: "" },
+      from: { name: "Nexus Setups", address: smtpFrom }, to: { address: to, name: "" },
       subject: "Reset your Nexus Setups password",
       text: `Reset your Nexus Setups password using this link:\n${resetUrl}\n\nThis link expires in 30 minutes. If you did not request this, you can ignore this email.`,
       html: `<p>Use the link below to reset your Nexus Setups password.</p><p><a href="${escapeHtml(resetUrl)}" style="display:inline-block;padding:12px 20px;background:#7544fc;color:#fff;text-decoration:none;border-radius:6px">Reset password</a></p><p>This link expires in 30 minutes.</p><p>If you did not request this, you can ignore this email.</p>`,

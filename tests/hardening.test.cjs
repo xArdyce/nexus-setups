@@ -148,6 +148,8 @@ test('SMTP uses verified TLS, bounded timeouts, private credentials and no proto
   await sendPasswordResetEmail('test@example.invalid', 'https://example.invalid/?resetToken=test');
   assert.equal(options.requireTLS, true); assert.equal(options.debug, false); assert.equal(options.logger, false);
   assert.equal(options.socketTimeout, 15000); assert.equal(closed, true);
+  assert.equal(mail.from.name, 'Nexus Setups');
+  assert.equal(mail.from.address, 'no-reply@example.invalid');
   assert.equal(mail.subject, 'Reset your Nexus Setups password'); assert.match(mail.text, /30 minutes/);
   assert.match(mail.html, /Reset password/);
 });
