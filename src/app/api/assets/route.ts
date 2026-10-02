@@ -1,4 +1,5 @@
 import { logServerError } from "@/lib/server-log";
+import type { Prisma } from "@/generated/prisma/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -137,15 +138,7 @@ export async function GET(request: Request) {
             );
         }
 
-        /*
-         * ============================================================
-         * CREATOR ACCESS
-         * ============================================================
-         *
-         * Creators may only see assets belonging to their own
-         * creator profile and organization.
-         */
-        if (user.accountType === "CREATOR") {
+        if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
             if (!user.creatorProfile) {
                 return NextResponse.json(
                     {
@@ -201,16 +194,9 @@ export async function GET(request: Request) {
                                           mode: "insensitive",
                                       },
                                   },
-                                  {
-                                      assetType: {
-                                          equals: search.toUpperCase() as
-                                              | "VIDEO"
-                                              | "IMAGE"
-                                              | "AUDIO"
-                                              | "DOCUMENT"
-                                              | "OTHER",
-                                      },
-                                  },
+                                  ...(ASSET_TYPES.includes(search.toUpperCase() as AssetTypeValue)
+                                      ? [{ assetType: { equals: search.toUpperCase() as AssetTypeValue } }]
+                                      : []),
                                   {
                                       content: {
                                           title: {
@@ -257,17 +243,6 @@ export async function GET(request: Request) {
             });
         }
 
-        /*
-         * ============================================================
-         * ADMIN / MANAGER / EDITOR ACCESS
-         * ============================================================
-         *
-         * ADMIN / MANAGER:
-         *   All assets in their organization.
-         *
-         * EDITOR:
-         *   Only assets from projects assigned to that Editor.
-         */
         const membership = user.memberships.find(
             (item) =>
                 item.organizationId === organizationId
@@ -350,16 +325,9 @@ export async function GET(request: Request) {
                                       mode: "insensitive",
                                   },
                               },
-                              {
-                                  assetType: {
-                                      equals: search.toUpperCase() as
-                                          | "VIDEO"
-                                          | "IMAGE"
-                                          | "AUDIO"
-                                          | "DOCUMENT"
-                                          | "OTHER",
-                                  },
-                              },
+                              ...(ASSET_TYPES.includes(search.toUpperCase() as AssetTypeValue)
+                                  ? [{ assetType: { equals: search.toUpperCase() as AssetTypeValue } }]
+                                  : []),
                               {
                                   content: {
                                       title: {
@@ -437,7 +405,7 @@ async function getUploadableContent(
         >
     >
 ) {
-    if (user.accountType === "CREATOR") {
+    if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
         if (!user.creatorProfile) {
             return null;
         }
@@ -567,9 +535,6 @@ async function getUploadableContent(
     });
 }
 
-// POST /api/assets
-//
-// Finalizes an object already uploaded directly to R2.
 export async function POST(request: Request) {
     try {
         const user =
@@ -619,13 +584,6 @@ export async function POST(request: Request) {
         const fileName = String(
             body.fileName || ""
         ).trim();
-
-        const mimeType =
-            String(
-                body.mimeType ||
-                    "application/octet-stream"
-            ).trim() ||
-            "application/octet-stream";
 
         const assetType = String(
             body.assetType || ""
@@ -695,14 +653,12 @@ export async function POST(request: Request) {
             content.project.organizationId,
             "content",
             content.id,
+            ...(versionTarget ? ["assets", versionTarget.id, "versions"] : []),
             "",
         ].join("/");
 
-        if (
-            !storageKey.startsWith(
-                requiredPrefix
-            )
-        ) {
+        const keyLeaf = storageKey.slice(requiredPrefix.length);
+        if (!storageKey.startsWith(requiredPrefix) || !keyLeaf || keyLeaf.includes("/") || /[\\\x00-\x1f]/.test(keyLeaf) || keyLeaf === "." || keyLeaf === ".." || storageKey.length > 1024) {
             return NextResponse.json(
                 {
                     error:
@@ -751,25 +707,38 @@ export async function POST(request: Request) {
                 })
             );
 
-        const actualFileSize =
-            typeof head.ContentLength ===
-            "number"
-                ? head.ContentLength
-                : Number.isFinite(
-                      requestedFileSize
-                  )
-                ? requestedFileSize
-                : null;
+        const actualFileSize = head.ContentLength;
+        const actualMimeType = head.ContentType?.trim().toLowerCase();
+        if (typeof actualFileSize !== "number" || !Number.isSafeInteger(actualFileSize) || actualFileSize <= 0 || actualFileSize > 5 * 1024 ** 3) {
+            return NextResponse.json({ error: "Uploaded object must contain 1 byte to 5 GiB." }, { status: 400 });
+        }
+        if (!actualMimeType || !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(actualMimeType)) {
+            return NextResponse.json({ error: "Uploaded object has an invalid Content-Type." }, { status: 400 });
+        }
+        if (Number.isFinite(requestedFileSize) && requestedFileSize !== actualFileSize) {
+            return NextResponse.json({ error: "Uploaded object size does not match the registration." }, { status: 400 });
+        }
+        const mediaPrefix = { VIDEO: "video/", IMAGE: "image/", AUDIO: "audio/" };
+        const targetType = versionTarget?.assetType ?? assetType;
+        if (targetType in mediaPrefix && !actualMimeType.startsWith(mediaPrefix[targetType as keyof typeof mediaPrefix])) {
+            return NextResponse.json({ error: "Uploaded Content-Type does not match the asset type." }, { status: 400 });
+        }
 
-        const actualMimeType =
-            head.ContentType ||
-            mimeType ||
-            null;
+        // Recheck after obtaining the same lock used by every registration/deletion.
+        const checkRegistration = async (tx: Prisma.TransactionClient) => {
+            const current = await tx.contentItem.findUnique({ where: { id: content.id }, select: { id: true } });
+            if (!current) throw Object.assign(new Error("Project removed"), { response: NextResponse.json({ error: "Project no longer exists." }, { status: 409 }) });
+            const registered = await tx.assetVersion.findFirst({ where: { storageKey }, select: { id: true } });
+            const currentObject = await tx.asset.findUnique({ where: { storageKey }, select: { id: true } });
+            if (registered || currentObject) throw Object.assign(new Error("Object already registered"), { response: NextResponse.json({ error: "This uploaded object has already been registered." }, { status: 409 }) });
+        };
 
         if (versionTarget) {
             const updatedAsset =
                 await prisma.$transaction(
                     async (tx) => {
+                        await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${content.id} FOR UPDATE`;
+                        await checkRegistration(tx);
                         const latestVersion =
                             await tx.assetVersion.findFirst({
                                 where: {
@@ -879,6 +848,8 @@ export async function POST(request: Request) {
         const created =
             await prisma.$transaction(
                 async (tx) => {
+                    await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${content.id} FOR UPDATE`;
+                    await checkRegistration(tx);
                     const asset =
                         await tx.asset.create({
                             data: {
@@ -965,6 +936,8 @@ export async function POST(request: Request) {
             { status: 201 }
         );
     } catch (error) {
+        if (error && typeof error === "object" && "response" in error && error.response instanceof Response) return error.response;
+        if (error && typeof error === "object" && "code" in error && error.code === "P2002") return NextResponse.json({ error: "This upload has already been registered." }, { status: 409 });
         logServerError(
             "POST /api/assets failed:",
             error

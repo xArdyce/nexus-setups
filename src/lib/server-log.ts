@@ -1,5 +1,3 @@
-// Only allow known operational codes. Never serialize error messages, stacks,
-// causes, SQL, SMTP responses, request bodies, URLs or arbitrary metadata.
 const SAFE_CODES = new Set([
   "P2002", "P2003", "P2025", "P2024", "P2034", "P1001", "P1002",
   "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAUTH",

@@ -73,6 +73,7 @@ export async function POST(
                         asset: {
                             select: {
                                 id: true,
+                                contentId: true,
                                 assetType: true,
                             },
                         },
@@ -99,7 +100,7 @@ export async function POST(
         }
 
         const isOwningCreator =
-            user.accountType === "CREATOR" &&
+            user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId) &&
             user.creatorProfile?.id ===
                 review.content.project.creatorId &&
             user.creatorProfile?.organizationId ===
@@ -144,6 +145,17 @@ export async function POST(
                 },
                 { status: 409 }
             );
+        }
+
+        if (!review.assetVersion || review.assetVersion.asset.contentId !== review.content.id) {
+            return NextResponse.json({ error: "This review has no valid project version." }, { status: 409 });
+        }
+        const latestPending = await prisma.review.findFirst({
+            where: { contentId: review.content.id, status: "PENDING" },
+            orderBy: { createdAt: "desc" }, select: { id: true },
+        });
+        if (latestPending?.id !== review.id) {
+            return NextResponse.json({ error: "This is not the current pending review." }, { status: 409 });
         }
 
         let body: {
@@ -200,40 +212,6 @@ export async function POST(
             );
         }
 
-        if (
-            decision === "APPROVE" &&
-            !confirmUnresolved
-        ) {
-            const unresolvedCommentCount =
-                await prisma.reviewComment.count({
-                    where: {
-                        reviewId: review.id,
-                        resolved: false,
-                    },
-                });
-
-            if (unresolvedCommentCount > 0) {
-                return NextResponse.json(
-                    {
-                        error:
-                            `There ${
-                                unresolvedCommentCount === 1
-                                    ? "is"
-                                    : "are"
-                            } ${unresolvedCommentCount} unresolved review ${
-                                unresolvedCommentCount === 1
-                                    ? "comment"
-                                    : "comments"
-                            } on this cut.`,
-                        code:
-                            "UNRESOLVED_REVIEW_COMMENTS",
-                        unresolvedCommentCount,
-                    },
-                    { status: 409 }
-                );
-            }
-        }
-
         const nextReviewStatus =
             decision === "APPROVE"
                 ? "APPROVED"
@@ -246,10 +224,51 @@ export async function POST(
 
         const result = await prisma.$transaction(
             async (tx) => {
+                await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${review.content.id} FOR UPDATE`;
+                const currentReview = await tx.review.findUnique({ where: { id: review.id } });
+                const currentContent = await tx.contentItem.findUnique({ where: { id: review.content.id } });
+                if (currentReview?.status !== "PENDING" || currentContent?.status !== "IN_REVIEW" || currentReview.assetVersionId !== review.assetVersionId) {
+                    throw Object.assign(new Error("Review changed"), { response: NextResponse.json({ error: "Review changed. Reload before deciding." }, { status: 409 }) });
+                }
+                if (
+                    decision === "APPROVE" &&
+                    !confirmUnresolved
+                ) {
+                    const unresolvedCommentCount =
+                        await tx.reviewComment.count({
+                            where: {
+                                reviewId: review.id,
+                                resolved: false,
+                            },
+                        });
+
+                    if (unresolvedCommentCount > 0) {
+                        throw Object.assign(new Error("Unresolved review comments"), { response: NextResponse.json(
+                            {
+                                error:
+                                    `There ${
+                                        unresolvedCommentCount === 1
+                                            ? "is"
+                                            : "are"
+                                    } ${unresolvedCommentCount} unresolved review ${
+                                        unresolvedCommentCount === 1
+                                            ? "comment"
+                                            : "comments"
+                                    } on this cut.`,
+                                code:
+                                    "UNRESOLVED_REVIEW_COMMENTS",
+                                unresolvedCommentCount,
+                            },
+                            { status: 409 }
+                        ) });
+                    }
+                }
+
                 const updatedReview =
                     await tx.review.update({
                         where: {
                             id: review.id,
+                            status: "PENDING",
                         },
                         data: {
                             status: nextReviewStatus,
@@ -296,6 +315,7 @@ export async function POST(
                     await tx.contentItem.update({
                         where: {
                             id: review.content.id,
+                            status: "IN_REVIEW",
                         },
                         data: {
                             status: nextContentStatus,
@@ -393,6 +413,7 @@ export async function POST(
             },
         });
     } catch (error) {
+        if (error && typeof error === "object" && "response" in error && error.response instanceof Response) return error.response;
         logServerError(
             "POST /api/reviews/[reviewId]/decision failed:",
             error

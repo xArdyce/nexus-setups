@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -257,7 +258,7 @@ model Asset {
 model AssetVersion {
   id         String   @id @default(cuid())
   version    Int
-  storageKey String
+  storageKey String   @unique
   fileName   String
   fileSize   BigInt?
   mimeType   String?
@@ -287,6 +288,7 @@ model Review {
 
   comments ReviewComment[]
 
+  @@unique([contentId], map: "Review_one_pending_per_content", where: { status: "PENDING" })
   @@index([contentId])
   @@index([authorId])
   @@index([assetVersionId])

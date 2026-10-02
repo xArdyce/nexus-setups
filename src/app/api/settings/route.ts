@@ -1,5 +1,6 @@
 import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
+import { allowAuthAttempt } from "@/lib/rate-limit";
 import bcrypt from "bcryptjs";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -84,7 +85,6 @@ function serializeSettingsUser(
     };
 }
 
-// GET /api/settings
 export async function GET() {
     try {
         const user = await getAuthenticatedUser();
@@ -115,29 +115,6 @@ export async function GET() {
     }
 }
 
-// PATCH /api/settings
-//
-// PROFILE:
-// {
-//   action: "PROFILE",
-//   name,
-//   email,
-//   currentPassword? // required when changing email
-// }
-//
-// PASSWORD:
-// {
-//   action: "PASSWORD",
-//   currentPassword,
-//   newPassword
-// }
-//
-// WORKSPACE:
-// {
-//   action: "WORKSPACE",
-//   organizationId,
-//   name
-// }
 export async function PATCH(request: Request) {
     try {
         const user = await getAuthenticatedUser();
@@ -171,11 +148,6 @@ export async function PATCH(request: Request) {
             body.action || ""
         ).trim();
 
-        /*
-         * ============================================================
-         * PROFILE
-         * ============================================================
-         */
         if (action === "PROFILE") {
             const name = String(
                 body.name || ""
@@ -219,6 +191,7 @@ export async function PATCH(request: Request) {
                 email !== user.email.toLowerCase();
 
             if (emailChanged) {
+                if (!(await allowAuthAttempt("password-change", user.id, request))) return NextResponse.json({ error: "Too many verification attempts." }, { status: 429 });
                 if (!user.password) {
                     return NextResponse.json(
                         {
@@ -281,16 +254,20 @@ export async function PATCH(request: Request) {
 
             await prisma.$transaction(
                 async (tx) => {
+                    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
                     await tx.user.update({
                         where: {
                             id: user.id,
+                            ...(emailChanged ? { password: user.password } : {}),
                         },
                         data: {
                             name,
                             email,
+                            ...(emailChanged ? { sessionVersion: { increment: 1 } } : {}),
                         },
                     });
 
+                    if (emailChanged) await tx.passwordResetToken.deleteMany({ where: { userId: user.id } });
                     if (user.creatorProfile) {
                         await tx.creator.update({
                             where: {
@@ -325,12 +302,8 @@ export async function PATCH(request: Request) {
             });
         }
 
-        /*
-         * ============================================================
-         * PASSWORD
-         * ============================================================
-         */
         if (action === "PASSWORD") {
+            if (!(await allowAuthAttempt("password-change", user.id, request))) return NextResponse.json({ error: "Too many verification attempts." }, { status: 429 });
             const currentPassword =
                 typeof body.currentPassword === "string"
                     ? body.currentPassword
@@ -361,11 +334,11 @@ export async function PATCH(request: Request) {
                 );
             }
 
-            if (newPassword.length < 8) {
+            if (newPassword.length < 8 || Buffer.byteLength(newPassword, "utf8") > 72) {
                 return NextResponse.json(
                     {
                         error:
-                            "New password must be at least 8 characters.",
+                            "New password must be at least 8 characters and at most 72 UTF-8 bytes.",
                     },
                     { status: 400 }
                 );
@@ -409,16 +382,17 @@ export async function PATCH(request: Request) {
                     12
                 );
 
-            await prisma.user.update({
-                where: {
-                    id: user.id,
-                },
-                data: {
-                    password:
-                        hashedPassword,
-                    sessionVersion: { increment: 1 },
-                },
+            const changed = await prisma.$transaction(async (tx) => {
+                await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+                const claimed = await tx.user.updateMany({
+                    where: { id: user.id, password: user.password },
+                    data: { password: hashedPassword, sessionVersion: { increment: 1 } },
+                });
+                if (claimed.count !== 1) return false;
+                await tx.passwordResetToken.deleteMany({ where: { userId: user.id } });
+                return true;
             });
+            if (!changed) return NextResponse.json({ error: "Credentials changed. Sign in again before retrying." }, { status: 409 });
 
             return NextResponse.json({
                 success: true,
@@ -427,11 +401,6 @@ export async function PATCH(request: Request) {
             });
         }
 
-        /*
-         * ============================================================
-         * WORKSPACE
-         * ============================================================
-         */
         if (action === "WORKSPACE") {
             const organizationId = String(
                 body.organizationId || ""

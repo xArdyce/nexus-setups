@@ -240,9 +240,6 @@ function applyAttrs(element: Element, language: LanguageCode) {
 
     const translated = translate(stored!.get(attr) || "", language);
 
-    // Avoid repeatedly writing the same attribute value.
-    // Because the MutationObserver watches attributes, rewriting an
-    // unchanged value can cause a self-triggering loop and freeze the page.
     if (element.getAttribute(attr) !== translated) {
       element.setAttribute(attr, translated);
     }

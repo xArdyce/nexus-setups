@@ -16,7 +16,7 @@ The migration command affects the database selected by `DATABASE_URL`: verify th
 
 ## Production release
 
-1. In Vercel → Nexus Setups → Settings → Environment Variables, configure the scope-specific variables in [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md). Set Production `AUTH_URL` to https://nexus-setups.vercel.app. Keep Preview data and SMTP separate.
+1. In Vercel → Nexus Setups → Settings → Environment Variables, configure the scope-specific variables in [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md). Set Production `AUTH_URL` to https://www.setups.nexus. Keep Preview data and SMTP separate.
 2. Configure a provider-authorized SMTP sender with SPF/DKIM as required by that provider. Set all six `SMTP_*` fields. Use port 587 with `SMTP_SECURE=false` (required STARTTLS) or 465 with `true`. Validate receipt using an isolated account; generic reset success does not prove delivery.
 3. Use a Neon pooled TLS connection for runtime `DATABASE_URL`. From your controlled migration environment with the intended database selected, run `npx prisma migrate deploy` **before deploying this code**. This release adds `RateLimit` and `User.sessionVersion`; missing migration causes auth to fail closed. No Studio, `db push` or reset is needed. `prisma.config.ts` uses the migration process's `DATABASE_URL`; supply a direct Neon connection there if required by your migration setup, without changing Vercel's pooled runtime value.
 4. In Cloudflare → R2 Object Storage → select your bucket → Settings → CORS Policy → Edit/Add → JSON, paste [R2_CORS.json](R2_CORS.json), add intended Preview origins explicitly, and Save. Repository edits do not update Cloudflare.
@@ -27,5 +27,7 @@ The migration command affects the database selected by `DATABASE_URL`: verify th
 ## Admin operator warning
 
 Do not run `scripts/create-admin.ts` as part of deployment or normal tests. It requires `ADMIN_INITIAL_PASSWORD` (12 characters minimum, 72 UTF-8 bytes maximum) in the operator's environment and refuses to change an existing account unless `--update-existing-password` is explicitly supplied. That flag changes credentials and revokes previous sessions. It does not grant an organization role. Never place the initial password in a command-line argument, commit, build log, or persistent Vercel runtime environment. The script was not executed during hardening.
+
+The latest release findings are in [PRODUCTION_READINESS_PASS4.md](PRODUCTION_READINESS_PASS4.md). Historical audit reports may contain superseded origin guidance. Production and Preview reset delivery require their explicit HTTPS AUTH_URL.
 
 See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for implementation details, test evidence, remaining external configuration and the manual role matrix.

@@ -31,7 +31,6 @@
     --nx-radius-inner: 10px;
 }
 
-/* Background Ambient Lighting */
 .nexus-minimal-ui {
     background-color: var(--nx-bg) !important;
     background-image: 
@@ -45,7 +44,6 @@
     overflow-x: hidden;
 }
 
-/* 1. Left Sidebar */
 .nexus-minimal-ui .sidebar {
     width: 170px !important;
     flex: 0 0 170px !important;
@@ -202,7 +200,6 @@
     font-size: 0.75rem;
 }
 
-/* 2. Main Content Area */
 .nexus-minimal-ui .dashboard-main {
     flex: 1 !important;
     margin-left: 0 !important;
@@ -213,7 +210,6 @@
     box-sizing: border-box !important;
 }
 
-/* 3. Top Bar */
 .nexus-minimal-ui .nexus-topbar {
     display: flex !important;
     justify-content: space-between !important;
@@ -299,7 +295,6 @@
     cursor: pointer;
 }
 
-/* 4. Greeting Section */
 .nexus-minimal-ui .greeting-section {
     display: flex !important;
     justify-content: space-between !important;
@@ -357,7 +352,6 @@
     color: var(--nx-muted) !important;
 }
 
-/* 5. Metrics Row */
 .nexus-minimal-ui .metrics-row {
     display: grid !important;
     grid-template-columns: repeat(4, 1fr) !important;
@@ -435,7 +429,6 @@
     stroke-linecap: round;
 }
 
-/* 6. Lower Content Layout */
 .nexus-minimal-ui .content-split-layout {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) 275px !important;
@@ -443,7 +436,6 @@
     align-items: start !important;
 }
 
-/* 7. Projects Panel */
 .nexus-minimal-ui .projects-panel-box {
     background: var(--nx-card) !important;
     border: 1px solid var(--nx-border) !important;
@@ -527,7 +519,6 @@
     opacity: 0.93 !important;
 }
 
-/* 8. Table Styling */
 .nexus-minimal-ui .projects-table-head {
     display: grid !important;
     grid-template-columns: minmax(240px, 2fr) 110px 100px 125px 95px 85px 30px !important;
@@ -634,7 +625,6 @@
     text-overflow: ellipsis !important;
 }
 
-/* Status Pills */
 .nexus-minimal-ui .status-pill {
     display: inline-flex !important;
     align-items: center !important;
@@ -668,7 +658,6 @@
     place-items: center !important;
 }
 
-/* 10. Table Footer */
 .nexus-minimal-ui .projects-table-footer {
     display: flex !important;
     justify-content: space-between !important;
@@ -693,7 +682,6 @@
     cursor: pointer !important;
 }
 
-/* 11 & 12. Right Sidebar Panels */
 .nexus-minimal-ui .right-column-stack {
     display: flex !important;
     flex-direction: column !important;
@@ -772,7 +760,6 @@
     margin-top: 2px !important;
 }
 
-/* Quick Actions Box */
 .nexus-minimal-ui .quick-actions-card-box {
     padding: 16px 18px !important;
 }
@@ -820,7 +807,6 @@
     cursor: pointer !important;
 }
 
-/* 18. Responsive Breakpoints */
 @media (max-width: 1200px) {
     .nexus-minimal-ui .content-split-layout {
         grid-template-columns: 1fr !important;
@@ -879,9 +865,6 @@
     }
 }
 
-/* ==========================================================
-   LIVE NEXUS INTEGRATION + COMPATIBILITY
-   ========================================================== */
 
 :root[data-theme="dark"] {
     --nx-bg: #101118;
@@ -1066,7 +1049,6 @@
     color: var(--nx-red) !important;
 }
 
-/* Preserve other dashboard views while visually aligning them. */
 .nexus-minimal-ui .panel,
 .nexus-minimal-ui .full-project-table,
 .nexus-minimal-ui .review-history-card,
@@ -1094,7 +1076,6 @@
     background: var(--nx-card) !important;
 }
 
-/* Hide scrollbar chrome but retain scrolling. */
 .nexus-minimal-ui .target-overview-scroll,
 .nexus-minimal-ui .activity-items-stack {
     scrollbar-width: none;
@@ -1105,7 +1086,6 @@
     display: none;
 }
 
-/* More complete responsive behavior for the live data table. */
 @media (max-width: 1320px) {
     .nexus-minimal-ui .toolbar-controls-cluster {
         flex-wrap: wrap !important;
@@ -1265,9 +1245,6 @@
 }
 
 
-/* ==========================================================
-   POLISH PASS: DEPTH, NOTIFICATIONS, WIDER SIDEBAR
-   ========================================================== */
 
 :root[data-theme="light"] {
     --nx-bg: #f4f2fb;
@@ -1294,7 +1271,6 @@
     --nx-purple-wash-strong: rgba(117, 68, 252, 0.15);
 }
 
-/* Stronger foreground/background separation without becoming busy. */
 .nexus-minimal-ui {
     background-color: var(--nx-bg) !important;
     background-image:
@@ -1363,7 +1339,6 @@
     z-index: 1;
 }
 
-/* Cards stay white so the lavender canvas is clearly visible behind them. */
 .nexus-minimal-ui .metric-box,
 .nexus-minimal-ui .projects-panel-box,
 .nexus-minimal-ui .activity-card-box,
@@ -1379,9 +1354,6 @@
     box-shadow: var(--nx-shadow) !important;
 }
 
-/* ----------------------------------------------------------
-   Wider sidebar
-   ---------------------------------------------------------- */
 
 .nexus-minimal-ui .sidebar {
     width: 230px !important;
@@ -1480,9 +1452,6 @@
     margin-left: 2px;
 }
 
-/* ----------------------------------------------------------
-   Top bar and general hierarchy
-   ---------------------------------------------------------- */
 
 .nexus-minimal-ui .topbar-search-wrap {
     background: rgba(255, 255, 255, 0.78) !important;
@@ -1515,9 +1484,6 @@
         0 1px 2px rgba(22, 18, 37, 0.02) !important;
 }
 
-/* ----------------------------------------------------------
-   Notification popover
-   ---------------------------------------------------------- */
 
 .nexus-minimal-ui .notification-shell {
     position: relative !important;
@@ -1810,7 +1776,6 @@
     line-height: 1.45;
 }
 
-/* Make the unread badge cleaner and easier to notice. */
 .nexus-minimal-ui .topbar-badge,
 .nexus-minimal-ui .nav-badge {
     background: #f04f72 !important;
@@ -1832,9 +1797,6 @@
     font-size: 0.56rem !important;
 }
 
-/* ----------------------------------------------------------
-   Responsive adjustments for the widened desktop sidebar
-   ---------------------------------------------------------- */
 
 @media (max-width: 1050px) and (min-width: 901px) {
     .nexus-minimal-ui .sidebar {
@@ -1906,11 +1868,6 @@
 }
 
 
-/* ==========================================================
-   PROJECT TABLE COLUMN BALANCE
-   Give the project column useful width without allowing it to
-   absorb nearly all remaining horizontal space.
-   ========================================================== */
 
 @media (min-width: 1101px) {
     .nexus-minimal-ui .projects-table-head,
@@ -1948,8 +1905,6 @@
     }
 }
 
-/* On very wide screens, prevent the first column from becoming an
-   oversized empty area. Spread the extra width across all data columns. */
 @media (min-width: 1500px) {
     .nexus-minimal-ui .projects-table-head,
     .nexus-minimal-ui .projects-table-row {
@@ -1962,10 +1917,6 @@
 }
 
 
-/* ==========================================================
-   RIGHT RAIL ALIGNMENT
-   Quick Actions stays aligned with the bottom of Projects.
-   ========================================================== */
 
 @media (min-width: 1201px) {
     .nexus-minimal-ui .content-split-layout {
@@ -2006,9 +1957,6 @@
     }
 }
 
-/* ==========================================================
-   MOBILE NAVIGATION
-   ========================================================== */
 
 .nexus-minimal-ui .mobile-menu-button {
     display: none;
@@ -2283,7 +2231,6 @@
     }
 }
 
-/* Final responsive safeguards: keep overrides in this permanent stylesheet. */
 .nexus-minimal-ui .dashboard-main,
 .nexus-minimal-ui .view-panel,
 .nexus-minimal-ui .panel-scroll-container,
@@ -2364,7 +2311,6 @@
     .nexus-minimal-ui .sidebar { transition: none !important; }
 }
 
-/* Dedicated Projects view. Shared shell and Overview remain unchanged. */
 .nexus-minimal-ui .projects-view {
     --projects-columns: minmax(180px, 2fr) repeat(2, minmax(90px, 1fr)) minmax(100px, 1fr) repeat(2, minmax(80px, .85fr)) minmax(100px, 1fr);
 }
@@ -2452,7 +2398,6 @@
     .nexus-minimal-ui .projects-list-footer .btn-load-more { width: 100% !important; }
 }
 
-/* Project Detail / Production Workflow: presentation only, scoped to this view. */
 .nexus-minimal-ui .project-detail-view {
     --white: var(--nx-text);
     --muted: var(--nx-muted);
@@ -2556,7 +2501,6 @@
 }
 .nexus-minimal-ui .detail-delivery-complete { margin: 0 0 18px; padding: 14px 16px; border-radius: 10px; color: var(--nx-green); background: var(--nx-green-soft); font-size: .85rem; line-height: 1.6; }
 
-/* Focused Project Detail refinement; no workflow changes. */
 .nexus-minimal-ui .project-detail-view .detail-overview-grid > .panel { min-height: 0 !important; height: auto !important; padding: 20px; }
 .nexus-minimal-ui .detail-overview-grid { align-items: start; }
 .nexus-minimal-ui .detail-overview-grid .panel-header { margin-bottom: 14px; }
@@ -2598,7 +2542,6 @@
     .nexus-minimal-ui .detail-progress li small { grid-column: 2; }
 }
 
-/* Dedicated Asset Vault. Storage and workflow behavior remain in existing handlers. */
 .nexus-minimal-ui .assets-view {
     --white: var(--nx-text); --muted: var(--nx-muted); --line: var(--nx-border);
     --input-bg: var(--nx-card-soft); --card-bg: var(--nx-card); --purple-bright: var(--nx-purple);
@@ -2697,7 +2640,6 @@
     .nexus-minimal-ui .assets-view .vault-version-row .asset-action { width: 100%; }
 }
 
-/* Global dashboard polish: native controls and existing workflow markup. */
 :is(.nexus-minimal-ui, .nexus-form-surface) {
     --nx-control-border: #ded9ed;
     --nx-control-hover: #b9a4ed;
@@ -2751,7 +2693,6 @@
 :is(.nexus-minimal-ui, .nexus-form-surface) input[type="file"].dash-input { box-sizing: border-box; min-width: 0; width: 100%; max-width: 100%; height: 44px; padding: 0; border: 1px solid var(--nx-control-border) !important; border-radius: 11px; background: #fcfbff; color: var(--nx-control-text); font-family: inherit; overflow: hidden; }
 :is(.nexus-minimal-ui, .nexus-form-surface) input[type="file"]::file-selector-button { height: 42px; margin-right: 10px; padding: 0 12px; border: 0; border-right: 1px solid var(--nx-control-border); background: var(--nx-purple-soft); color: var(--nx-purple); font: inherit; cursor: pointer; }
 :is(.nexus-minimal-ui, .nexus-form-surface) form :is(.button, .action-btn, .asset-upload-button) { box-sizing: border-box; min-height: 44px; height: auto; padding: 10px 14px; border-radius: 11px; font-family: inherit; font-size: .78rem; line-height: 1.5; white-space: normal; }
-/* Keep the existing shell dimensions usable around native workspace/language selects. */
 .nexus-minimal-ui .target-org-selector { height: 44px !important; min-width: 0 !important; padding: 0 !important; border: 0 !important; }
 .nexus-minimal-ui .target-org-selector select.organization-select { border: 1px solid var(--nx-control-border) !important; border-radius: 11px !important; }
 .nexus-minimal-ui .language-selector { min-height: 44px !important; padding: 0; border: 0; background: transparent; gap: 6px; }
@@ -2761,7 +2702,6 @@
 .nexus-minimal-ui .toolbar-controls-cluster { flex-wrap: wrap; }
 .nexus-minimal-ui .projects-list-toolbar .dash-input { height: 44px; }
 
-/* Typography rhythm without changing section layout or data flow. */
 .nexus-minimal-ui .panel-header .status-tag + h3,
 .nexus-form-surface .status-tag + h3 { margin-top: 7px; }
 .nexus-minimal-ui .task-card-header h3 { margin-top: 0; line-height: 1.5; }
@@ -2795,7 +2735,6 @@
     .nexus-minimal-ui .target-org-selector select.organization-select { appearance: auto; background-image: none !important; }
 }
 
-/* Creators directory and its existing workspace panel. */
 .nexus-minimal-ui :is(.creators-view, .creator-workspace-view) { --white: var(--nx-text); --muted: var(--nx-muted); --line: var(--nx-border); --card-bg: var(--nx-card); --input-bg: var(--nx-card-soft); --purple-bright: var(--nx-purple); color: var(--nx-text); }
 .nexus-minimal-ui :is(.creators-page, .creator-workspace-page) { padding: 0; border: 0 !important; background: transparent !important; box-shadow: none !important; min-width: 0; }
 .nexus-minimal-ui .creators-page-header { margin-bottom: 22px; }
@@ -2864,7 +2803,6 @@
     .nexus-minimal-ui :is(.creators-view, .creator-workspace-view) .action-btn { min-height: 44px; }
 }
 
-/* Settings uses the shared form system and preserves existing form boundaries. */
 .nexus-minimal-ui .settings-view { --white: var(--nx-text); --muted: var(--nx-muted); --line: var(--nx-border); --input-bg: var(--nx-card-soft); color: var(--nx-text); }
 .nexus-minimal-ui .settings-view .settings-panel { width: 100%; max-width: 1000px; margin-inline: auto; padding: 0; border: 0 !important; background: transparent !important; box-shadow: none !important; }
 .nexus-minimal-ui .settings-page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
@@ -2908,7 +2846,6 @@
     .nexus-minimal-ui .settings-view .settings-theme-options .action-btn { width: 100%; min-width: 0; }
 }
 
-/* Shared main-title hierarchy and independently sized Settings columns. */
 .nexus-minimal-ui .page-title {
     font-family: inherit !important;
     font-size: clamp(1.65rem, 2.4vw, 2rem) !important;
@@ -2946,7 +2883,6 @@
     .nexus-minimal-ui .settings-view .settings-session > div { flex: auto; }
 }
 
-/* Additional breathing room within the established Settings cards. */
 .nexus-minimal-ui .settings-view .settings-page-header { margin-bottom: 32px; }
 .nexus-minimal-ui .settings-view .settings-subtitle { margin-top: 12px; }
 .nexus-minimal-ui .settings-view .settings-form { row-gap: 22px; }
@@ -2960,7 +2896,6 @@
     .nexus-minimal-ui .settings-view .settings-page-header { margin-bottom: 24px; }
 }
 
-/* Enabled only by an explicit theme switch, never by saved-theme initialization. */
 :root.theme-transitioning body,
 :root.theme-transitioning :is(.nexus-minimal-ui, .nexus-form-surface),
 :root.theme-transitioning :is(.nexus-minimal-ui, .nexus-form-surface) *,
@@ -2970,7 +2905,6 @@
         border-color 300ms ease, box-shadow 300ms ease,
         fill 300ms ease, stroke 300ms ease, --nx-ambient-sheen 300ms ease, --nx-glow-top 300ms ease, --nx-glow-middle 300ms ease, --nx-glow-bottom 300ms ease, --nx-glow-fade 300ms ease !important;
 }
-/* Retain the existing mobile drawer interaction during the brief theme transition. */
 @media (max-width: 900px) {
     :root.theme-transitioning .nexus-minimal-ui .sidebar {
         transition: background-color 300ms ease, color 300ms ease,
@@ -2987,7 +2921,6 @@
     }
 }
 
-/* Typed gradient color interpolates without changing the Light palette. */
 @property --nx-ambient-sheen {
     syntax: "<color>";
     inherits: true;
@@ -3015,7 +2948,6 @@
 }
 :root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) select,
 :root[data-theme="dark"] .nexus-minimal-ui .target-org-selector select.organization-select {
-    /* Override background shorthand resets from controls such as .toolbar-select-pill. */
     background-repeat: no-repeat !important;
     background-position: right 14px center !important;
     background-size: 16px 16px !important;
@@ -3043,7 +2975,6 @@
     :root[data-theme="dark"] .nexus-minimal-ui .target-org-selector select.organization-select { background-image: none !important; }
 }
 
-/* Preserve exact Light gradient colors; interpolate richer purple stops in Dark. */
 @property --nx-glow-top { syntax: "<color>"; inherits: true; initial-value: rgba(117, 68, 252, 0.13); }
 @property --nx-glow-middle { syntax: "<color>"; inherits: true; initial-value: rgba(117, 68, 252, 0.045); }
 @property --nx-glow-bottom { syntax: "<color>"; inherits: true; initial-value: rgba(151, 122, 255, 0.11); }
@@ -3054,7 +2985,6 @@
     --nx-glow-bottom: rgba(105, 62, 220, .12);
     --nx-glow-fade: rgba(90, 50, 180, .06);
 }
-/* Match the shared field selector's specificity, including its :not() clauses. */
 :root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) :is(input.dash-input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), select, textarea),
 :root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]) {
     background-color: var(--nx-control-bg) !important;
@@ -3082,8 +3012,6 @@
 :root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]), select, textarea):focus { border-color: var(--nx-purple) !important; box-shadow: 0 0 0 3px rgba(123, 76, 255, .14) !important; }
 :root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]), select, textarea):is(.error, [aria-invalid="true"]) { border-color: var(--nx-red) !important; }
 
-/* Sidebar hover: retain the Light fallback, with explicit Dark active precedence.
-   Existing base navigation declarations use !important, so these state overrides match it. */
 :root[data-theme="dark"] .nexus-minimal-ui { --nx-nav-hover: rgba(117, 68, 252, .08); }
 :root[data-theme="dark"] .nexus-minimal-ui .sidebar .nav-item:not(.active):hover {
     color: var(--nx-text) !important;
@@ -3100,10 +3028,34 @@
     .nexus-minimal-ui .sidebar .nav-item { transition: none !important; }
 }
 
-/* QA: modal containment and neutral workflow status in both themes. */
 .nexus-form-surface.modal-overlay:not(.active) { visibility: hidden; }
 .nexus-form-surface .brief-card { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; background: var(--nx-card); color: var(--nx-text); border: 1px solid var(--nx-border); border-radius: 16px; box-shadow: var(--nx-shadow); }
 .nexus-form-surface .brief-header h3 { color: var(--nx-text); margin-top: 8px; }
 .nexus-form-surface .modal-close { color: var(--nx-muted); }
 .nexus-form-surface .button-primary { background: var(--nx-purple); color: white; border-color: var(--nx-purple); }
 :root[data-theme="dark"] .nexus-minimal-ui .status-pill.requested { background: var(--nx-card-soft) !important; color: var(--nx-muted) !important; }
+
+/* Keep custom project intake modal interaction confined to its surface. */
+body:has(.nexus-form-surface.modal-overlay.active) { overflow: hidden !important; }
+.nexus-minimal-ui .topbar-search-wrap input { min-height: 32px; }
+
+/* Preserve the palette while making small secondary text and actions readable. */
+:root:not([data-theme="dark"]) :is(.nexus-minimal-ui, .nexus-form-surface) { --nx-muted: #686879; --nx-green: #087d49; --nx-amber: #975609; --nx-blue: #2458c4; --nx-red: #c12950; }
+:root:not([data-theme="dark"]) .nexus-minimal-ui .status-pill.requested { color: #606172 !important; }
+:root[data-theme="dark"] :is(.nexus-minimal-ui, .nexus-form-surface) :is(.btn-new-project-purple, .vault-primary, .button-primary) { background: #7544fc !important; color: #fff !important; }
+:root[data-theme="dark"] .nexus-minimal-ui .settings-theme-options .action-btn[aria-pressed="true"] { color: #c5afff; }
+
+.nexus-minimal-ui .overview-project-open { min-height: 24px; display: block; width: 100%; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; white-space: inherit; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+:root:not([data-theme="dark"]) .nexus-minimal-ui .user-avatar { color: #6835e6 !important; }
+
+/* Assignment names must not push management controls outside their card. */
+.nexus-minimal-ui .project-detail-view .project-item { min-width: 0; flex-wrap: wrap; gap: 12px; }
+.nexus-minimal-ui .project-detail-view .project-info { min-width: 0; flex: 1 1 180px; overflow-wrap: anywhere; }
+.nexus-minimal-ui .project-detail-view .project-info :is(strong, small) { white-space: normal; overflow-wrap: anywhere; }
+.nexus-minimal-ui .project-detail-view .project-item .action-btn { flex-shrink: 0; }
+
+.nexus-minimal-ui .workspace-load-error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--nx-red); border-radius: 12px; background: var(--nx-card); color: var(--nx-text); }
+.nexus-minimal-ui .workspace-load-error p { margin: 0; overflow-wrap: anywhere; }
+
+.nexus-minimal-ui .workspace-load-error .action-btn { min-height: 44px; padding: 10px 16px; border: 1px solid var(--nx-control-border); border-radius: 10px; background: var(--nx-card-soft); color: var(--nx-text); font: inherit; cursor: pointer; }
+.nexus-minimal-ui .workspace-load-error .action-btn:hover:not(:disabled) { border-color: var(--nx-purple); background: var(--nx-purple-soft); }

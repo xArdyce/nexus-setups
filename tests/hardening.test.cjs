@@ -39,7 +39,7 @@ test('safe logger never serializes sensitive errors or arbitrary provider codes'
 });
 
 test('reset request: generic responses, SMTP failure, hashing, TTL and development origin', async () => {
-  async function run({ known = true, failure = false, mode = 'production', allowed = true, authUrl } = {}) {
+  async function run({ known = true, failure = false, mode = 'production', allowed = true, authUrl = 'https://nexus-setups.vercel.app' } = {}) {
     let saved, sent;
     const db = {
       user: { findUnique: async () => known ? { id: 'test', email: 'test@example.invalid' } : null },
@@ -181,7 +181,7 @@ test('reset diagnostics distinguish every pre-SMTP exit and never log secrets', 
       } },
       $transaction: async fn => {
         if (failStage === 'token_persistence') fail();
-        return fn({ $queryRaw: async () => [], passwordResetToken: {
+        return fn({ user: { findUnique: async () => ({ email: "private-recipient@example.invalid" }) }, $queryRaw: async () => [], passwordResetToken: {
           deleteMany: async () => {}, create: async ({ data }) => { saved = data; },
         } });
       },

@@ -1,0 +1,16 @@
+.release-fallback { min-height: 100dvh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; background: #f8f8fc; color: #171828; font-family: system-ui, sans-serif; }
+.release-fallback-card { width: min(100%, 520px); box-sizing: border-box; padding: clamp(24px, 5vw, 40px); border: 1px solid #dedbea; border-radius: 18px; background: #fff; }
+.release-fallback-brand { font-weight: 800; letter-spacing: .08em; color: #6835e6; }
+.release-fallback-card h1 { font-size: clamp(1.7rem, 5vw, 2.2rem); line-height: 1.2; overflow-wrap: anywhere; }
+.release-fallback-card p { line-height: 1.65; }
+.release-fallback-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.release-fallback-actions :is(a, button) { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; padding: 10px 16px; border: 1px solid #7544fc; border-radius: 10px; background: #7544fc; color: white; font: inherit; text-decoration: none; cursor: pointer; }
+.release-fallback-actions :is(a, button):hover { background: #6230df; }
+.release-fallback-actions :is(a, button):focus-visible { outline: 3px solid #9672ff; outline-offset: 3px; }
+@media (prefers-color-scheme: dark) { .release-fallback { background: #10111b; color: #f0edf8; } .release-fallback-card { background: #20212d; border-color: #393449; } .release-fallback-brand { color: #c5afff; } }
+:root[data-theme="light"] .release-fallback { background: #f8f8fc; color: #171828; }
+:root[data-theme="light"] .release-fallback-card { background: #fff; border-color: #dedbea; }
+:root[data-theme="light"] .release-fallback-brand { color: #6835e6; }
+:root[data-theme="dark"] .release-fallback { background: #10111b; color: #f0edf8; }
+:root[data-theme="dark"] .release-fallback-card { background: #20212d; border-color: #393449; }
+:root[data-theme="dark"] .release-fallback-brand { color: #c5afff; }

@@ -79,9 +79,10 @@ async function getContentPermission(
   >
 ) {
   if (
-    user.accountType === "CREATOR" &&
+    user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId) &&
     user.creatorProfile?.id ===
-      task.content.project.creatorId
+      task.content.project.creatorId &&
+    user.creatorProfile?.organizationId === task.content.project.organizationId
   ) {
     return {
       canView: true,
@@ -289,6 +290,11 @@ export async function PATCH(
         },
         { status: 403 }
       );
+    }
+
+    if (dueDate !== undefined && dueDate !== null && dueDate !== "" &&
+        (typeof dueDate !== "string" || Number.isNaN(new Date(dueDate).getTime()))) {
+      return NextResponse.json({ error: "Invalid task due date" }, { status: 400 });
     }
 
     if (

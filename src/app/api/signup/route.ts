@@ -1,5 +1,6 @@
 import { logServerError } from "@/lib/server-log";
 import { NextResponse } from "next/server";
+import { allowAuthAttempt } from "@/lib/rate-limit";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!email) {
+    if (!email || email.length > 254) {
       return NextResponse.json(
         { error: "Email is required." },
         { status: 400 }
@@ -52,9 +53,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 8) {
+    if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72) {
       return NextResponse.json(
-        { error: "Password must be at least 8 characters." },
+        { error: "Password must be at least 8 characters and at most 72 UTF-8 bytes." },
         { status: 400 }
       );
     }
@@ -64,6 +65,10 @@ export async function POST(request: Request) {
         { error: "Account type must be CREATOR or EDITOR." },
         { status: 400 }
       );
+    }
+
+    if (!(await allowAuthAttempt("signup", email, request))) {
+      return NextResponse.json({ error: "Too many signup attempts. Try again later." }, { status: 429 });
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -79,10 +84,6 @@ export async function POST(request: Request) {
       );
     }
 
-    /*
-     * Make sure the main Nexus organization still exists before
-     * creating any account records.
-     */
     const nexusOrganization = await prisma.organization.findUnique({
       where: {
         id: NEXUS_ORGANIZATION_ID,
@@ -108,18 +109,6 @@ export async function POST(request: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    /*
-     * Everything is created in one transaction.
-     *
-     * CREATOR:
-     * User
-     *   ├─ OrganizationMember (CREATOR)
-     *   └─ Creator profile
-     *
-     * EDITOR:
-     * User
-     *   └─ OrganizationMember (EDITOR)
-     */
     const user = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {

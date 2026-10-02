@@ -11,7 +11,6 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({
 }[char]!));
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string) {
-  // Local development needs no provider; its existing debug link is sufficient.
   if (process.env.NODE_ENV !== "production" && !process.env.SMTP_HOST) {
     console.log("Password reset email", { stage: "development_skip", deliveryAttempted: false });
     return;
@@ -44,7 +43,6 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
       text: `Reset your Nexus Setups password using this link:\n${resetUrl}\n\nThis link expires in 30 minutes. If you did not request this, you can ignore this email.`,
       html: `<p>Use the link below to reset your Nexus Setups password.</p><p><a href="${escapeHtml(resetUrl)}" style="display:inline-block;padding:12px 20px;background:#7544fc;color:#fff;text-decoration:none;border-radius:6px">Reset password</a></p><p>This link expires in 30 minutes.</p><p>If you did not request this, you can ignore this email.</p>`,
     });
-    // SMTP acceptance is not a guarantee of inbox delivery.
     console.log("Password reset email", { stage: "smtp_accepted", deliverySucceeded: true });
   } finally {
     transport.close();

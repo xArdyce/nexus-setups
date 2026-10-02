@@ -1060,7 +1060,6 @@ footer {
         0 15px 80px rgba(0, 0, 0, .1);
 }
 
-/* SOLID FILLED BANNER & INLINE TYPING CURSOR */
 .solid-banner {
     display: inline-block;
     background: var(--purple);
@@ -1538,9 +1537,6 @@ footer {
 }
 
 
-/* =========================================================
-   CONTENT EXPLAINED
-========================================================= */
 .content-guide {
     position: relative;
 }
@@ -3091,9 +3087,6 @@ footer {
     }
 }
 
-/* =========================================
-   SIGNUP ACCOUNT TYPE SELECTOR
-========================================= */
 
 .account-type-grid {
     display: grid;
@@ -3185,10 +3178,6 @@ footer {
     }
 }
 
-/* =========================================================
-   RESPONSIVE SYSTEM
-   Homepage: desktop -> laptop -> tablet -> mobile
-========================================================= */
 
 @media (max-width: 1180px) {
     :root {
@@ -3823,9 +3812,6 @@ footer {
     }
 }
 
-/* =========================================================
-   LANGUAGE SELECTOR
-========================================================= */
 .language-selector { min-height:42px; display:inline-flex; align-items:center; gap:8px; padding:0 10px; border:1px solid var(--line); background:var(--input-bg); color:var(--white); }
 .language-selector-label { flex:0 0 auto; font:9px "DM Mono", monospace; font-weight:500; letter-spacing:.1em; color:var(--muted); }
 .language-selector select { min-width:92px; max-width:130px; border:0; outline:0; background:transparent; color:var(--white); font:10px "DM Mono", monospace; font-weight:500; cursor:pointer; }
@@ -3837,7 +3823,6 @@ footer {
 @media (max-width:560px) { .dash-actions .language-selector { grid-column:1 / -1; width:100%; justify-content:space-between; min-height:38px; } .dash-actions .language-selector .language-selector-label { display:inline; } .dash-actions .language-selector select { max-width:none; width:auto; } }
 
 
-/* REAL PASSWORD RESET FLOW */
 .forgot-pass {
     border: 0;
     padding: 0;
@@ -3896,3 +3881,9 @@ footer {
 .auth-reset-message.active {
     display: block;
 }
+
+/* Closed authentication controls must stay out of pointer and keyboard navigation. */
+#loginModal:not(.active) { visibility: hidden; }
+#loginModal :is(button, input, select, a):focus-visible { outline: 2px solid var(--purple-bright); outline-offset: 3px; }
+#intake-notice { margin: 0 0 18px; line-height: 1.6; }
+#intakeForm :disabled { cursor: not-allowed; opacity: .65; }

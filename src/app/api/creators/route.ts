@@ -3,17 +3,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/creators
-//
-// ADMIN / MANAGER:
-//   Returns all creators in the selected organization.
-//
-// EDITOR:
-//   Returns creators assigned directly to the Editor, plus
-//   creators with at least one individually assigned content item.
-//
-// CREATOR:
-//   Returns only their own creator profile.
 export async function GET(request: Request) {
   try {
   const session = await auth();
@@ -61,12 +50,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const organizationId = searchParams.get("organizationId");
 
-  /*
-   * CREATOR
-   *
-   * A creator can only retrieve their own Creator record.
-   */
-  if (user.accountType === "CREATOR") {
+  if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
     if (!user.creatorProfile) {
       return NextResponse.json(
         {
@@ -98,12 +82,6 @@ export async function GET(request: Request) {
     });
   }
 
-  /*
-   * INTERNAL ACCESS
-   *
-   * The membership role determines how much data the user can
-   * see inside the selected organization.
-   */
   const memberships = user.memberships;
 
   if (memberships.length === 0) {
@@ -199,10 +177,6 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/creators
-//
-// Creates a Creator profile and, when supplied, links it to a
-// Creator account.
 export async function POST(request: Request) {
   try {
   const session = await auth();
@@ -234,16 +208,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "User not found" },
       { status: 404 }
-    );
-  }
-
-  if (user.accountType !== "EDITOR") {
-    return NextResponse.json(
-      {
-        error:
-          "Only internal accounts can create creator profiles.",
-      },
-      { status: 403 }
     );
   }
 
@@ -281,10 +245,6 @@ export async function POST(request: Request) {
     );
   }
 
-  /*
-   * Only ADMIN / MANAGER members can create Creator profiles.
-   * A normal EDITOR cannot create a new client/creator.
-   */
   const membership = user.memberships.find(
     (membership) =>
       membership.organizationId === organizationId
@@ -313,10 +273,6 @@ export async function POST(request: Request) {
     );
   }
 
-  /*
-   * If a User ID was supplied, verify that the account is
-   * actually a CREATOR account.
-   */
   if (userId) {
     const creatorUser = await prisma.user.findUnique({
       where: {
@@ -365,28 +321,32 @@ export async function POST(request: Request) {
     }
   }
 
-  const creator = await prisma.creator.create({
-    data: {
-      name,
-      email: email || null,
-      organizationId,
-      userId,
-    },
-  });
+  if (userId) {
+    const linkedMembership = await prisma.organizationMember.findFirst({
+      where: { userId, organizationId, role: "CREATOR" }, select: { id: true },
+    });
+    if (!linkedMembership) return NextResponse.json({ error: "The linked Creator must belong to this organization." }, { status: 400 });
+  }
+  const { creator, project } = await prisma.$transaction(async (tx) => {
+    const creator = await tx.creator.create({
+      data: {
+        name,
+        email: email || null,
+        organizationId,
+        userId,
+      },
+    });
 
-  /*
-   * Create the Creator's workspace/project immediately.
-   *
-   * This gives every Creator a dedicated project that can
-   * later be used to scope their content.
-   */
-  const project = await prisma.project.create({
-    data: {
-      name: "General Content",
-      organizationId,
-      creatorId: creator.id,
-      createdById: user.id,
-    },
+    const project = await tx.project.create({
+      data: {
+        name: "General Content",
+        organizationId,
+        creatorId: creator.id,
+        createdById: user.id,
+      },
+    });
+
+    return { creator, project };
   });
 
   return NextResponse.json(

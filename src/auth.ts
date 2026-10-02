@@ -43,7 +43,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const email = credentials.email.trim().toLowerCase();
 
-        if (!email || email.length > 254 || !credentials.password) {
+        if (!email || email.length > 254 || !credentials.password || Buffer.byteLength(credentials.password, "utf8") > 72) {
           return null;
         }
 
@@ -120,11 +120,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return token;
       }
 
-      /*
-       * Keep JWT profile fields synchronized with the database.
-       * The stable token.sub user ID lets account settings safely
-       * change the user's name or email without breaking API auth.
-       */
       if (token.sub) {
         const currentUser = await prisma.user.findUnique({
           where: {

@@ -56,7 +56,7 @@ async function getAccessibleContent(
         >
     >
 ) {
-    if (user.accountType === "CREATOR") {
+    if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
         if (!user.creatorProfile) {
             return null;
         }
@@ -186,7 +186,6 @@ async function getAccessibleContent(
     });
 }
 
-// POST /api/assets/upload-url
 export async function POST(request: Request) {
     try {
         const user =
@@ -238,6 +237,10 @@ export async function POST(request: Request) {
             ).trim() ||
             "application/octet-stream";
 
+        if (fileName.length > 255 || !/^[a-zA-Z0-9!#$&^_.+-]+\/[a-zA-Z0-9!#$&^_.+-]+$/.test(mimeType)) {
+            return NextResponse.json({ error: "Invalid file name or MIME type." }, { status: 400 });
+        }
+
         const fileSize = Number(
             body.fileSize
         );
@@ -245,7 +248,7 @@ export async function POST(request: Request) {
         if (
             !contentId ||
             !fileName ||
-            !Number.isFinite(fileSize) ||
+            !Number.isSafeInteger(fileSize) ||
             fileSize <= 0
         ) {
             return NextResponse.json(
@@ -332,6 +335,7 @@ export async function POST(request: Request) {
                     getR2BucketName(),
                 Key: storageKey,
                 ContentType: mimeType,
+                IfNoneMatch: "*",
             });
 
         const uploadUrl =
@@ -340,6 +344,7 @@ export async function POST(request: Request) {
                 command,
                 {
                     expiresIn: 15 * 60,
+                    signableHeaders: new Set(["if-none-match", "content-type"]),
                 }
             );
 
@@ -349,6 +354,7 @@ export async function POST(request: Request) {
             expiresInSeconds:
                 15 * 60,
             requiredHeaders: {
+                "If-None-Match": "*",
                 "Content-Type":
                     mimeType,
             },

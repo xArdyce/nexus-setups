@@ -133,7 +133,7 @@ async function getAccessibleApprovedContent(
         },
     };
 
-    if (user.accountType === "CREATOR") {
+    if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
         if (!user.creatorProfile) {
             return null;
         }
@@ -282,7 +282,6 @@ function asNodeReadable(
     );
 }
 
-// GET /api/projects/[projectId]/delivery
 export async function GET(
     request: Request,
     context: RouteContext
@@ -315,18 +314,12 @@ export async function GET(
             );
         }
 
-        const approvedReview =
-            content.reviews.find(
-                (review) =>
-                    review.assetVersion &&
-                    review.assetVersion.asset
-                        .contentId === content.id
-            ) || null;
+        const approvedReview = content.reviews[0] || null;
 
         const approvedVersion =
             approvedReview?.assetVersion || null;
 
-        if (!approvedReview || !approvedVersion) {
+        if (!approvedReview || !approvedVersion || approvedVersion.asset.contentId !== content.id) {
             return NextResponse.json(
                 {
                     error:
@@ -394,7 +387,6 @@ export async function GET(
             if (!object.Body) throw new Error("Storage object body missing.");
             return asNodeReadable(object.Body);
         }, request.signal);
-        // Audit failures happen before opening any R2 source stream.
         let response: Response;
         try {
             response = new Response(delivery.stream, {

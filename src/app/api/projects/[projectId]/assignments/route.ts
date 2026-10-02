@@ -80,12 +80,6 @@ async function getManageableContent(
     });
 }
 
-// This route keeps the existing URL shape:
-// /api/projects/[projectId]/assignments
-//
-// IMPORTANT:
-// "projectId" here is the dashboard project's ContentItem.id.
-// The dashboard calls each ContentItem a project.
 export async function GET(
     request: Request,
     context: RouteContext

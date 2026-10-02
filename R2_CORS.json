@@ -1,7 +1,7 @@
 [
   {
     "AllowedOrigins": [
-      "https://nexus-setups.vercel.app",
+      "https://www.setups.nexus",
       "http://localhost:3000"
     ],
     "AllowedMethods": [

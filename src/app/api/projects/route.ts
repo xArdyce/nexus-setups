@@ -299,7 +299,6 @@ const PROJECT_LIST_INCLUDE = {
   },
 } as const;
 
-// GET /api/projects
 export async function GET(request: Request) {
   try {
   const user = await getAuthenticatedUser();
@@ -330,15 +329,7 @@ export async function GET(request: Request) {
     sort,
   } = parseProjectListParams(searchParams);
 
-  /*
-   * ============================================================
-   * CREATOR ACCESS
-   * ============================================================
-   *
-   * Creators can ONLY see projects belonging to their own
-   * Creator profile.
-   */
-  if (user.accountType === "CREATOR") {
+  if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
     if (!user.creatorProfile) {
       return NextResponse.json(
         {
@@ -351,9 +342,6 @@ export async function GET(request: Request) {
 
     const creator = user.creatorProfile;
 
-    /*
-     * A creator cannot request another organization.
-     */
     if (
       requestedOrganizationId &&
       requestedOrganizationId !== creator.organizationId
@@ -367,9 +355,6 @@ export async function GET(request: Request) {
       );
     }
 
-    /*
-     * A creator can ONLY request their own creator profile.
-     */
     if (
       requestedCreatorId &&
       requestedCreatorId !== creator.id
@@ -382,13 +367,6 @@ export async function GET(request: Request) {
       );
     }
 
-    /*
-     * Always enforce the creator's real organization and
-     * creator profile from the authenticated account.
-     *
-     * This prevents a creator from manipulating query
-     * parameters to access another creator's projects.
-     */
     const creatorWhere = {
       project: {
         organizationId: creator.organizationId,
@@ -490,14 +468,6 @@ export async function GET(request: Request) {
     });
   }
 
-  /*
-   * ============================================================
-   * EDITOR / ADMIN / MANAGER ACCESS
-   * ============================================================
-   *
-   * ADMIN and MANAGER can see every project in their organization.
-   * EDITOR can only see projects explicitly assigned to them.
-   */
   if (user.memberships.length === 0) {
     return NextResponse.json({
       projects: [],
@@ -744,7 +714,6 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/projects
 export async function POST(request: Request) {
   try {
   const user = await getAuthenticatedUser();
@@ -804,12 +773,7 @@ export async function POST(request: Request) {
     );
   }
 
-  /*
-   * ============================================================
-   * CREATOR SUBMISSION
-   * ============================================================
-   */
-  if (user.accountType === "CREATOR") {
+  if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
     if (!user.creatorProfile) {
       return NextResponse.json(
         {
@@ -822,10 +786,6 @@ export async function POST(request: Request) {
 
     const creator = user.creatorProfile;
 
-    /*
-     * The organization supplied by the browser MUST match
-     * the creator's actual organization.
-     */
     if (organizationId !== creator.organizationId) {
       return NextResponse.json(
         {
@@ -836,9 +796,6 @@ export async function POST(request: Request) {
       );
     }
 
-    /*
-     * Find a project specifically belonging to this creator.
-     */
     let project = await prisma.project.findFirst({
       where: {
         organizationId: creator.organizationId,
@@ -849,10 +806,6 @@ export async function POST(request: Request) {
       },
     });
 
-    /*
-     * If this creator does not have a project yet,
-     * create their workspace automatically.
-     */
     if (!project) {
       project = await prisma.project.create({
         data: {
@@ -930,14 +883,6 @@ export async function POST(request: Request) {
     );
   }
 
-  /*
-   * ============================================================
-   * ADMIN / MANAGER SUBMISSION
-   * ============================================================
-   *
-   * Editors can work on assigned content, but cannot create new
-   * project submissions through this endpoint.
-   */
 
   const membership = user.memberships.find(
     (membership) =>

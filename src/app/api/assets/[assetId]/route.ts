@@ -82,11 +82,7 @@ async function getAccessibleAsset(
         },
     };
 
-    /*
-     * Creator accounts may only access assets belonging to
-     * their own creator profile.
-     */
-    if (user.accountType === "CREATOR") {
+    if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
         if (!user.creatorProfile) {
             return null;
         }
@@ -109,9 +105,6 @@ async function getAccessibleAsset(
         });
     }
 
-    /*
-     * ADMIN / MANAGER have organization-wide access.
-     */
     const fullAccessOrganizationIds =
         user.memberships
             .filter(
@@ -147,9 +140,6 @@ async function getAccessibleAsset(
         }
     }
 
-    /*
-     * EDITOR access is limited to assigned projects.
-     */
     const editorOrganizationIds =
         user.memberships
             .filter(
@@ -292,36 +282,47 @@ export async function DELETE(
             );
         }
 
-        const storageKeys = Array.from(
-            new Set([
-                asset.storageKey,
-                ...asset.versions.map(
-                    (version) =>
-                        version.storageKey
-                ),
-            ])
-        ).filter(Boolean);
-
-        if (storageKeys.length > 0) {
-            await getR2Client().send(
-                new DeleteObjectsCommand({
-                    Bucket:
-                        getR2BucketName(),
-                    Delete: {
-                        Objects:
-                            storageKeys.map(
-                                (Key) => ({
-                                    Key,
-                                })
-                            ),
-                        Quiet: true,
-                    },
-                })
-            );
-        }
-
         await prisma.$transaction(
             async (tx) => {
+                await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${asset.content.id} FOR UPDATE`;
+                const currentAsset = await tx.asset.findUnique({ where: { id: asset.id }, include: { versions: true } });
+                if (!currentAsset) throw new Error("Asset no longer exists.");
+                const boundReview = await tx.review.findFirst({
+                    where: { assetVersion: { assetId: asset.id } }, select: { id: true },
+                });
+                if (boundReview) {
+                    throw Object.assign(new Error("Asset is reviewed"), { response: NextResponse.json({ error: "Assets referenced by reviews cannot be deleted. Delete the project to remove its history." }, { status: 409 }) });
+                }
+
+                const storageKeys = Array.from(
+                    new Set([
+                        currentAsset.storageKey,
+                        ...currentAsset.versions.map(
+                            (version) =>
+                                version.storageKey
+                        ),
+                    ])
+                ).filter(Boolean);
+
+                for (let index = 0; index < storageKeys.length; index += 1000) {
+                    const result = await getR2Client().send(
+                        new DeleteObjectsCommand({
+                            Bucket:
+                                getR2BucketName(),
+                            Delete: {
+                                Objects:
+                                    storageKeys.slice(index, index + 1000).map(
+                                        (Key) => ({
+                                            Key,
+                                        })
+                                    ),
+                                Quiet: true,
+                            },
+                        })
+                    );
+                    if (result.Errors?.length) throw new Error("R2 object deletion failed.");
+                }
+
                 await tx.auditLog.create({
                     data: {
                         action:
@@ -359,7 +360,8 @@ export async function DELETE(
                         id: assetId,
                     },
                 });
-            }
+            },
+            { timeout: 60_000 }
         );
 
         return NextResponse.json({
@@ -367,6 +369,7 @@ export async function DELETE(
             deletedAssetId: assetId,
         });
     } catch (error) {
+        if (error && typeof error === "object" && "response" in error && error.response instanceof Response) return error.response;
         logServerError(
             "DELETE /api/assets/[assetId] failed:",
             error

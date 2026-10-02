@@ -22,9 +22,6 @@ export default function CreatorDashboard({ user }) {
     const isEditor = accountType === "EDITOR";
     const isCreator = accountType === "CREATOR";
 
-    // =========================
-    // STATE MANAGEMENT
-    // =========================
     const [theme, setTheme] = useState("dark");
     const themeTransitionTimerRef = useRef(null);
     const [currentView, setCurrentView] = useState("overview");
@@ -104,7 +101,6 @@ export default function CreatorDashboard({ user }) {
     const [briefError, setBriefError] = useState(false);
     const [briefSubmitting, setBriefSubmitting] = useState(false);
 
-    // Projects now come from the database via /api/projects
     const [projects, setProjects] = useState([]);
     const [projectsLoading, setProjectsLoading] = useState(true);
     const [projectsError, setProjectsError] = useState(null);
@@ -297,9 +293,6 @@ export default function CreatorDashboard({ user }) {
         setMobileSidebarOpen(false);
     }, [currentView]);
 
-    // =========================
-    // PROJECT STATUS HELPERS
-    // =========================
     const normalizeProjectStatus = (status) => {
         const legacyStatusMap = {
             rendering: "IN_PRODUCTION",
@@ -623,9 +616,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // PROJECT FORMATTING HELPERS
-    // =========================
     const resolutionForType = (type) =>
         type === "YouTube Long-form" ? "3840x2160" : "1080x1920";
 
@@ -641,7 +631,6 @@ export default function CreatorDashboard({ user }) {
         return `Created ${month} ${day} • ${resolutionForType(type)}`;
     };
 
-    // Map a raw DB project record into the shape the UI renders
     const toDisplayProject = (p) => ({
         id: p.id,
         projectId: p.projectId,
@@ -700,9 +689,6 @@ export default function CreatorDashboard({ user }) {
     };
 
 
-    // =========================
-    // FETCH ORGANIZATIONS
-    // =========================
     const loadOrganizations = async () => {
         setOrganizationsLoading(true);
         setOrganizationsError(null);
@@ -730,8 +716,6 @@ export default function CreatorDashboard({ user }) {
                         : loadedOrganizations[0].id;
                 });
             } else {
-                // Zero accessible organizations is a valid state, such as
-                // an Editor who has not been assigned to any projects yet.
                 setActiveOrganizationId(null);
 
                 setProjects([]);
@@ -760,9 +744,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH CREATORS
-    // =========================
     const loadCreators = async (organizationId) => {
         if (!organizationId) {
             setCreators([]);
@@ -800,12 +781,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH PROJECTS
-    // =========================
-    // =========================
-    // FETCH ASSETS
-    // =========================
     const loadAssets = async (organizationId = activeOrganizationId) => {
         if (!organizationId) {
             setAssets([]);
@@ -1255,9 +1230,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH SYSTEM ACTIVITY
-    // =========================
     const loadActivity = async (
         organizationId = activeOrganizationId
     ) => {
@@ -1306,9 +1278,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // NOTIFICATIONS
-    // =========================
     const loadNotifications = async ({
         silent = false,
     } = {}) => {
@@ -1483,9 +1452,6 @@ export default function CreatorDashboard({ user }) {
             }
         };
 
-    // =========================
-    // ACCOUNT SETTINGS
-    // =========================
     const loadSettings = async ({
         silent = false,
     } = {}) => {
@@ -1607,7 +1573,7 @@ export default function CreatorDashboard({ user }) {
 
             setSettingsSuccess(
                 data.emailChanged
-                    ? "Profile and email updated."
+                    ? "Profile and email updated. Sign in again to continue."
                     : "Profile updated."
             );
         } catch (error) {
@@ -1680,7 +1646,7 @@ export default function CreatorDashboard({ user }) {
             });
 
             setSettingsSuccess(
-                "Password updated successfully."
+                "Password updated. Sign in again to continue."
             );
         } catch (error) {
             console.error(
@@ -1955,9 +1921,6 @@ export default function CreatorDashboard({ user }) {
         );
     };
 
-    // =========================
-    // FETCH CREATOR PROJECTS
-    // =========================
     const loadCreatorProjects = async (creatorId) => {
         if (!creatorId || !activeOrganizationId) {
             setProjects([]);
@@ -2006,9 +1969,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // PROJECT ASSIGNMENTS
-    // =========================
     const loadProjectAssignments = async (contentId) => {
         if (!contentId || !isEditor) {
             setProjectAssignments([]);
@@ -2184,9 +2144,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // CREATOR ASSIGNMENTS
-    // =========================
     const loadCreatorAssignments = async (creatorId) => {
         if (!creatorId || !isEditor) {
             setCreatorAssignments([]);
@@ -2356,9 +2313,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // TASK MANAGEMENT
-    // =========================
     const toTaskDraft = (task) => ({
         title: task?.title || "",
         description: task?.description || "",
@@ -2595,9 +2549,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH PROJECT DETAILS
-    // =========================
     const loadProjectDetails = async (projectId) => {
         if (!projectId) {
             return;
@@ -3269,9 +3220,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // INITIAL DATA LOAD
-    // =========================
     useEffect(() => {
         loadOrganizations();
         loadSettings();
@@ -3316,8 +3264,6 @@ export default function CreatorDashboard({ user }) {
             loadAssets(activeOrganizationId);
             loadActivity(activeOrganizationId);
         } else if (!organizationsLoading) {
-            // No accessible organization means there is nothing left to
-            // fetch, so finish the dependent loading states.
             setProjects([]);
             setProjectsNextCursor(null);
             setProjectsHasMore(false);
@@ -3412,9 +3358,6 @@ export default function CreatorDashboard({ user }) {
         activeOrganizationId,
     ]);
 
-    // =========================
-    // THEME INITIALIZATION
-    // =========================
     useEffect(() => {
         const savedTheme = localStorage.getItem("nexus-theme");
 
@@ -3464,9 +3407,6 @@ export default function CreatorDashboard({ user }) {
         localStorage.setItem("nexus-theme", newTheme);
     };
 
-    // =========================
-    // VIEW TITLES
-    // =========================
     const viewTitles = {
         overview: isEditor
             ? "EDITOR OPERATIONS"
@@ -3491,12 +3431,7 @@ export default function CreatorDashboard({ user }) {
         settings: "WORKSPACE SETTINGS",
     };
 
-    // Analytics integrations are not connected yet.
-    // Keep this view intentionally empty rather than displaying sample metrics.
 
-    // =========================
-    // BRIEF SUBMISSION
-    // =========================
     const handleBriefSubmit = async (e) => {
         e.preventDefault();
 
@@ -3562,9 +3497,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // ASSET VAULT HELPERS
-    // =========================
     const assetIcon = (assetType) => {
         switch (assetType) {
             case "VIDEO":
@@ -3647,16 +3579,9 @@ export default function CreatorDashboard({ user }) {
         ) || null;
 
     const approvedReview =
-        selectedProject?.reviews?.find(
-            (review) =>
-                review.status === "APPROVED" &&
-                review.assetVersion
-        ) ||
-        selectedProject?.reviews?.find(
-            (review) =>
-                review.status === "APPROVED"
-        ) ||
-        null;
+        [...(selectedProject?.reviews || [])]
+            .filter((review) => review.status === "APPROVED")
+            .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0] || null;
 
     const approvedAssetVersion =
         approvedReview?.assetVersion || null;
@@ -3765,8 +3690,7 @@ export default function CreatorDashboard({ user }) {
             <InterfaceTranslator />
             <div className="noise"></div>
 
-            <div className="app-shell nexus-minimal-ui">
-                {/* SIDEBAR */}
+            <div className="app-shell nexus-minimal-ui" inert={briefModalOpen}>
                 {mobileSidebarOpen && (
                     <button
                         type="button"
@@ -3780,11 +3704,13 @@ export default function CreatorDashboard({ user }) {
                     id="dashboard-navigation"
                     ref={sidebarRef}
                     aria-label="Dashboard navigation"
+                    role={mobileSidebarOpen ? "dialog" : undefined}
+                    aria-modal={mobileSidebarOpen ? true : undefined}
                     className={`sidebar ${
                         mobileSidebarOpen ? "mobile-open" : ""
                     }`}
                 >
-                    <a href="/" className="brand">
+                    <a href="/" className="brand" aria-label="Nexus Setups home">
                         <span className="brand-text">
                             <span>N</span>EXUS
                         </span>
@@ -3794,51 +3720,55 @@ export default function CreatorDashboard({ user }) {
                     <nav className="sidebar-nav">
                         <button
                             type="button"
+                            aria-label="Dashboard"
                             className={`nav-item ${currentView === "overview" ? "active" : ""}`}
                             onClick={() => {
                                 setCurrentView("overview");
                                 setMobileSidebarOpen(false);
                             }}
                         >
-                            <span className="nav-icon">⌂</span>
+                            <span className="nav-icon" aria-hidden="true">⌂</span>
                             <span>Dashboard</span>
                         </button>
 
                         <button
                             type="button"
+                            aria-label="Projects"
                             className={`nav-item ${currentView === "projects" ? "active" : ""}`}
                             onClick={() => {
                                 setCurrentView("projects");
                                 setMobileSidebarOpen(false);
                             }}
                         >
-                            <span className="nav-icon">□</span>
+                            <span className="nav-icon" aria-hidden="true">□</span>
                             <span>Projects</span>
                         </button>
 
                         {isEditor && (
                             <button
                                 type="button"
+                                aria-label="Creators"
                                 className={`nav-item ${currentView === "creators" ? "active" : ""}`}
                                 onClick={() => {
                                     setCurrentView("creators");
                                     setMobileSidebarOpen(false);
                                 }}
                             >
-                                <span className="nav-icon">♙</span>
+                                <span className="nav-icon" aria-hidden="true">♙</span>
                                 <span>Creators</span>
                             </button>
                         )}
 
                         <button
                             type="button"
+                            aria-label="Assets"
                             className={`nav-item ${currentView === "assets" ? "active" : ""}`}
                             onClick={() => {
                                 setCurrentView("assets");
                                 setMobileSidebarOpen(false);
                             }}
                         >
-                            <span className="nav-icon">▧</span>
+                            <span className="nav-icon" aria-hidden="true">▧</span>
                             <span>Assets</span>
                         </button>
 
@@ -3847,13 +3777,14 @@ export default function CreatorDashboard({ user }) {
                         <button
                             type="button"
                             className="nav-item"
+                            aria-label="Notifications"
                             onClick={() => {
                                 setMobileSidebarOpen(false);
                                 setNotificationMenuOpen(true);
                                 loadNotifications({ silent: true });
                             }}
                         >
-                            <span className="nav-icon">♢</span>
+                            <span className="nav-icon" aria-hidden="true">♢</span>
                             {unreadNotificationCount > 0 && (
                                 <span className="nav-badge">
                                     {unreadNotificationCount > 9
@@ -3866,19 +3797,21 @@ export default function CreatorDashboard({ user }) {
 
                         <button
                             type="button"
+                            aria-label="Settings"
                             className={`nav-item ${currentView === "settings" ? "active" : ""}`}
                             onClick={() => {
                                 setCurrentView("settings");
                                 setMobileSidebarOpen(false);
                             }}
                         >
-                            <span className="nav-icon">⚙</span>
+                            <span className="nav-icon" aria-hidden="true">⚙</span>
                             <span>Settings</span>
                         </button>
                     </nav>
 
                     <div
                         className="sidebar-user"
+                        aria-label="Open profile settings"
                         role="button"
                         tabIndex={0}
                         onClick={() => {
@@ -3914,9 +3847,7 @@ export default function CreatorDashboard({ user }) {
                     </div>
                 </aside>
 
-                {/* MAIN DASHBOARD CONTENT */}
-                <main className="dashboard-main">
-                    {/* TOP BAR */}
+                <main className="dashboard-main" inert={mobileSidebarOpen}>
                     <header className="dash-header nexus-topbar">
                         <button
                             type="button"
@@ -3935,10 +3866,11 @@ export default function CreatorDashboard({ user }) {
                         </button>
 
                         <div className="topbar-search-wrap">
-                            <span className="global-search-icon">⌕</span>
+                            <span className="global-search-icon" aria-hidden="true">⌕</span>
                             <input
                                 type="search"
-                                placeholder="Search projects, creators, assets..."
+                                aria-label="Search projects"
+                                placeholder="Search projects..."
                                 value={projectSearch}
                                 onChange={(event) =>
                                     setProjectSearch(event.target.value)
@@ -3996,11 +3928,18 @@ export default function CreatorDashboard({ user }) {
                                 {theme === "light" ? "☼" : "☾"}
                             </button>
 
-                            <div className="notification-shell">
+                            <div className="notification-shell" onKeyDown={(event) => {
+                                if (event.key === "Escape" && notificationMenuOpen) {
+                                    event.stopPropagation();
+                                    setNotificationMenuOpen(false);
+                                    event.currentTarget.querySelector(".notification-bell")?.focus();
+                                }
+                            }}>
                                 <button
                                     type="button"
                                     className="topbar-icon-btn notification-bell"
                                     aria-label="Notifications"
+                                    aria-controls={notificationMenuOpen ? "dashboard-notifications" : undefined}
                                     aria-expanded={notificationMenuOpen}
                                     onClick={() => {
                                         setNotificationMenuOpen(
@@ -4028,7 +3967,7 @@ export default function CreatorDashboard({ user }) {
                                 </button>
 
                                 {notificationMenuOpen && (
-                                    <div className="notification-popover">
+                                    <section id="dashboard-notifications" className="notification-popover" aria-label="Notifications">
                                         <div className="notification-popover-header">
                                             <div>
                                                 <span className="notification-popover-kicker">
@@ -4060,14 +3999,14 @@ export default function CreatorDashboard({ user }) {
 
                                         <div className="notification-popover-body">
                                             {notificationsLoading && (
-                                                <p className="notification-empty-state">
+                                                <p className="notification-empty-state" role="status">
                                                     Loading notifications…
                                                 </p>
                                             )}
 
                                             {!notificationsLoading &&
                                                 notificationsError && (
-                                                    <p className="notification-empty-state notification-error-state">
+                                                    <p className="notification-empty-state notification-error-state" role="alert">
                                                         {notificationsError}
                                                     </p>
                                                 )}
@@ -4177,7 +4116,7 @@ export default function CreatorDashboard({ user }) {
                                                     </div>
                                                 )}
                                         </div>
-                                    </div>
+                                    </section>
                                 )}
                             </div>
 
@@ -4197,9 +4136,13 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </header>
 
-                    {/* =========================================
-                        VIEW 1: OVERVIEW
-                    ========================================= */}
+                    {organizationsError && (
+                        <div className="workspace-load-error" role="alert">
+                            <p>Could not load your workspaces. Try again.</p>
+                            <button type="button" className="action-btn" onClick={loadOrganizations} disabled={organizationsLoading}>Retry</button>
+                        </div>
+                    )}
+
                     <div
                         className={`view-panel ${currentView === "overview" ? "active" : ""}`}
                     >
@@ -4377,7 +4320,8 @@ export default function CreatorDashboard({ user }) {
                                                 <span>⌕</span>
                                                 <input
                                                     type="search"
-                                                    placeholder="Search projects..."
+                                                    aria-label="Search dashboard projects"
+                                                placeholder="Search projects..."
                                                     value={projectSearch}
                                                     onChange={(event) =>
                                                         setProjectSearch(
@@ -4515,14 +4459,14 @@ export default function CreatorDashboard({ user }) {
 
                                     <div className="projects-table-body">
                                         {projectsLoading && (
-                                            <div className="target-empty-state">
+                                            <div className="target-empty-state" role="status">
                                                 Loading projects…
                                             </div>
                                         )}
 
                                         {!projectsLoading &&
                                             projectsError && (
-                                                <div className="target-empty-state target-error">
+                                                <div className="target-empty-state target-error" role="alert">
                                                     {projectsError}
                                                 </div>
                                             )}
@@ -4530,7 +4474,7 @@ export default function CreatorDashboard({ user }) {
                                         {!projectsLoading &&
                                             !projectsError &&
                                             projects.length === 0 && (
-                                                <div className="target-empty-state">
+                                                <div className="target-empty-state" role="status">
                                                     No projects yet.
                                                 </div>
                                             )}
@@ -4559,29 +4503,11 @@ export default function CreatorDashboard({ user }) {
                                                         <div
                                                             className="projects-table-row"
                                                             key={project.id}
-                                                            role="button"
-                                                            tabIndex={0}
                                                             onClick={() =>
                                                                 openProjectDetails(
                                                                     project
                                                                 )
                                                             }
-                                                            onKeyDown={(
-                                                                event
-                                                            ) => {
-                                                                if (event.target !== event.currentTarget) return;
-                                                                if (
-                                                                    event.key ===
-                                                                        "Enter" ||
-                                                                    event.key ===
-                                                                        " "
-                                                                ) {
-                                                                    event.preventDefault();
-                                                                    openProjectDetails(
-                                                                        project
-                                                                    );
-                                                                }
-                                                            }}
                                                         >
                                                             <div className="project-media-cell">
                                                                 <div
@@ -4592,11 +4518,11 @@ export default function CreatorDashboard({ user }) {
                                                                 </div>
 
                                                                 <div className="project-title-cluster">
-                                                                    <strong>
+                                                                    <strong><button type="button" className="overview-project-open" onClick={(event) => { event.stopPropagation(); openProjectDetails(project); }}>
                                                                         {
                                                                             project.title
                                                                         }
-                                                                    </strong>
+                                                                    </button></strong>
                                                                     <div className="project-sub-row">
                                                                         <span className="project-type-tag">
                                                                             {
@@ -4744,13 +4670,7 @@ export default function CreatorDashboard({ user }) {
 
                                     <div className="projects-table-footer">
                                         <span>
-                                            1–
-                                            {Math.min(
-                                                projects.length,
-                                                5
-                                            )} 
-                                            of {projects.length} loaded
-                                            projects
+                                            {projects.length ? 1 : 0}&ndash;{Math.min(projects.length, 5)} of {projects.length} loaded projects
                                         </span>
 
                                         {projectsHasMore ? (
@@ -4804,14 +4724,14 @@ export default function CreatorDashboard({ user }) {
 
                                         <div className="activity-items-stack">
                                             {activityLoading && (
-                                                <p className="target-activity-empty">
+                                                <p className="target-activity-empty" role="status">
                                                     Loading activity…
                                                 </p>
                                             )}
 
                                             {!activityLoading &&
                                                 activityError && (
-                                                    <p className="target-activity-empty target-error">
+                                                    <p className="target-activity-empty target-error" role="alert">
                                                         {activityError}
                                                     </p>
                                                 )}
@@ -4819,7 +4739,7 @@ export default function CreatorDashboard({ user }) {
                                             {!activityLoading &&
                                                 !activityError &&
                                                 activity.length === 0 && (
-                                                    <p className="target-activity-empty">
+                                                    <p className="target-activity-empty" role="status">
                                                         No activity yet.
                                                     </p>
                                                 )}
@@ -4937,9 +4857,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 2: PROJECTS
-                    ========================================= */}
                     <div className={`view-panel projects-view ${currentView === "projects" ? "active" : ""}`}>
                         <div className="panel-scroll-container">
                             <header className="projects-page-header">
@@ -5123,9 +5040,6 @@ export default function CreatorDashboard({ user }) {
                             </section>
                         </div>
                     </div>
-                    {/* =========================================
-                        VIEW 3: CREATORS
-                    ========================================= */}
                     <div
                         className={`view-panel creators-view ${currentView ===
                             "creators"
@@ -5224,9 +5138,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 4: CREATOR WORKSPACE
-                    ========================================= */}
                     <div
                         className={`view-panel creator-workspace-view ${currentView ===
                             "creator-workspace"
@@ -5242,11 +5153,11 @@ export default function CreatorDashboard({ user }) {
                                             CREATOR WORKSPACE
                                         </span>
 
-                                        <h3 className="creator-workspace-title page-title"><span className="person-avatar creator-profile-avatar" aria-hidden="true">{(selectedCreator?.name || "C").slice(0, 1).toUpperCase()}</span>
+                                        <h1 className="creator-workspace-title page-title"><span className="person-avatar creator-profile-avatar" aria-hidden="true">{(selectedCreator?.name || "C").slice(0, 1).toUpperCase()}</span>
                                             {selectedCreator
                                                 ? selectedCreator.name
                                                 : "CREATOR WORKSPACE"}
-                                        </h3>
+                                        </h1>
                                     </div>
 
                                     <button
@@ -5423,7 +5334,7 @@ export default function CreatorDashboard({ user }) {
 
                                                     {!creatorAssignmentsLoading &&
                                                         creatorAssignmentsError && (
-                                                            <p className="brief-error-msg active">
+                                                            <p className="brief-error-msg active" role="alert">
                                                                 {
                                                                     creatorAssignmentsError
                                                                 }
@@ -5633,7 +5544,7 @@ export default function CreatorDashboard({ user }) {
 
                                             {!projectsLoading &&
                                                 projectsError && (
-                                                    <p className="brief-error-msg active">
+                                                    <p className="brief-error-msg active" role="alert">
                                                         {
                                                             projectsError
                                                         }
@@ -5740,9 +5651,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 5: PROJECT DETAILS / REVIEW
-                    ========================================= */}
                     <div
                         className={`view-panel project-detail-view ${currentView ===
                             "project-details"
@@ -5758,12 +5666,12 @@ export default function CreatorDashboard({ user }) {
                                             PROJECT DETAILS
                                         </span>
 
-                                        <h3 className="page-title">
+                                        <h1 className="page-title">
                                             {selectedProject
                                                 ?.content
                                                 ?.title ||
                                                 "PROJECT"}
-                                        </h3>
+                                        </h1>
                                     </div>
 
                                     <div
@@ -5875,7 +5783,7 @@ export default function CreatorDashboard({ user }) {
 
                                 {!projectDetailsLoading &&
                                     projectDetailsError && (
-                                        <p className="brief-error-msg active">
+                                        <p className="brief-error-msg active" role="alert">
                                             {
                                                 projectDetailsError
                                             }
@@ -5892,7 +5800,6 @@ export default function CreatorDashboard({ user }) {
                                                     {["REQUESTED", "IN_PRODUCTION", "IN_REVIEW", "REVISION", "APPROVED"].map((status, index) => {
                                                         const stages = ["REQUESTED", "IN_PRODUCTION", "IN_REVIEW", "REVISION", "APPROVED"];
                                                         const isCurrent = currentProjectStatus === status;
-                                                        // Revision is a loop, not a required completed stage on approval.
                                                         const completed = status !== "REVISION" && !isCurrent && stages.indexOf(currentProjectStatus) > index;
                                                         return <li key={status} className={isCurrent ? "is-current" : completed ? "is-complete" : ""} aria-current={isCurrent ? "step" : undefined}>
                                                             <span aria-hidden="true">{completed ? "✓" : index + 1}</span><strong>{status.replaceAll("_", " ")}</strong>
@@ -6105,7 +6012,7 @@ export default function CreatorDashboard({ user }) {
                                                             )}
 
                                                         {projectEditError && (
-                                                            <p className="brief-error-msg active">
+                                                            <p className="brief-error-msg active" role="alert">
                                                                 {projectEditError}
                                                             </p>
                                                         )}
@@ -6146,7 +6053,6 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
                                             )}
 
-                                            {/* PRODUCTION TASKS */}
                                             <div
                                                 className="panel"
                                                 style={{
@@ -6180,7 +6086,7 @@ export default function CreatorDashboard({ user }) {
 
                                                 {!tasksLoading &&
                                                     tasksError && (
-                                                        <p className="brief-error-msg active">
+                                                        <p className="brief-error-msg active" role="alert">
                                                             {
                                                                 tasksError
                                                             }
@@ -6483,12 +6389,6 @@ export default function CreatorDashboard({ user }) {
                                                                                 "MEDIUM"
                                                                         ).toLowerCase();
 
-                                                                    /*
-                                                                     * A completed task only collapses after the
-                                                                     * completed status has actually been saved to
-                                                                     * the database. This prevents the card from
-                                                                     * disappearing before SAVE TASK is pressed.
-                                                                     */
                                                                     if (
                                                                         task.status ===
                                                                             "COMPLETED" &&
@@ -6938,7 +6838,6 @@ export default function CreatorDashboard({ user }) {
                                                     )}
                                             </div>
 
-                                            {/* PROJECT ASSIGNMENTS */}
                                             {isEditor &&
                                                 canManageAssignments && (
                                                     <div
@@ -6986,7 +6885,7 @@ export default function CreatorDashboard({ user }) {
 
                                                         {!assignmentsLoading &&
                                                             assignmentsError && (
-                                                                <p className="brief-error-msg active">
+                                                                <p className="brief-error-msg active" role="alert">
                                                                     {
                                                                         assignmentsError
                                                                     }
@@ -7277,7 +7176,6 @@ export default function CreatorDashboard({ user }) {
                                                     </div>
                                                 )}
 
-                                            {/* GOOGLE DRIVE FOOTAGE FOLDER */}
                                             <div
                                                 className="panel"
                                                 style={{
@@ -7346,7 +7244,6 @@ export default function CreatorDashboard({ user }) {
                                                     </div>;
                                                 })}
                                             </section>
-                                            {/* PRODUCTION ACTIONS */}
                                             {isEditor && (
                                                 <div
                                                     className="panel"
@@ -7950,7 +7847,6 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
                                             )}
 
-                                            {/* REVIEW */}
                                             <div className="panel review-panel">
                                                 <div className="panel-header review-panel-header">
                                                     <div>
@@ -7982,7 +7878,7 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
 
                                                 {reviewError && (
-                                                    <p className="brief-error-msg active">
+                                                    <p className="brief-error-msg active" role="alert">
                                                         {
                                                             reviewError
                                                         }
@@ -8674,9 +8570,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 6: ASSET VAULT
-                    ========================================= */}
                     <div
                         className={`view-panel assets-view ${currentView === "assets"
                             ? "active"
@@ -8868,7 +8761,7 @@ export default function CreatorDashboard({ user }) {
                                     )}
 
                                     {assetUploadError && (
-                                        <p className="brief-error-msg active asset-upload-error">
+                                        <p className="brief-error-msg active asset-upload-error" role="alert">
                                             {
                                                 assetUploadError
                                             }
@@ -8887,7 +8780,7 @@ export default function CreatorDashboard({ user }) {
                                 </form>
 
                                     {assetVersionError && (
-                                        <p className="brief-error-msg active asset-upload-error">
+                                        <p className="brief-error-msg active asset-upload-error" role="alert">
                                             {assetVersionError}
                                         </p>
                                     )}
@@ -9213,9 +9106,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 7: ANALYTICS
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView === "analytics" ? "active" : ""
@@ -9375,9 +9265,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 8: SETTINGS
-                    ========================================= */}
                     <div
                         className={`view-panel settings-view ${currentView ===
                             "settings"
@@ -9440,7 +9327,6 @@ export default function CreatorDashboard({ user }) {
                                 ) : (
                                     <div className="settings-grid">
 <div className="settings-column">
-                                        {/* PROFILE */}
                                         <form
                                             className="settings-form settings-card"
                                             onSubmit={
@@ -9616,7 +9502,6 @@ export default function CreatorDashboard({ user }) {
                                             </button>
                                         </form>
 
-                                        {/* SECURITY */}
                                         <form
                                             className="settings-form settings-card settings-security"
                                             onSubmit={
@@ -9783,7 +9668,6 @@ export default function CreatorDashboard({ user }) {
 
 </div>
 <div className="settings-column">
-                                        {/* WORKSPACE */}
                                         <form
                                             className="settings-form settings-card"
                                             onSubmit={
@@ -9901,7 +9785,6 @@ export default function CreatorDashboard({ user }) {
                                             )}
                                         </form>
 
-                                        {/* APPEARANCE + SESSION */}
                                         <div
                                             className="settings-form settings-card"
                                         >
@@ -9987,9 +9870,6 @@ export default function CreatorDashboard({ user }) {
                 </main>
             </div>
 
-            {/* =========================================
-                NEW PROJECT BRIEF MODAL
-            ========================================= */}
             <div
                 inert={!briefModalOpen}
                 aria-hidden={!briefModalOpen}
@@ -10093,9 +9973,13 @@ export default function CreatorDashboard({ user }) {
                                 className="dash-input"
                                 placeholder="https://drive.google.com/drive/folders/..."
                                 required
+                                aria-invalid={briefError || undefined}
+                                aria-describedby={briefError ? "brief-link-error" : undefined}
                             />
 
                             <p
+                                id="brief-link-error"
+                                role={briefError ? "alert" : undefined}
                                 className={`brief-error-msg ${briefError
                                     ? "active"
                                     : ""

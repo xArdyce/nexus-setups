@@ -1,5 +1,4 @@
-// Public GET requests only; no credentials, cookies, bodies or response contents logged.
-const origin = new URL(process.argv[2] || "https://nexus-setups.vercel.app");
+const origin = new URL(process.argv[2] || "https://www.setups.nexus");
 if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password) {
   throw new Error("Provide a public HTTP(S) origin without credentials.");
 }

@@ -25,9 +25,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 8) {
+    if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72) {
       return NextResponse.json(
-        { error: "Password must be at least 8 characters." },
+        { error: "Password must be at least 8 characters and at most 72 UTF-8 bytes." },
         { status: 400 }
       );
     }

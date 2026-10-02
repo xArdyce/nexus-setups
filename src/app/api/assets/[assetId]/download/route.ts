@@ -57,7 +57,7 @@ async function getAccessibleAsset(
         >
     >
 ) {
-    if (user.accountType === "CREATOR") {
+    if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
         if (!user.creatorProfile) {
             return null;
         }
@@ -209,7 +209,6 @@ function safeDispositionFileName(
         .slice(0, 180);
 }
 
-// GET /api/assets/[assetId]/download?mode=inline|attachment
 export async function GET(
     request: Request,
     context: RouteContext

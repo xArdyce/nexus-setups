@@ -76,7 +76,6 @@ function sanitizeMetadata(metadata: Metadata) {
     };
 }
 
-// GET /api/activity?organizationId=...&limit=12
 export async function GET(request: Request) {
     try {
         const user = await getAuthenticatedUser();
@@ -107,7 +106,7 @@ export async function GET(request: Request) {
         let organizationId: string;
         let membershipRole: string | null = null;
 
-        if (user.accountType === "CREATOR") {
+        if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
             if (!user.creatorProfile) {
                 return NextResponse.json(
                     {
@@ -188,7 +187,7 @@ export async function GET(request: Request) {
 
         let visibleLogs = logs;
 
-        if (user.accountType === "CREATOR") {
+        if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
             const creatorId =
                 user.creatorProfile!.id;
 
@@ -298,26 +297,7 @@ export async function GET(request: Request) {
                 )
             );
 
-            const accessibleCreatorIds = new Set(
-                [
-                    ...accessibleContent
-                        .map(
-                            (item) =>
-                                item.project.creatorId
-                        )
-                        .filter(
-                            (
-                                creatorId
-                            ): creatorId is string =>
-                                Boolean(creatorId)
-                        ),
-
-                    ...directCreatorAssignments.map(
-                        (assignment) =>
-                            assignment.creatorId
-                    ),
-                ]
-            );
+            const accessibleCreatorIds = new Set(directCreatorAssignments.map((assignment) => assignment.creatorId));
 
             visibleLogs = logs.filter((log) => {
                 const metadata = asMetadata(
@@ -330,24 +310,9 @@ export async function GET(request: Request) {
                 const metadataCreatorId =
                     stringValue(metadata.creatorId);
 
-                return (
-                    (metadataContentId
-                        ? accessibleContentIds.has(
-                              metadataContentId
-                          )
-                        : false) ||
-                    (metadataCreatorId
-                        ? accessibleCreatorIds.has(
-                              metadataCreatorId
-                          )
-                        : false) ||
-                    (log.resource === "ContentItem" &&
-                    log.resourceId
-                        ? accessibleContentIds.has(
-                              log.resourceId
-                          )
-                        : false)
-                );
+                if (metadataContentId) return accessibleContentIds.has(metadataContentId);
+                if (log.resource === "ContentItem" && log.resourceId) return accessibleContentIds.has(log.resourceId);
+                return Boolean(metadataCreatorId && accessibleCreatorIds.has(metadataCreatorId));
             });
         } else if (
             membershipRole !== "ADMIN" &&

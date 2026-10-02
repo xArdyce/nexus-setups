@@ -23,7 +23,6 @@ async function getAuthenticatedUser() {
   });
 }
 
-// GET /api/organizations
 export async function GET() {
   try {
   const user = await getAuthenticatedUser();
@@ -57,26 +56,6 @@ export async function GET() {
     },
   });
 
-  /*
-   * Editors should not automatically inherit every workspace
-   * just because they are an OrganizationMember.
-   *
-   * ADMIN / MANAGER:
-   *   Can see the organization normally.
-   *
-   * EDITOR:
-   *   Can see an organization when they have either:
-   *   - a CreatorAssignment in that organization, or
-   *   - a ContentAssignment under a creator/project there.
-   *
-   * CREATOR:
-   *   Keeps normal membership visibility.
-   */
-  /*
-   * AccountType EDITOR is shared by ADMIN, MANAGER and EDITOR
-   * accounts. Assignment-scoped queries must therefore be based
-   * on OrganizationMember.role, not accountType.
-   */
   const editorOrganizationIds = memberships
     .filter((membership) => membership.role === "EDITOR")
     .map((membership) => membership.organizationId);
@@ -227,7 +206,6 @@ export async function GET() {
   }
 }
 
-// POST /api/organizations
 export async function POST(request: Request) {
   try {
   const user = await getAuthenticatedUser();

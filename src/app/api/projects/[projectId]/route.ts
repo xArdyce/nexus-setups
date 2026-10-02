@@ -5,9 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getR2BucketName, getR2Client } from "@/lib/r2";
 import {
-    getAssignedEditorUserIds,
     getCreatorAccountUserId,
-    getManagementUserIds,
     notifyUsers,
 } from "@/lib/notifications";
 
@@ -166,7 +164,7 @@ async function getAccessibleContent(
         },
     };
 
-    if (user.accountType === "CREATOR") {
+    if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
         if (!user.creatorProfile) {
             return null;
         }
@@ -304,19 +302,6 @@ async function deleteR2Objects(storageKeys: string[]) {
     }
 }
 
-function canManageProduction(
-    user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>
-) {
-    if (user.accountType !== "EDITOR") {
-        return false;
-    }
-
-    return user.memberships.some((membership) =>
-        ["ADMIN", "MANAGER", "EDITOR"].includes(membership.role)
-    );
-}
-
-// GET /api/projects/[projectId]
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ projectId: string }> }
@@ -485,7 +470,6 @@ export async function GET(
   }
 }
 
-// PATCH /api/projects/[projectId]
 export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ projectId: string }> }
@@ -563,7 +547,7 @@ export async function PATCH(
 
     if (requestedDetailFields.length > 0) {
         const membership =
-            user.accountType === "CREATOR"
+            user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)
                 ? null
                 : user.memberships.find(
                       (item) =>
@@ -576,7 +560,7 @@ export async function PATCH(
             membership?.role === "MANAGER";
 
         const isOwningCreator =
-            user.accountType === "CREATOR" &&
+            user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId) &&
             user.creatorProfile?.id ===
                 content.project.creator?.id;
 
@@ -769,6 +753,12 @@ export async function PATCH(
         const updatedContent =
             await prisma.$transaction(
                 async (tx) => {
+                    await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${content.id} FOR UPDATE`;
+                    const current = await tx.contentItem.findUnique({ where: { id: content.id }, select: { status: true } });
+                    if (!current || (isOwningCreator && current.status !== content.status)) {
+                        throw Object.assign(new Error("Project changed"), { response: NextResponse.json({ error: "Project status changed. Reload before editing." }, { status: 409 }) });
+                    }
+
                     const updated =
                         await tx.contentItem.update({
                             where: {
@@ -833,7 +823,21 @@ export async function PATCH(
         );
     }
 
-    if (user.accountType === "CREATOR") {
+    if (requestedStatus === "APPROVED" || requestedStatus === "REVISION") {
+        return NextResponse.json({ error: "Use the review decision endpoint for approval or revisions." }, { status: 403 });
+    }
+    const productionTransitions: Record<string, ContentStatusValue[]> = {
+        REQUESTED: ["IN_PRODUCTION"],
+        IN_PRODUCTION: ["IN_REVIEW"],
+        REVISION: ["IN_PRODUCTION", "IN_REVIEW"],
+        IN_REVIEW: [],
+        APPROVED: [],
+    };
+    if (!productionTransitions[content.status]?.includes(requestedStatus)) {
+        return NextResponse.json({ error: "Invalid production transition." }, { status: 409 });
+    }
+
+    if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
         return NextResponse.json(
             {
                 error:
@@ -910,11 +914,25 @@ export async function PATCH(
         });
     }
 
+    if (requestedStatus === "IN_REVIEW") {
+        const version = await prisma.assetVersion.findFirst({
+            where: { asset: { contentId: content.id } }, select: { id: true },
+        });
+        if (!version) return NextResponse.json({ error: "Upload a cut before submitting for review." }, { status: 409 });
+        const pending = await prisma.review.findFirst({ where: { contentId: content.id, status: "PENDING" } });
+        if (pending) return NextResponse.json({ error: "Resolve the existing review before submitting another cut." }, { status: 409 });
+    }
+
     const updatedContent = await prisma.$transaction(
         async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${content.id} FOR UPDATE`;
+            const current = await tx.contentItem.findUnique({ where: { id: content.id } });
+            if (current?.status !== content.status) throw Object.assign(new Error("Content changed"), { response: NextResponse.json({ error: "Content status changed; reload before retrying." }, { status: 409 }) });
+
             const updated = await tx.contentItem.update({
                 where: {
                     id: content.id,
+                    status: content.status,
                 },
                 data: {
                     status: requestedStatus,
@@ -965,93 +983,19 @@ export async function PATCH(
                         },
                     });
 
-                if (!existingPendingReview) {
-                    await tx.review.create({
-                        data: {
-                            contentId: content.id,
-                            authorId: user.id,
-                            status: "PENDING",
-                            notes: reviewNotes || null,
-                            assetVersionId:
-                                latestAssetVersion?.id ?? null,
-                        },
-                    });
+                if (!latestAssetVersion || existingPendingReview) {
+                    throw Object.assign(new Error("Review submission changed"), { response: NextResponse.json({ error: "Upload a cut and resolve any pending review before submitting." }, { status: 409 }) });
                 }
-            }
 
-            if (
-                requestedStatus === "APPROVED" ||
-                requestedStatus === "REVISION"
-            ) {
-                const pendingReview =
-                    await tx.review.findFirst({
-                        where: {
-                            contentId: content.id,
-                            status: "PENDING",
-                        },
-                        orderBy: {
-                            createdAt: "desc",
-                        },
-                    });
-
-                const reviewStatus =
-                    requestedStatus === "APPROVED"
-                        ? "APPROVED"
-                        : "REVISION_REQUESTED";
-
-                if (pendingReview) {
-                    await tx.review.update({
-                        where: {
-                            id: pendingReview.id,
-                        },
-                        data: {
-                            status: reviewStatus,
-                            ...(reviewNotes
-                                ? { notes: reviewNotes }
-                                : {}),
-                        },
-                    });
-                } else {
-                    const latestVideoVersion =
-                        await tx.assetVersion.findFirst({
-                            where: {
-                                asset: {
-                                    contentId: content.id,
-                                    assetType: "VIDEO",
-                                },
-                            },
-                            orderBy: {
-                                createdAt: "desc",
-                            },
-                            select: {
-                                id: true,
-                            },
-                        });
-
-                    const latestAssetVersion =
-                        latestVideoVersion ??
-                        (await tx.assetVersion.findFirst({
-                            where: {
-                                asset: {
-                                    contentId: content.id,
-                                },
-                            },
-                            orderBy: {
-                                createdAt: "desc",
-                            },
-                            select: {
-                                id: true,
-                            },
-                        }));
-
+                {
                     await tx.review.create({
                         data: {
                             contentId: content.id,
                             authorId: user.id,
-                            status: reviewStatus,
+                            status: "PENDING",
                             notes: reviewNotes || null,
                             assetVersionId:
-                                latestAssetVersion?.id ?? null,
+                                latestAssetVersion.id,
                         },
                     });
                 }
@@ -1094,38 +1038,6 @@ export async function PATCH(
         );
     }
 
-    if (
-        requestedStatus === "APPROVED" ||
-        requestedStatus === "REVISION"
-    ) {
-        const assignedEditorUserIds =
-            await getAssignedEditorUserIds(
-                content.id
-            );
-
-        const managementUserIds =
-            requestedStatus === "APPROVED"
-                ? await getManagementUserIds(
-                      content.project.organizationId
-                  )
-                : [];
-
-        await notifyUsers(
-            [
-                ...assignedEditorUserIds,
-                ...managementUserIds,
-                creatorUserId,
-            ],
-            requestedStatus === "APPROVED"
-                ? "Project approved"
-                : "Revision requested",
-            requestedStatus === "APPROVED"
-                ? `${content.title} was approved.`
-                : `${content.title} needs another revision.`,
-            user.id
-        );
-    }
-
     return NextResponse.json({
         success: true,
         content: {
@@ -1136,12 +1048,12 @@ export async function PATCH(
     });
 
   } catch (error) {
+    if (error && typeof error === "object" && "response" in error && error.response instanceof Response) return error.response;
     logServerError("PATCH /api/projects/[projectId] failed", error);
     return NextResponse.json({ error: "Unable to complete this request." }, { status: 500 });
   }
 }
 
-// DELETE /api/projects/[projectId]
 export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ projectId: string }> }
@@ -1172,7 +1084,7 @@ export async function DELETE(
             );
         }
 
-        if (user.accountType !== "CREATOR") {
+        if (!(user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId))) {
             const membership = user.memberships.find(
                 (item) =>
                     item.organizationId ===
@@ -1194,18 +1106,15 @@ export async function DELETE(
             }
         }
 
-        const storageKeys = content.assets.flatMap(
-            (asset) => [
-                asset.storageKey,
-                ...asset.versions.map(
-                    (version) => version.storageKey
-                ),
-            ]
-        );
-
-        await deleteR2Objects(storageKeys);
-
         await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${content.id} FOR UPDATE`;
+            const current = await tx.contentItem.findUnique({
+                where: { id: content.id }, include: { assets: { include: { versions: true } } },
+            });
+            if (!current) throw new Error("Project no longer exists.");
+            const storageKeys = current.assets.flatMap((asset) => [asset.storageKey, ...asset.versions.map((version) => version.storageKey)]);
+            await deleteR2Objects(storageKeys);
+
             await tx.auditLog.create({
                 data: {
                     action: "CONTENT_DELETED",
@@ -1229,7 +1138,7 @@ export async function DELETE(
                     id: content.id,
                 },
             });
-        });
+        }, { timeout: 60_000 });
 
         return NextResponse.json({
             success: true,

@@ -13,12 +13,41 @@ export default function NexusHomepage() {
     "loading" | "authenticated" | "unauthenticated"
   >("loading");
 
-  // =========================
-  // STATE
-  // =========================
 
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [modalOpen, setModalOpen] = useState(false);
+  const authDialogRef = useRef<HTMLDivElement | null>(null);
+  const authReturnFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    const previousFocus = authReturnFocusRef.current || document.activeElement;
+    const dialog = authDialogRef.current;
+    if (!dialog) return;
+    const controls = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]'
+    )).filter(element => element.getClientRects().length);
+    controls()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setModalOpen(false);
+        setLoginError("");
+      }
+      if (event.key !== "Tab") return;
+      const items = controls();
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    dialog.addEventListener("keydown", onKeyDown);
+    return () => {
+      dialog.removeEventListener("keydown", onKeyDown);
+      const canFocus = (element: HTMLElement) => element.isConnected && !element.closest("[inert]") && element.getClientRects().length && getComputedStyle(element).visibility !== "hidden";
+      if (previousFocus instanceof HTMLElement && previousFocus !== document.body && canFocus(previousFocus)) previousFocus.focus();
+      else Array.from(document.querySelectorAll<HTMLElement>("#loginBtn, .menu-toggle")).find(canFocus)?.focus();
+      authReturnFocusRef.current = null;
+    };
+  }, [modalOpen]);
   const [authTab, setAuthTab] = useState<"login" | "signup" | "reset-request" | "reset-password">("login");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
@@ -33,7 +62,6 @@ export default function NexusHomepage() {
 
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  const [formMessage, setFormMessage] = useState("");
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [signupLoading, setSignupLoading] = useState(false);
@@ -79,9 +107,6 @@ export default function NexusHomepage() {
     };
   }, []);
 
-  // =========================
-  // THEME
-  // =========================
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("nexus-theme");
@@ -116,9 +141,6 @@ export default function NexusHomepage() {
     localStorage.setItem("nexus-theme", newTheme);
   };
 
-  // =========================
-  // TYPEWRITER
-  // =========================
 
   const typeTargets = useRef<(HTMLSpanElement | null)[]>([]);
 
@@ -206,9 +228,6 @@ export default function NexusHomepage() {
     };
   }, []);
 
-  // =========================
-  // BODY LOCK
-  // =========================
 
   useEffect(() => {
     if (modalOpen || mobileMenuOpen) {
@@ -226,11 +245,9 @@ export default function NexusHomepage() {
     };
   }, [modalOpen, mobileMenuOpen]);
 
-  // =========================
-  // LOGIN MODAL
-  // =========================
 
   const openLoginModal = () => {
+    authReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setModalOpen(true);
     setLoginError("");
   };
@@ -248,9 +265,6 @@ export default function NexusHomepage() {
     setResetMessage("");
   };
 
-  // =========================
-  // LOGIN
-  // =========================
 
   const handleLogin = async (
     event: React.FormEvent<HTMLFormElement>
@@ -299,9 +313,6 @@ export default function NexusHomepage() {
     }
   };
 
-  // =========================
-  // SIGNUP
-  // =========================
 
   const handleSignup = async (
     event: React.FormEvent<HTMLFormElement>
@@ -372,9 +383,6 @@ export default function NexusHomepage() {
     }
   };
 
-  // =========================
-  // PASSWORD RESET
-  // =========================
 
   const handleResetRequest = async (
     event: React.FormEvent<HTMLFormElement>
@@ -410,7 +418,7 @@ export default function NexusHomepage() {
 
       setResetMessage(
         data.message ||
-          "IF THAT ACCOUNT EXISTS, A RESET LINK HAS BEEN CREATED."
+          "If an account exists for that email, a password reset link has been sent."
       );
 
       if (data.debugResetUrl) {
@@ -487,9 +495,6 @@ export default function NexusHomepage() {
     }
   };
 
-  // =========================
-  // MOBILE MENU
-  // =========================
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen((previous) => !previous);
@@ -499,9 +504,6 @@ export default function NexusHomepage() {
     setMobileMenuOpen(false);
   };
 
-  // =========================
-  // CURSOR GLOW
-  // =========================
 
   const cursorGlowRef = useRef<HTMLDivElement | null>(null);
 
@@ -568,9 +570,6 @@ export default function NexusHomepage() {
     };
   }, []);
 
-  // =========================
-  // PROCESS CARD MOUSE EFFECT
-  // =========================
 
   const handleProcessMouseMove = (
     event: React.MouseEvent<HTMLElement>
@@ -586,9 +585,6 @@ export default function NexusHomepage() {
     card.style.setProperty("--mouse-y", `${y}px`);
   };
 
-  // =========================
-  // WORK FILTER
-  // =========================
 
   const workItems = [
     {
@@ -629,15 +625,9 @@ export default function NexusHomepage() {
     },
   ];
 
-  // =========================
-  // PRICING
-  // =========================
 
   const isCustomPricing = pricingPeriod === "custom";
 
-  // =========================
-  // FAQ
-  // =========================
 
   const faqData = [
     {
@@ -668,25 +658,6 @@ export default function NexusHomepage() {
     );
   };
 
-  // =========================
-  // PROJECT INTAKE
-  // =========================
-
-  const handleIntakeSubmit = (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
-
-    setFormMessage(
-      "PROJECT BRIEF RECEIVED. THE NEXUS IS READY."
-    );
-
-    event.currentTarget.reset();
-  };
-
-  // =========================
-  // SMOOTH SCROLL
-  // =========================
 
   const handleAnchorClick = (
     event: React.MouseEvent<HTMLAnchorElement>
@@ -714,7 +685,6 @@ export default function NexusHomepage() {
     <>
       <InterfaceTranslator />
 
-      {/* ATMOSPHERE */}
 
       <div className="noise"></div>
 
@@ -727,9 +697,8 @@ export default function NexusHomepage() {
         ></div>
       </div>
 
-      {/* HEADER */}
 
-      <header className="site-header">
+      <header className="site-header" inert={modalOpen}>
         <a
           href="#top"
           className="brand"
@@ -819,7 +788,9 @@ export default function NexusHomepage() {
 
           <button
             className="menu-toggle"
-            aria-label="Open menu"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="homepage-navigation"
             onClick={toggleMobileMenu}
           >
             <span></span>
@@ -828,9 +799,10 @@ export default function NexusHomepage() {
         </div>
       </header>
 
-      {/* MOBILE MENU */}
 
       <div
+        id="homepage-navigation"
+        inert={!mobileMenuOpen || modalOpen}
         className={`mobile-menu ${mobileMenuOpen ? "open" : ""
           }`}
       >
@@ -903,9 +875,8 @@ export default function NexusHomepage() {
         </button>
       </div>
 
-      <main id="top">
+      <main inert={modalOpen} id="top">
 
-        {/* HERO */}
 
         <section className="hero">
           <div className="hero-content">
@@ -986,7 +957,6 @@ export default function NexusHomepage() {
           </span>
         </section>
 
-        {/* MANIFESTO */}
 
         <section className="manifesto">
           <div className="section-shell">
@@ -1039,7 +1009,6 @@ export default function NexusHomepage() {
           </div>
         </section>
 
-        {/* SERVICES */}
 
         <section
           className="services"
@@ -1177,7 +1146,6 @@ export default function NexusHomepage() {
           </div>
         </section>
 
-        {/* CONTENT EXPLAINED */}
 
         <section
           className="content-guide"
@@ -1327,7 +1295,6 @@ export default function NexusHomepage() {
         </section>
 
 
-        {/* WORK */}
 
         <section
           className="work"
@@ -1449,7 +1416,6 @@ export default function NexusHomepage() {
           </div>
         </section>
 
-        {/* PROCESS */}
 
         <section
           className="process"
@@ -1526,7 +1492,6 @@ export default function NexusHomepage() {
           </div>
         </section>
 
-        {/* PRICING */}
 
         <section
           className="pricing"
@@ -1700,7 +1665,6 @@ export default function NexusHomepage() {
           </div>
         </section>
 
-        {/* CONTACT */}
 
         <section
           className="booking"
@@ -1753,15 +1717,19 @@ export default function NexusHomepage() {
 
                 <form
                   id="intakeForm"
-                  onSubmit={handleIntakeSubmit}
+                  onSubmit={(event) => event.preventDefault()}
+                  aria-describedby="intake-notice"
                 >
+                  <p id="intake-notice" className="form-message">
+                    Online enquiries are currently unavailable. Please email <a href="mailto:hello@nexussetups.com">hello@nexussetups.com</a>.
+                  </p>
                   <div className="form-two">
                     <div className="input-group">
                       <label htmlFor="name">
                         NAME
                       </label>
 
-                      <input
+                      <input disabled
                         type="text"
                         id="name"
                         placeholder="Your name"
@@ -1774,7 +1742,7 @@ export default function NexusHomepage() {
                         EMAIL
                       </label>
 
-                      <input
+                      <input disabled
                         type="email"
                         id="email"
                         placeholder="you@example.com"
@@ -1788,7 +1756,7 @@ export default function NexusHomepage() {
                       CREATOR / COMPANY
                     </label>
 
-                    <input
+                    <input disabled
                       type="text"
                       id="company"
                       placeholder="Your brand or channel"
@@ -1800,7 +1768,7 @@ export default function NexusHomepage() {
                       WHAT DO YOU NEED?
                     </label>
 
-                    <select id="service">
+                    <select id="service" disabled>
                       <option value="">
                         Select a service
                       </option>
@@ -1829,21 +1797,19 @@ export default function NexusHomepage() {
 
                   <button
                     type="submit"
+                    disabled
                     className="button button-primary full-width"
                   >
-                    SEND PROJECT BRIEF ↗
+                    ONLINE ENQUIRIES UNAVAILABLE
                   </button>
 
-                  <p className="form-message">
-                    {formMessage}
-                  </p>
+
                 </form>
               </div>
             </div>
           </div>
         </section>
 
-        {/* FAQ */}
 
         <section
           className="faq"
@@ -1945,7 +1911,6 @@ export default function NexusHomepage() {
           </div>
         </section>
 
-        {/* FINAL CTA */}
 
         <section className="final-cta">
           <div className="cta-orbit orbit-a"></div>
@@ -1979,19 +1944,20 @@ export default function NexusHomepage() {
         </section>
       </main>
 
-      {/* LOGIN MODAL */}
 
       <div
         className={`modal-overlay ${modalOpen ? "active" : ""
           }`}
         id="loginModal"
+        inert={!modalOpen}
+        aria-hidden={!modalOpen}
         onClick={(event) => {
           if (event.target === event.currentTarget) {
             closeLoginModal();
           }
         }}
       >
-        <div className="auth-card">
+        <div className="auth-card" ref={authDialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
           <button
             className="modal-close"
             id="modalClose"
@@ -2006,7 +1972,7 @@ export default function NexusHomepage() {
               SYSTEM ACCESS
             </span>
 
-            <h3>NEXUS PORTAL</h3>
+            <h3 id="auth-dialog-title">NEXUS PORTAL</h3>
           </div>
 
           {(authTab === "login" || authTab === "signup") && (
@@ -2090,6 +2056,9 @@ export default function NexusHomepage() {
 
                   <button
                     type="button"
+                    aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showLoginPassword}
+                    aria-controls="loginPass"
                     className="toggle-pass"
                     onClick={() =>
                       setShowLoginPassword(
@@ -2112,7 +2081,7 @@ export default function NexusHomepage() {
               </div>
 
               {loginError && (
-                <p className="auth-error-msg active">
+                <p className="auth-error-msg active" role="alert">
                   {loginError}
                 </p>
               )}
@@ -2166,13 +2135,13 @@ export default function NexusHomepage() {
               </div>
 
               {loginError && (
-                <p className="auth-error-msg active">
+                <p className="auth-error-msg active" role="alert">
                   {loginError}
                 </p>
               )}
 
               {resetMessage && (
-                <p className="auth-reset-message active">
+                <p className="auth-reset-message active" role="status">
                   {resetMessage}
                 </p>
               )}
@@ -2220,6 +2189,9 @@ export default function NexusHomepage() {
 
                   <button
                     type="button"
+                    aria-label={showResetPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showResetPassword}
+                    aria-controls="resetPassword"
                     className="toggle-pass"
                     onClick={() =>
                       setShowResetPassword(
@@ -2249,13 +2221,13 @@ export default function NexusHomepage() {
               </div>
 
               {loginError && (
-                <p className="auth-error-msg active">
+                <p className="auth-error-msg active" role="alert">
                   {loginError}
                 </p>
               )}
 
               {resetMessage && (
-                <p className="auth-reset-message active">
+                <p className="auth-reset-message active" role="status">
                   {resetMessage}
                 </p>
               )}
@@ -2374,6 +2346,9 @@ export default function NexusHomepage() {
 
                   <button
                     type="button"
+                    aria-label={showSignupPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showSignupPassword}
+                    aria-controls="signupPass"
                     className="toggle-pass"
                     onClick={() =>
                       setShowSignupPassword(
@@ -2389,7 +2364,7 @@ export default function NexusHomepage() {
               </div>
 
               {loginError && (
-                <p className="auth-error-msg active">
+                <p className="auth-error-msg active" role="alert">
                   {loginError}
                 </p>
               )}
@@ -2416,9 +2391,8 @@ export default function NexusHomepage() {
         </div>
       </div>
 
-      {/* FOOTER */}
 
-      <footer className="site-footer">
+      <footer inert={modalOpen} className="site-footer">
         <div className="footer-top">
           <div className="footer-brand">
             <a
@@ -2476,14 +2450,6 @@ export default function NexusHomepage() {
             >
               Brand Guide ↗
             </a>
-          </div>
-
-          <div className="footer-column">
-            <span>SOCIAL</span>
-
-            <a href="#">Instagram</a>
-            <a href="#">YouTube</a>
-            <a href="#">X / Twitter</a>
           </div>
 
           <div className="footer-column">

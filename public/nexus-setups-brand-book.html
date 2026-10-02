@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nexus Setups — Brand Guidelines</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --deep-void: #030304; 
+    --obsidian: #08080B; 
+    --white: #F7F5FA; 
+    --slate: #99949F;
+    --purple: #8D45FF; 
+    --violet: #B16CFF; 
+    --blue: #4B8DFF; 
+    --pink: #E75CFF; 
+    --green: #7DF5BB;
+    --grid: rgba(255,255,255,0.13); 
+    --hair: rgba(255,255,255,0.08);
+
+    /* Dynamic Theme Variables (Default Dark) */
+    --outer-bg: #000000;
+    --radial-glow: rgba(141,69,255,0.10);
+    --bg-page: var(--deep-void);
+    --text-primary: var(--white);
+    --text-secondary: var(--slate);
+    --card-bg: var(--deep-void);
+    --card-border: var(--hair);
+    --grid-line: var(--grid);
+    --horizon-border: rgba(255, 255, 255, 0.22);
+    --sweep-opacity: 0.55;
+    --demo-bg: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Light Theme Overrides */
+  [data-theme="light"] {
+    --outer-bg: #E8E5EC;
+    --radial-glow: rgba(141,69,255,0.05);
+    --bg-page: #F2EFF5;
+    --text-primary: #030304;
+    --text-secondary: #5A5563;
+    --card-bg: #FFFFFF;
+    --card-border: rgba(0, 0, 0, 0.18);
+    --grid-line: rgba(0, 0, 0, 0.22);
+    --hair: rgba(0, 0, 0, 0.15);
+    --horizon-border: rgba(0, 0, 0, 0.25);
+    --sweep-opacity: 0.45;
+    --demo-bg: rgba(0, 0, 0, 0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  html, body {
+    background: var(--outer-bg);
+    transition: background 0.3s ease;
+    overflow-x: hidden;
+  }
+  
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  .mono { font-family: 'DM Mono', monospace; }
+  ::selection { background: var(--purple); color: var(--white); }
+
+  /* TOP CONTROL BAR */
+  .top-control-bar {
+    position: fixed;
+    top: 20px;
+    left: 32px;
+    right: 32px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .top-control-bar > * {
+    pointer-events: auto;
+  }
+
+  /* EXACT HOMEPAGE BRAND LOCKUP STYLE IN TOP LEFT */
+  .home-link-logo {
+    display: flex;
+    flex-direction: column;
+    line-height: .78;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -.04em;
+    text-decoration: none;
+    background: rgba(10, 10, 13, 0.75);
+    border: 1px solid var(--grid);
+    padding: 10px 18px;
+    border-radius: 30px;
+    backdrop-filter: blur(12px);
+    transition: border-color 0.25s ease;
+  }
+
+  .home-link-logo:hover {
+    border-color: var(--purple);
+  }
+
+  .home-link-logo span {
+    color: var(--white);
+  }
+
+  .home-link-logo b {
+    color: var(--purple-bright);
+    font-size: 15px;
+    letter-spacing: .08em;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  [data-theme="light"] .home-link-logo span {
+    color: #0c0a10;
+  }
+  [data-theme="light"] .home-link-logo b {
+    color: #7a32e0;
+  }
+
+  .theme-toggle-switch {
+    position: relative;
+    width: 68px;
+    height: 32px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #161028, #2a184e);
+    border: 1px solid var(--grid);
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    transition: all 0.4s ease;
+  }
+
+  .switch-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffffff, #d2d5dc);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 2;
+  }
+
+  .switch-cloud {
+    position: absolute;
+    bottom: -6px;
+    left: 6px;
+    width: 32px;
+    height: 14px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.4s ease;
+    transform: translateY(10px);
+  }
+
+  [data-theme="light"] .theme-toggle-switch {
+    background: linear-gradient(135deg, #a7e4f8, #60c5ee);
+  }
+  [data-theme="light"] .switch-thumb {
+    transform: translateX(38px);
+    background: radial-gradient(circle at 35% 35%, #fff57a, #ffcc00);
+  }
+  [data-theme="light"] .switch-cloud {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .book {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    padding: 64px 20px 140px;
+    background: radial-gradient(ellipse 900px 500px at 50% -10%, var(--radial-glow), transparent 60%), var(--outer-bg);
+    transition: background 0.3s ease;
+  }
+  
+  /* CENTERED RESPONSIVE PAGE CONTAINERS */
+  .page {
+    position: relative;
+    width: 1360px;
+    max-width: 100%;
+    min-height: 850px;
+    aspect-ratio: 16/10;
+    background: var(--bg-page);
+    color: var(--text-primary); 
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 40px 100px -20px rgba(0,0,0,0.25); 
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 72px;
+    transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+
+  @media (max-width: 1200px) {
+    .page {
+      aspect-ratio: auto;
+      min-height: auto;
+      padding: 60px 32px 50px;
+    }
+  }
+
+  .page-index { position: absolute; bottom: 26px; right: 32px; font-size: 11px; letter-spacing: 0.12em; color: var(--text-secondary); z-index: 5; }
+  .page-tag { position: absolute; top: 26px; left: 32px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-secondary); z-index: 5; display: flex; align-items: center; gap: 8px; }
+  .page-tag::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); }
+  .page-brand { position: absolute; top: 26px; right: 32px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-secondary); z-index: 5; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--purple); font-family: 'DM Mono', monospace; margin-bottom: 24px; }
+  .kicker { font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-secondary); font-family: 'DM Mono', monospace; margin-bottom: 28px; }
+
+  /* BRAND LOCKUP STYLES */
+  .brand-lockup {
+    display: flex;
+    flex-direction: column;
+    line-height: 0.78;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+  }
+  .brand-lockup span { color: var(--text-primary); }
+  .brand-lockup b {
+    color: #A76CFF;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .horizon { position: absolute; border-radius: 50%; pointer-events: none; }
+  .horizon-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid var(--horizon-border);
+    transition: border-color 0.3s ease;
+  }
+  @keyframes drift { to { transform: rotate(360deg); } }
+  .horizon-sweep {
+    position: absolute;
+    inset: -1px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg, var(--purple) 8deg, transparent 40deg, transparent 320deg, var(--violet) 352deg, transparent 360deg);
+    opacity: var(--sweep-opacity);
+    animation: drift 40s linear infinite;
+    transition: opacity 0.3s ease;
+  }
+
+  .horizon-core {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, #000000 0%, #000000 38%, rgba(141,69,255,0.5) 60%, transparent 72%);
+  }
+
+  /* COVER */
+  .cover { display: flex; flex-direction: column; justify-content: space-between; padding: 64px; }
+  .cover .horizon-wrap { position: absolute; right: -180px; top: 50%; transform: translateY(-50%); width: 900px; height: 900px; }
+  .cover-top { display: flex; justify-content: space-between; align-items: flex-start; z-index: 5; }
+  .cover-mark { display: flex; align-items: center; gap: 10px; }
+  .cover-mark-glyph { width: 26px; height: 26px; position: relative; }
+  .cover-mark-glyph::before, .cover-mark-glyph::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1.4px solid var(--text-primary); }
+  .cover-mark-glyph::after { inset: 8px; border-color: var(--purple); }
+  .cover-meta { text-align: right; font-size: 11px; color: var(--text-secondary); letter-spacing: 0.1em; }
+  .cover-title { z-index: 5; max-width: 920px; }
+  .cover-title h1 { font-size: clamp(48px, 8vw, 118px); line-height: 0.82; font-weight: 700; letter-spacing: -0.075em; }
+  .cover-title h1 span { color: var(--text-secondary); font-weight: 300; }
+  .cover-bottom { display: flex; justify-content: space-between; align-items: flex-end; z-index: 5; }
+  .cover-sub { max-width: 420px; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+  .cover-index { font-size: 11px; color: var(--text-secondary); letter-spacing: 0.1em; text-align: right; }
+
+  /* CONTENTS */
+  .contents { justify-content: center; }
+  .contents h2 { font-size: 36px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 6px; }
+  .contents .lede { font-size: 12px; color: var(--text-secondary); margin-bottom: 28px; }
+  .toc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 40px; }
+  .toc-row { display: flex; justify-content: space-between; align-items: baseline; padding: 7.5px 0; border-bottom: 1px solid var(--card-border); font-size: 12.5px; }
+  .toc-row .n { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--purple); width: 26px; }
+  .toc-row .t { flex: 1; padding-left: 6px; }
+
+  /* STATEMENT PAGES */
+  .statement { justify-content: center; }
+  .statement .big { font-size: clamp(20px, 2.5vw, 30px); line-height: 1.42; font-weight: 400; letter-spacing: -0.01em; max-width: 980px; }
+  .statement .big b { font-weight: 600; color: var(--violet); }
+
+  /* GRID CARD LAYOUTS - CENTERED VERTICALLY */
+  .card-page { justify-content: center; }
+  .card-grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1px; background: var(--card-border); border: 1px solid var(--card-border); }
+  .card-grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1px; background: var(--card-border); border: 1px solid var(--card-border); }
+  .cell { background: var(--card-bg); padding: 34px 28px; min-height: 260px; display: flex; flex-direction: column; justify-content: space-between; }
+  .cell .num { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-secondary); }
+  .cell .glyph { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--grid-line); position: relative; margin: 18px 0; }
+  .cell .glyph::after { content: ''; position: absolute; inset: 11px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 22px var(--purple); }
+  .cell h3 { font-size: 22px; font-weight: 600; margin-bottom: 10px; letter-spacing: -0.035em; }
+  .cell p { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
+
+  /* COLOUR SYSTEM FIXES */
+  .color-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  
+  .swatch {
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--card-bg);
+  }
+  
+  .swatch .fill {
+    height: 106px;
+    position: relative;
+    border-bottom: 1px solid var(--card-border);
+    flex-shrink: 0;
+  }
+  
+  .swatch .info {
+    padding: 12px 14px;
+    font-family: 'DM Mono', monospace;
+    background: var(--card-bg);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  
+  .swatch .name { font-size: 12px; margin-bottom: 6px; color: var(--text-primary); }
+  .swatch .hex { font-size: 10px; color: var(--text-secondary); line-height: 1.7; }
+
+  /* TYPE */
+  .type-row { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--card-border); padding: 14px 0; flex-wrap: wrap; gap: 10px; }
+  .type-row .label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-secondary); width: 150px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .type-row .sample { flex: 1; letter-spacing: -0.02em; min-width: 250px; }
+  .type-row .meta { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-secondary); width: 190px; text-align: right; }
+
+  /* LOGO */
+  .logo-page { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); padding: 0; }
+  .logo-hero { display: flex; align-items: center; justify-content: center; position: relative; border-right: 1px solid var(--card-border); padding: 60px 40px; }
+  .logo-specs { padding: 56px 48px; display: flex; flex-direction: column; gap: 26px; justify-content: center; }
+  .spec-item .k { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--purple); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .spec-item .v { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .construction-wrap { display: flex; align-items: center; justify-content: center; height: 100%; position: relative; }
+  .construction-grid { position: absolute; inset: 56px; background-image: linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px); background-size: 32px 32px; opacity: 0.5; }
+  .clearspace-box { position: relative; padding: 64px; border: 1px dashed rgba(141,69,255,0.5); }
+  .misuse-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; width: 100%; }
+  .misuse-tile { aspect-ratio: 1.4; border: 1px solid var(--card-border); border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative; background: var(--card-bg); }
+  .misuse-tile::after { content: '✕'; position: absolute; top: 10px; right: 10px; color: var(--pink); font-size: 12px; }
+  .misuse-tile .cap { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-secondary); }
+
+  /* ICONS */
+  .icon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+  .icon-tile { aspect-ratio: 1; border: 1px solid var(--card-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 26px; color: var(--text-primary); position: relative; background: var(--card-bg); }
+  .icon-tile .tag { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-secondary); }
+
+  /* VISUAL STYLE / MOTION / PHOTOGRAPHY FIXES */
+  .visual-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .visual-tile { border: 1px solid var(--card-border); border-radius: 6px; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px; min-height: 220px; background: var(--card-bg); }
+  .visual-tile .cap { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+  .visual-tile h4 { font-size: 16px; font-weight: 600; margin-top: 4px; }
+  
+  .motion-row { display: flex; align-items: center; gap: 28px; border-bottom: 1px solid var(--card-border); padding: 22px 0; }
+  .motion-row .k { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--purple); width: 180px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .motion-row .desc { flex: 1; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  
+  .motion-demo {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    background: var(--demo-bg);
+    border: 1px solid var(--card-border);
+    position: relative;
+    flex-shrink: 0;
+  }
+  @keyframes pulseGlow { 0%,100% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+  .motion-demo.glow::after {
+    content: '';
+    position: absolute;
+    inset: 15px;
+    border-radius: 50%;
+    background: var(--purple);
+    filter: blur(5px);
+    animation: pulseGlow 2.2s ease-in-out infinite;
+  }
+
+  /* UI COMPONENTS */
+  .ui-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .ui-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+  .ui-card .label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { font-family: 'Space Grotesk'; font-size: 12px; padding: 10px 18px; border-radius: 6px; border: 1px solid var(--grid-line); background: transparent; color: var(--text-primary); }
+  .btn-primary { background: linear-gradient(135deg,var(--purple),var(--violet)); border: none; box-shadow: 0 0 20px rgba(141,69,255,0.35); color: #FFF; }
+  .metric-card .num { font-size: 34px; font-weight: 700; }
+  .metric-card .delta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--purple-bright); }
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sys-tag { font-family: 'DM Mono', monospace; font-size: 10px; padding: 5px 10px; border-radius: 20px; border: 1px solid var(--grid-line); color: var(--text-secondary); }
+  .status-row { display: flex; flex-direction: column; gap: 10px; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: 'DM Mono', monospace; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .field { border: 1px solid var(--grid-line); border-radius: 6px; padding: 12px 14px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; }
+
+  /* TEMPLATES / STATIONERY */
+  .tmpl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+  .tmpl4-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .tmpl { border: 1px solid var(--card-border); border-radius: 6px; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; min-height: 200px; background: var(--card-bg); }
+  .tmpl .tmpl-tag { position: absolute; top: 16px; left: 16px; font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+  .tmpl h4 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .tmpl p { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* CO-BRANDING FIXES */
+  .cobrand-row { display: flex; align-items: center; gap: 28px; padding: 22px 0; border-bottom: 1px solid var(--card-border); flex-wrap: wrap; }
+  .cobrand-row .lockup-demo { display: flex; align-items: center; gap: 18px; flex: 1; min-width: 250px; }
+  
+  .partner-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: var(--demo-bg);
+    border: 1px solid var(--card-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--text-primary);
+    flex-shrink: 0;
+  }
+  
+  .divider-rule { width: 1px; height: 28px; background: var(--grid-line); }
+  .cobrand-row .desc { flex: 1; font-size: 12px; color: var(--text-secondary); line-height: 1.6; min-width: 280px; }
+
+  /* ACCESSIBILITY */
+  .theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1px; background: var(--card-border); border: 1px solid var(--card-border); }
+  .theme-cell { padding: 32px; display: flex; flex-direction: column; gap: 18px; min-height: 220px; }
+  .theme-cell h4 { font-size: 13px; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em; }
+  .role-row { display: flex; align-items: center; gap: 10px; font-size: 11px; font-family: 'DM Mono', monospace; }
+  .role-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--grid-line); }
+  .contrast-note { font-size: 11px; color: var(--text-secondary); line-height: 1.7; font-family: 'DM Mono', monospace; margin-top: 18px; }
+
+  /* SUMMARY / EXPANSION */
+  .summary-list { display: flex; flex-direction: column; gap: 0; width: 100%; }
+  .summary-row { display: flex; align-items: center; gap: 24px; border-bottom: 1px solid var(--card-border); padding: 18px 0; flex-wrap: wrap; }
+  .summary-row .n { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--purple); width: 30px; }
+  .summary-row .t { font-size: 15px; flex: 1; min-width: 200px; }
+  .summary-row .d { font-size: 12px; color: var(--text-secondary); flex: 2; min-width: 280px; }
+
+  /* CONTACT / THANKS PAGE STYLING */
+  .thanks { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; }
+  .thanks h1 {
+    font-size: clamp(48px, 6vw, 72px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    position: relative;
+    z-index: 10;
+    color: #FFFFFF !important;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.8);
+  }
+  .thanks p {
+    font-size: 13px;
+    color: #FFFFFF !important;
+    opacity: 0.9;
+    margin-top: 16px;
+    position: relative;
+    z-index: 10;
+    font-family: 'DM Mono', monospace;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+  }
+  .thanks .horizon { z-index: 1; pointer-events: none; }
+
+  .footer-note { color: var(--text-secondary); font-size: 11px; font-family: 'DM Mono', monospace; text-align: center; letter-spacing: 0.08em; }
+</style>
+</head>
+<body>
+
+<!-- Top Control Bar: Homepage Logo Link & Day/Night Switch -->
+<div class="top-control-bar">
+  <a href="/" class="home-link-logo" title="Return to Home Screen">
+    <span>NEXUS</span>
+    <b>SETUPS</b>
+  </a>
+
+  <div class="theme-toggle-switch" id="themeSwitch" aria-label="Toggle Light and Dark Mode">
+    <div class="switch-thumb"></div>
+    <div class="switch-cloud"></div>
+  </div>
+</div>
+
+<div class="book">
+
+<!-- 01 COVER -->
+<div class="page cover">
+  <div class="horizon-wrap">
+    <div class="horizon horizon-ring" style="inset:0;"></div>
+    <div class="horizon horizon-ring" style="inset:70px;"></div>
+    <div class="horizon horizon-ring" style="inset:150px;"></div>
+    <div class="horizon horizon-sweep"></div>
+    <div class="horizon horizon-core" style="inset:330px;"></div>
+  </div>
+  <div class="cover-top">
+    <div class="cover-mark">
+      <div class="cover-mark-glyph"></div>
+      <div class="brand-lockup" style="font-size:18px;">
+        <span>NEXUS</span>
+        <b style="font-size:13px;">SETUPS</b>
+      </div>
+    </div>
+    <div class="cover-meta mono">BRAND&nbsp;GUIDELINES<br>VOL.&nbsp;01 — 2026</div>
+  </div>
+  <div class="cover-title">
+    <div class="eyebrow">Gravity · Engineering · Focus</div>
+    <h1>The gravity<br>behind the<br>content.<span>*</span></h1>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-sub">*The invisible operational center for world-class creators — converting raw production chaos into scalable, platform-ready content engines.</div>
+    <div class="cover-index">01 / 28 — COVER</div>
+  </div>
+</div>
+
+<!-- 02 CONTENTS -->
+<div class="page contents">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Brand Guidelines</div>
+  <h2>Contents</h2><div class="lede mono">An index of everything governed by this system.</div>
+  <div class="toc-grid">
+    <div class="toc-col">
+      <div class="toc-row"><span class="n">01</span><span class="t">Cover</span></div>
+      <div class="toc-row"><span class="n">02</span><span class="t">Contents</span></div>
+      <div class="toc-row"><span class="n">03</span><span class="t">Brand Story</span></div>
+      <div class="toc-row"><span class="n">04</span><span class="t">Mission</span></div>
+      <div class="toc-row"><span class="n">05</span><span class="t">Vision</span></div>
+      <div class="toc-row"><span class="n">06</span><span class="t">Personality</span></div>
+      <div class="toc-row"><span class="n">07</span><span class="t">Values</span></div>
+      <div class="toc-row"><span class="n">08</span><span class="t">Core Pillars</span></div>
+      <div class="toc-row"><span class="n">09</span><span class="t">Logo</span></div>
+      <div class="toc-row"><span class="n">10</span><span class="t">Logo Construction</span></div>
+    </div>
+    <div class="toc-col">
+      <div class="toc-row"><span class="n">11</span><span class="t">Logo Usage</span></div>
+      <div class="toc-row"><span class="n">12</span><span class="t">Co-Branding</span></div>
+      <div class="toc-row"><span class="n">13</span><span class="t">Accessibility &amp; Contrast</span></div>
+      <div class="toc-row"><span class="n">14</span><span class="t">Colour System</span></div>
+      <div class="toc-row"><span class="n">15</span><span class="t">Typography</span></div>
+      <div class="toc-row"><span class="n">16</span><span class="t">Icon System</span></div>
+      <div class="toc-row"><span class="n">17</span><span class="t">Visual Style</span></div>
+      <div class="toc-row"><span class="n">18</span><span class="t">UI Components</span></div>
+      <div class="toc-row"><span class="n">19</span><span class="t">Motion</span></div>
+      <div class="toc-row"><span class="n">20</span><span class="t">Photography Direction</span></div>
+    </div>
+    <div class="toc-col">
+      <div class="toc-row"><span class="n">21</span><span class="t">Marketing</span></div>
+      <div class="toc-row"><span class="n">22</span><span class="t">Social Media</span></div>
+      <div class="toc-row"><span class="n">23</span><span class="t">Presentation Templates</span></div>
+      <div class="toc-row"><span class="n">24</span><span class="t">Business Stationery</span></div>
+      <div class="toc-row"><span class="n">25</span><span class="t">Brand Applications</span></div>
+      <div class="toc-row"><span class="n">26</span><span class="t">Future Expansion</span></div>
+      <div class="toc-row"><span class="n">27</span><span class="t">Summary</span></div>
+      <div class="toc-row"><span class="n">28</span><span class="t">Contact</span></div>
+    </div>
+  </div>
+  <div class="page-index mono">002</div>
+</div>
+
+<!-- 03 BRAND STORY -->
+<div class="page statement">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Brand Story</div>
+  <div class="eyebrow">03 — Brand Story</div>
+  <div class="big">Every creator eventually hits the same wall — not a lack of ideas, but a lack of <b>hours</b>. Editing queues stack up. Assets scatter across ten drives. Publishing becomes a second job. <b>Nexus Setups was built to absorb that mass</b> — quietly, precisely, permanently — so the work in front of the camera never has to compete with the work behind it.</div>
+  <div class="page-index mono">003</div>
+</div>
+
+<!-- 04 MISSION -->
+<div class="page statement">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Mission</div>
+  <div class="eyebrow">04 — Mission</div>
+  <div class="big">We operate as a <b>manager-first</b> post-production and content management agency — handling editing, packaging, asset organisation, and review and delivery workflows, so creators, brands, and teams stay focused entirely on <b>ideation and execution</b>.</div>
+  <div class="page-index mono">004</div>
+</div>
+
+<!-- 05 VISION -->
+<div class="page statement">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Vision</div>
+  <div class="eyebrow">05 — Vision</div>
+  <div class="big">To become the <b>invisible gravitational center</b> for world-class creators and digital media brands — transforming chaotic raw production feeds into scalable, <b>platform-ready content engines</b>.</div>
+  <div class="page-index mono">005</div>
+</div>
+
+<!-- 06 PERSONALITY -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Personality</div>
+  <div class="kicker">06 — Personality</div>
+  <div class="card-grid4">
+    <div class="cell"><span class="num mono">T.01</span><div><div class="glyph"></div><h3>Commanding</h3><p>Speaks with authority. Never hedges, never over-explains. <i style="opacity:0.7;">"YOUR CONTENT. OUR GRAVITY."</i></p></div></div>
+    <div class="cell"><span class="num mono">T.02</span><div><div class="glyph"></div><h3>Minimal</h3><p>Says exactly what's needed. Nothing decorative, nothing wasted.</p></div></div>
+    <div class="cell"><span class="num mono">T.03</span><div><div class="glyph"></div><h3>Technical</h3><p>Precise vocabulary. Systems language over sentiment.</p></div></div>
+    <div class="cell"><span class="num mono">T.04</span><div><div class="glyph"></div><h3>Executive</h3><p>Calm, unshaken, built for boardrooms and briefs alike.</p></div></div>
+  </div>
+  <div class="page-index mono">006</div>
+</div>
+
+<!-- 07 VALUES -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Values</div>
+  <div class="kicker">07 — Values</div>
+  <div class="card-grid3">
+    <div class="cell"><span class="num mono">V.01</span><div><div class="glyph"></div><h3>Precision Over Volume</h3><p>Every deliverable is engineered, not rushed. Quality is the constraint, not the variable.</p></div></div>
+    <div class="cell"><span class="num mono">V.02</span><div><div class="glyph"></div><h3>Invisible Reliability</h3><p>The best operations team is the one nobody has to think about.</p></div></div>
+    <div class="cell"><span class="num mono">V.03</span><div><div class="glyph"></div><h3>Systems Thinking</h3><p>Every workflow is built to scale, repeat, and hold under real load.</p></div></div>
+  </div>
+  <div class="page-index mono">007</div>
+</div>
+
+<!-- 08 PILLARS -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Core Pillars</div>
+  <div class="kicker">08 — Core Pillars</div>
+  <div class="card-grid3">
+    <div class="cell"><span class="num mono">P.01</span><div><div class="glyph"></div><h3>Gravity</h3><p>Convergence. Every workflow, every asset, every deadline pulled into a single orbit around the work that matters.</p></div></div>
+    <div class="cell"><span class="num mono">P.02</span><div><div class="glyph"></div><h3>Engineering</h3><p>Precision. Systems built like infrastructure — repeatable, measured, engineered to hold under load.</p></div></div>
+    <div class="cell"><span class="num mono">P.03</span><div><div class="glyph"></div><h3>Focus</h3><p>Frictionless. We remove the operational noise so creative attention never has to leave the work.</p></div></div>
+  </div>
+  <div class="page-index mono">008</div>
+</div>
+
+<!-- 09 LOGO -->
+<div class="page logo-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Logo</div>
+  <div class="logo-hero">
+    <div class="logo-lockup" style="gap:20px;">
+      <div class="logo-glyph" style="width:50px;height:50px;"></div>
+      <div class="brand-lockup" style="font-size:36px;">
+        <span>NEXUS</span>
+        <b style="font-size:24px;">SETUPS</b>
+      </div>
+    </div>
+  </div>
+  <div class="logo-specs">
+    <div class="spec-item"><div class="k">Primary Lockup</div><div class="v">Stacked wordmark featuring pure white primary brand name and bright purple sub-branding.</div></div>
+    <div class="spec-item"><div class="k">Icon-Only Mark</div><div class="v">Approved for favicons, app icons, and social avatars where the full lockup won't fit legibly.</div></div>
+    <div class="spec-item"><div class="k">Colour Variants</div><div class="v">White-on-void (default), void-on-white (light contexts), monochrome (single-colour applications).</div></div>
+    <div class="spec-item"><div class="k">Minimum Size</div><div class="v">21px brand mark height in digital contexts, 10mm in print.</div></div>
+  </div>
+  <div class="page-index mono">009</div>
+</div>
+
+<!-- 10 LOGO CONSTRUCTION -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Logo Construction</div>
+  <div class="construction-wrap">
+    <div class="construction-grid"></div>
+    <div class="clearspace-box">
+      <div class="brand-lockup" style="font-size:42px;">
+        <span>NEXUS</span>
+        <b style="font-size:28px;">SETUPS</b>
+      </div>
+    </div>
+  </div>
+  <div class="page-index mono">010</div>
+</div>
+
+<!-- 11 LOGO USAGE -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Logo Usage</div>
+  <div class="kicker">11 — Incorrect Usage</div>
+  <div class="misuse-grid">
+    <div class="misuse-tile"><div class="brand-lockup" style="transform:rotate(12deg);font-size:18px;"><span>NEXUS</span><b>SETUPS</b></div><span class="cap">Rotated</span></div>
+    <div class="misuse-tile"><div class="brand-lockup" style="filter:hue-rotate(120deg);font-size:18px;"><span>NEXUS</span><b>SETUPS</b></div><span class="cap">Recoloured</span></div>
+    <div class="misuse-tile"><div class="brand-lockup" style="transform:scaleX(1.6);font-size:18px;"><span>NEXUS</span><b>SETUPS</b></div><span class="cap">Stretched</span></div>
+    <div class="misuse-tile"><div class="brand-lockup" style="filter:drop-shadow(4px 4px 0 var(--pink));font-size:18px;"><span>NEXUS</span><b>SETUPS</b></div><span class="cap">Shadowed</span></div>
+  </div>
+  <div class="misuse-grid" style="margin-top:16px;">
+    <div class="misuse-tile" style="background:linear-gradient(160deg,#4a3a2a,#2a2015);"><div class="brand-lockup" style="font-size:18px;"><span style="color:#FFF;">NEXUS</span><b>SETUPS</b></div><span class="cap">Low Contrast BG</span></div>
+    <div class="misuse-tile" style="background:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23111%22/><circle cx=%2220%22 cy=%2220%22 r=%2215%22 fill=%22%23333%22/><circle cx=%2280%22 cy=%2270%22 r=%2225%22 fill=%22%23222%22/></svg>') center/cover;"><div class="brand-lockup" style="font-size:18px;"><span style="color:#FFF;">NEXUS</span><b>SETUPS</b></div><span class="cap">Busy Imagery</span></div>
+    <div class="misuse-tile"><div class="brand-lockup" style="filter:blur(1.5px);font-size:18px;"><span>NEXUS</span><b>SETUPS</b></div><span class="cap">Low-Res / Blurred</span></div>
+    <div class="misuse-tile"><div class="brand-lockup" style="font-size:18px;"><span>NEXUS</span><b>SETUPS</b></div><span class="cap">Crowded Clearspace</span></div>
+  </div>
+  <div class="page-index mono">011</div>
+</div>
+
+<!-- 12 CO-BRANDING -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Co-Branding</div>
+  <div class="kicker">12 — Co-Branding &amp; Partnership Lockup</div>
+  <div class="sub-eyebrow" style="margin-bottom:28px;">When paired with a creator, client, or partner logo, Nexus Setups is never louder than the work it supports — but never smaller either. Equal visual weight, consistent spacing, one rule.</div>
+  
+  <div class="cobrand-row">
+    <div class="lockup-demo">
+      <div class="brand-lockup" style="font-size:16px;"><span>NEXUS</span><b>SETUPS</b></div>
+      <div class="divider-rule"></div>
+      <div class="partner-mark">▶</div>
+      <span class="mono" style="font-size:11px;color:var(--text-secondary);">CREATOR / PARTNER</span>
+    </div>
+    <div class="desc">Standard Lockup — Nexus Setups appears first, separated by a single hairline rule equal in height to the brand header.</div>
+  </div>
+
+  <div class="cobrand-row">
+    <div class="lockup-demo">
+      <div class="logo-glyph" style="width:30px;height:30px;"></div>
+      <div class="divider-rule"></div>
+      <div class="partner-mark">▶</div>
+      <div class="partner-mark">🎵</div>
+      <div class="partner-mark">🎮</div>
+    </div>
+    <div class="desc">Multi-Partner Lockup — Icon-only mark used when locked up with three or more logos to preserve legibility at small sizes.</div>
+  </div>
+
+  <div class="cobrand-row" style="border-bottom:none;">
+    <div class="lockup-demo">
+      <span class="mono" style="font-size:11px;color:var(--text-secondary);">CLEARSPACE = X (HEADER HEIGHT) ON ALL SIDES OF THE LOCKUP</span>
+    </div>
+    <div class="desc">Never resize, recolor, or reorder a partner's logo to compensate for spacing — adjust layout, not their mark.</div>
+  </div>
+  <div class="page-index mono">012</div>
+</div>
+
+<!-- 13 ACCESSIBILITY & CONTRAST -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Accessibility &amp; Contrast</div>
+  <div class="kicker">13 — Accessibility &amp; Contrast</div>
+  <div class="theme-grid">
+    <div class="theme-cell" style="background:var(--white);">
+      <h4 style="color:var(--deep-void);">Light</h4>
+      <div class="role-row" style="color:var(--deep-void);"><span class="role-swatch" style="background:var(--deep-void);"></span>Text Primary</div>
+      <div class="role-row" style="color:#555;"><span class="role-swatch" style="background:#8a8a8a;"></span>Text Secondary</div>
+      <div class="role-row" style="color:var(--purple);"><span class="role-swatch" style="background:var(--purple);"></span>Text / Border Accent</div>
+    </div>
+    <div class="theme-cell" style="background:var(--obsidian);">
+      <h4 style="color:var(--slate);">Obsidian</h4>
+      <div class="role-row" style="color:#FFF;"><span class="role-swatch" style="background:var(--white);"></span>Text Primary</div>
+      <div class="role-row" style="color:var(--slate);"><span class="role-swatch" style="background:var(--slate);"></span>Text Secondary</div>
+      <div class="role-row" style="color:var(--violet);"><span class="role-swatch" style="background:var(--violet);"></span>Text / Border Accent</div>
+    </div>
+    <div class="theme-cell" style="background:var(--deep-void);">
+      <h4 style="color:var(--slate);">Deep Void</h4>
+      <div class="role-row" style="color:#FFF;"><span class="role-swatch" style="background:var(--white);"></span>Text Primary</div>
+      <div class="role-row" style="color:var(--slate);"><span class="role-swatch" style="background:var(--slate);"></span>Text Secondary</div>
+      <div class="role-row" style="color:var(--purple);"><span class="role-swatch" style="background:var(--purple);"></span>Text / Border Accent</div>
+    </div>
+  </div>
+  <div class="contrast-note">All Text Primary pairings meet WCAG AA (4.5:1) at body size. Core Purple on Deep Void meets AA for large text/UI only — pair with white for body copy. Never rely on colour alone to signal state; always pair with an icon or label.</div>
+  <div class="page-index mono">013</div>
+</div>
+
+<!-- 14 COLOUR -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Colour System</div>
+  <div class="kicker">14 — Colour System</div>
+  <div class="color-grid">
+    <div class="swatch"><div class="fill" style="background:#030304"></div><div class="info"><div class="name">Deep Void</div><div class="hex">HEX 030304<br>RGB 3 3 4<br>CMYK 0/0/0/99</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#08080B"></div><div class="info"><div class="name">Obsidian</div><div class="hex">HEX 08080B<br>RGB 8 8 11<br>CMYK 0/0/0/97</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#F7F5FA;"></div><div class="info"><div class="name">White</div><div class="hex">HEX F7F5FA<br>RGB 247 245 250<br>CMYK 1/2/0/0</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#99949F"></div><div class="info"><div class="name">Muted Slate</div><div class="hex">HEX 99949F<br>RGB 153 148 159<br>CMYK 4/7/0/38</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#8D45FF"></div><div class="info"><div class="name">Core Purple</div><div class="hex">HEX 8D45FF<br>RGB 141 69 255<br>PMS 2665 C</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#B16CFF"></div><div class="info"><div class="name">Bright Violet</div><div class="hex">HEX B16CFF<br>RGB 177 108 255<br>PMS 2655 C</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#4B8DFF"></div><div class="info"><div class="name">Electric Blue</div><div class="hex">HEX 4B8DFF<br>RGB 75 141 255<br>PMS 2726 C</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#E75CFF"></div><div class="info"><div class="name">Neon Pink</div><div class="hex">HEX E75CFF<br>RGB 231 92 255<br>PMS 2582 C</div></div></div>
+    <div class="swatch"><div class="fill" style="background:#7DF5BB"></div><div class="info"><div class="name">System Green</div><div class="hex">HEX 7DF5BB<br>RGB 125 245 187<br>PMS 7479 C</div></div></div>
+    <div class="swatch">
+      <div class="fill" style="background-image: repeating-linear-gradient(45deg, rgba(160, 92, 230, 0.3) 0, rgba(160, 92, 230, 0.3) 10px, transparent 10px, transparent 20px);"></div>
+      <div class="info"><div class="name">Grid Line</div><div class="hex">rgba(255,255,255,.13)<br>Digital only</div></div>
+    </div>
+  </div>
+  <div class="page-index mono">014</div>
+</div>
+
+<!-- 15 TYPOGRAPHY -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Typography</div>
+  <div class="kicker">15 — Typography</div>
+  <div class="type-row"><div class="label mono">Display / Clamp</div><div class="sample" style="font-size:clamp(28px, 4vw, 48px);font-weight:700;line-height:0.82;letter-spacing:-0.075em;">YOUR CONTENT.</div><div class="meta">Space Grotesk · 700 · LH 0.82</div></div>
+  <div class="type-row"><div class="label mono">Heading / H2</div><div class="sample" style="font-size:32px;font-weight:600;line-height:0.92;letter-spacing:-0.06em;">We handle the rest.</div><div class="meta">Space Grotesk · 600 · LH 0.92</div></div>
+  <div class="type-row"><div class="label mono">Card Title / H3</div><div class="sample" style="font-size:22px;font-weight:600;line-height:1.05;letter-spacing:-0.035em;">Editing that stops scrolling.</div><div class="meta">Space Grotesk · 600 · LH 1.05</div></div>
+  <div class="type-row"><div class="label mono">Body Copy</div><div class="sample" style="font-size:15px;font-weight:400;color:var(--text-secondary);line-height:1.5;">Creating content is only one part of the job.</div><div class="meta">Space Grotesk · 400 · LH 1.5</div></div>
+  <div class="type-row"><div class="label mono">Kickers / Labels</div><div class="sample mono" style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:var(--violet);">01 / POST-PRODUCTION</div><div class="meta">DM Mono · 400 · LS 0.08em</div></div>
+  <div class="type-row" style="border-bottom:none;"><div class="label mono">Footnote / Status</div><div class="sample mono" style="font-size:10px;color:var(--text-secondary);">SYSTEM ONLINE — 2026</div><div class="meta">DM Mono · 300</div></div>
+  <div class="page-index mono">015</div>
+</div>
+
+<!-- 16 ICONS -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Icon System</div>
+  <div class="kicker">16 — Icon System</div>
+  <div class="icon-grid">
+    <div class="icon-tile">◈<span class="tag mono">Post-Production</span></div>
+    <div class="icon-tile">◇<span class="tag mono">Content Systems</span></div>
+    <div class="icon-tile">◎<span class="tag mono">Management</span></div>
+    <div class="icon-tile" style="color:var(--purple)">◈<span class="tag mono">Active</span></div>
+    <div class="icon-tile" style="color:var(--text-secondary)">◇<span class="tag mono">Inactive</span></div>
+    <div class="icon-tile" style="color:var(--green)">◎<span class="tag mono">Complete</span></div>
+  </div>
+  <div class="page-index mono">016</div>
+</div>
+
+<!-- 17 VISUAL STYLE -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Visual Style</div>
+  <div class="kicker">17 — Visual Style</div>
+  <div class="visual-grid">
+    <div class="visual-tile" style="background:radial-gradient(circle at 70% 30%, rgba(141,69,255,0.28), transparent 60%), var(--obsidian);color:#FFF;"><span class="cap" style="color:var(--slate);">Gravitational Glow</span><h4>Purple energy against deep space</h4></div>
+    <div class="visual-tile" style="background:linear-gradient(160deg, rgba(255,255,255,0.06), transparent), var(--obsidian); backdrop-filter:blur(18px);color:#FFF;"><span class="cap" style="color:var(--slate);">Glassmorphism</span><h4>Translucent panels, thin strokes</h4></div>
+    <div class="visual-tile" style="background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:24px 24px;background-color:var(--obsidian);color:#FFF;"><span class="cap" style="color:var(--slate);">Grid Systems</span><h4>Precision structure underneath everything</h4></div>
+  </div>
+  <div class="page-index mono">017</div>
+</div>
+
+<!-- 18 UI COMPONENTS -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">UI Components</div>
+  <div class="kicker">18 — UI Components</div>
+  <div class="ui-grid">
+    <div class="ui-card">
+      <div class="label">Primary Actions</div>
+      <div class="btn-row">
+        <button class="btn btn-primary">BUILD YOUR NEXUS ↗</button>
+        <button class="btn">EXPLORE OUR WORK</button>
+      </div>
+    </div>
+    <div class="ui-card">
+      <div class="label">Pricing Tiers</div>
+      <div class="metric-card">
+        <div class="num">R 17,999</div>
+        <div class="delta">GROWTH / MO</div>
+      </div>
+    </div>
+    <div class="ui-card">
+      <div class="label">Capabilities Tags</div>
+      <div class="tag-row">
+        <span class="sys-tag">EDIT / CUT / POLISH</span>
+        <span class="sys-tag">REPURPOSE / SCALE</span>
+      </div>
+    </div>
+    <div class="ui-card">
+      <div class="label">System Status</div>
+      <div class="status-row">
+        <div class="status">
+          <span class="dot" style="background:var(--green);box-shadow:0 0 12px var(--green)"></span>
+          SYSTEM ONLINE
+        </div>
+      </div>
+    </div>
+    <div class="ui-card">
+      <div class="label">Form Intake</div>
+      <div class="field">hello@nexussetups.com</div>
+      <div class="field">Post-production</div>
+    </div>
+    <div class="ui-card">
+      <div class="label">Glass Panel</div>
+      <div style="height:70px;border-radius:6px;background:rgba(8,8,11,0.66);border:1px solid var(--hair);backdrop-filter:blur(18px);"></div>
+    </div>
+  </div>
+  <div class="page-index mono">018</div>
+</div>
+
+<!-- 19 MOTION -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Motion</div>
+  <div class="kicker">19 — Motion Guidelines</div>
+  <div class="motion-row"><span class="k mono">Hover Shift</span><div class="desc">Elements shift translateX(8px) with a 250ms ease transition and border color highlight.</div><div class="motion-demo glow"></div></div>
+  <div class="motion-row"><span class="k mono">Mouse Glow</span><div class="desc">Radial glow overlays track mouse position using --mouse-x and --mouse-y CSS variables.</div><div class="motion-demo glow"></div></div>
+  <div class="motion-row"><span class="k mono">Perspective Grid</span><div class="desc">Background grid drifts continuously at 18s per cycle using perspective keyframe animations.</div><div class="motion-demo glow"></div></div>
+  <div class="motion-row"><span class="k mono">Smooth Scroll</span><div class="desc">Anchor target jumps transition with native CSS scroll-behavior: smooth.</div><div class="motion-demo glow"></div></div>
+  <div class="page-index mono">019</div>
+</div>
+
+<!-- 20 PHOTOGRAPHY DIRECTION -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Photography Direction</div>
+  <div class="kicker">20 — Photography Direction</div>
+  <div class="visual-grid">
+    <div class="visual-tile" style="background:radial-gradient(circle at 30% 70%, rgba(75,141,255,0.22), transparent 60%), var(--obsidian);color:#FFF;"><span class="cap" style="color:var(--slate);">Low-key lighting</span><h4>High contrast, deep shadow</h4></div>
+    <div class="visual-tile" style="background:linear-gradient(200deg, rgba(141,69,255,0.2), transparent), var(--obsidian);color:#FFF;"><span class="cap" style="color:var(--slate);">Studio / Technical</span><h4>Equipment, rigs, precision setups</h4></div>
+    <div class="visual-tile" style="background:linear-gradient(200deg, rgba(231,92,255,0.16), transparent), var(--obsidian);color:#FFF;"><span class="cap" style="color:var(--slate);">Negative Space</span><h4>Subject small, void large</h4></div>
+  </div>
+  <div class="page-index mono">020</div>
+</div>
+
+<!-- 21 MARKETING -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Marketing</div>
+  <div class="kicker">21 — Marketing Principles</div>
+  <div class="card-grid3">
+    <div class="cell"><span class="num mono">M.01</span><div><div class="glyph"></div><h3>Lead With Systems</h3><p>Show the engine, not just the output. Process is the differentiator.</p></div></div>
+    <div class="cell"><span class="num mono">M.02</span><div><div class="glyph"></div><h3>Prove With Numbers</h3><p>Turnaround time, output volume, retention — data over adjectives.</p></div></div>
+    <div class="cell"><span class="num mono">M.03</span><div><div class="glyph"></div><h3>Restraint as Signal</h3><p>Confidence needs no exclamation marks. Say less, mean more.</p></div></div>
+  </div>
+  <div class="page-index mono">021</div>
+</div>
+
+<!-- 22 SOCIAL MEDIA -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Social Media</div>
+  <div class="kicker">22 — Social Media Templates</div>
+  <div class="tmpl4-grid">
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(141,69,255,0.2), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Instagram</span><h4>Feed Post</h4><p style="color:var(--slate);">1080×1350</p></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(75,141,255,0.2), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">LinkedIn</span><h4>Announcement</h4><p style="color:var(--slate);">1200×627</p></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(231,92,255,0.2), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">X</span><h4>Update Card</h4><p style="color:var(--slate);">1600×900</p></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(125,245,187,0.15), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">YouTube</span><h4>Thumbnail</h4><p style="color:var(--slate);">1280×720</p></div>
+  </div>
+  <div class="page-index mono">022</div>
+</div>
+
+<!-- 23 PRESENTATION TEMPLATES -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Presentation Templates</div>
+  <div class="kicker">23 — Presentation Templates</div>
+  <div class="tmpl-grid">
+    <div class="tmpl" style="background:radial-gradient(circle at 80% 20%, rgba(141,69,255,0.25), transparent 60%), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Title Slide</span><h4>Operations Review</h4><p style="color:var(--slate);">Presentation cover — 16:9</p></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(75,141,255,0.18), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Section Divider</span><h4>02 — Workflow</h4><p style="color:var(--slate);">16:9</p></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(231,92,255,0.18), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Statistics</span><h4>4× Output Growth</h4><p style="color:var(--slate);">16:9</p></div>
+  </div>
+  <div class="page-index mono">023</div>
+</div>
+
+<!-- 24 BUSINESS STATIONERY -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Business Stationery</div>
+  <div class="kicker">24 — Business Stationery</div>
+  <div class="tmpl-grid">
+    <div class="tmpl" style="background:var(--obsidian);justify-content:space-between;padding-top:20px;color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Letterhead</span><div><div class="brand-lockup" style="font-size:14px;"><span>NEXUS</span><b>SETUPS</b></div></div></div>
+    <div class="tmpl" style="background:var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Business Card</span><h4>Front</h4><p style="color:var(--slate);">85×55mm</p></div>
+    <div class="tmpl" style="background:var(--white);"><span class="tmpl-tag mono" style="color:#666;">Envelope</span><h4 style="color:var(--deep-void);">Reverse</h4><p style="color:#666;">DL Format</p></div>
+  </div>
+  <div class="page-index mono">024</div>
+</div>
+
+<!-- 25 BRAND APPLICATIONS -->
+<div class="page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Brand Applications</div>
+  <div class="kicker">25 — Brand Applications</div>
+  <div class="tmpl4-grid">
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(141,69,255,0.18), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">App Icon</span><h4>iOS / Android</h4></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(75,141,255,0.18), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Merch</span><h4>Apparel Mark</h4></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(231,92,255,0.18), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Signage</span><h4>Office Wall</h4></div>
+    <div class="tmpl" style="background:linear-gradient(160deg, rgba(125,245,187,0.15), transparent), var(--obsidian);color:#FFF;"><span class="tmpl-tag mono" style="color:var(--slate);">Deck Cover</span><h4>Client Facing</h4></div>
+  </div>
+  <div class="page-index mono">025</div>
+</div>
+
+<!-- 26 FUTURE EXPANSION -->
+<div class="page statement">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Future Expansion</div>
+  <div class="eyebrow">26 — Future Expansion</div>
+  <div class="big">This system is built to grow: sub-brands, product lines, and regional adaptations should <b>orbit the same core</b> — same gravity, same glyph, same discipline — extended in scale, never in kind.</div>
+  <div class="page-index mono">026</div>
+</div>
+
+<!-- 27 SUMMARY -->
+<div class="page card-page">
+  <div class="page-tag mono">Nexus Setups</div><div class="page-brand mono">Summary</div>
+  <div class="kicker">27 — Summary</div>
+  <div class="summary-list">
+    <div class="summary-row"><span class="n mono">01</span><span class="t">Gravity</span><span class="d">The system that converges chaos into order.</span></div>
+    <div class="summary-row"><span class="n mono">02</span><span class="t">Void &amp; Purple</span><span class="d">Deep space background, singular energetic accent.</span></div>
+    <div class="summary-row"><span class="n mono">03</span><span class="t">Space Grotesk / DM Mono</span><span class="d">Commanding display, technical data voice.</span></div>
+    <div class="summary-row"><span class="n mono">04</span><span class="t">Precision Systems</span><span class="d">Grid, glass, thin stroke — never decorative.</span></div>
+  </div>
+  <div class="page-index mono">027</div>
+</div>
+
+<!-- 28 CONTACT / THANKS -->
+<div class="page thanks">
+  <div class="horizon" style="width:520px;height:520px;top:50%;left:50%;transform:translate(-50%,-50%);">
+    <div class="horizon-ring" style="inset:0;"></div>
+    <div class="horizon-ring" style="inset:60px;"></div>
+    <div class="horizon-sweep"></div>
+    <div class="horizon-core" style="inset:180px;"></div>
+  </div>
+  <h1>Thank you.</h1>
+  <p>hello@nexussetups.com — Brand Guidelines v1.0</p>
+  <div class="page-index mono">028</div>
+</div>
+
+<div class="footer-note">NEXUS SETUPS — BRAND GUIDELINES — 28 PAGES</div>
+</div>
+
+<script>
+  // Dynamic Light / Dark Theme Switcher
+  const themeSwitch = document.getElementById('themeSwitch');
+  let currentTheme = 'dark';
+
+  themeSwitch.addEventListener('click', () => {
+    if (currentTheme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      currentTheme = 'light';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      currentTheme = 'dark';
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -83,7 +83,6 @@ body {
     transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-/* HIDE ALL SCROLLBARS GLOBALLY */
 ::-webkit-scrollbar {
     display: none;
     width: 0;
@@ -220,7 +219,6 @@ body {
     font-weight: 700;
 }
 
-/* MAIN CONTENT CONTAINER (STATIC HEADER + INDEPENDENT VIEW PANELS) */
 .dashboard-main {
     flex: 1;
     height: 100vh;
@@ -412,7 +410,6 @@ body {
     width: 100%;
 }
 
-/* INDEPENDENT VIEW PANELS SCROLLING */
 .view-panel {
     display: none;
     flex: 1;
@@ -434,7 +431,6 @@ body {
     padding-right: 4px;
 }
 
-/* STICKY PLATFORM BAR FOR ANALYTICS */
 .analytics-platform-bar {
     position: sticky;
     top: 0;
@@ -647,7 +643,6 @@ body {
     color: var(--badge-queued-text);
 }
 
-/* PROJECT TABLE STATUS COLORS */
 .project-status.status-requested {
     color: #9eacc0;
     background: rgba(111, 127, 150, .14);
@@ -1503,9 +1498,6 @@ body {
     opacity: 0.6;
     cursor: not-allowed;
 }
-/* =========================================
-   ANALYTICS HUB
-========================================= */
 .analytics-scroll-container {
     flex: 1;
     overflow-y: auto;
@@ -1980,8 +1972,6 @@ body {
     }
 }
 
-/* CREATOR WORKSPACE SUMMARY
-   Keep the four summary cells joined as one uniform rectangle. */
 .creator-summary-grid {
     gap: 0;
     border: 1px solid var(--line);
@@ -2033,7 +2023,6 @@ body {
     }
 }
 
-/* TASK CARDS */
 .task-card {
     position: relative;
     padding: 18px;
@@ -2158,7 +2147,6 @@ body {
     margin-top: 14px;
 }
 
-/* Saved completed tasks collapse into a compact summary. */
 .task-card-completed {
     min-height: 78px;
     padding: 14px 16px;
@@ -2218,8 +2206,6 @@ body {
     }
 }
 
-/* SYSTEM ACTIVITY
-   Keep the header fixed while older activity scrolls only inside the body. */
 .activity-panel {
     align-self: start;
     width: 100%;
@@ -2280,7 +2266,6 @@ body {
     }
 }
 
-/* PROJECT REVIEW */
 .review-panel {
     margin-top: 20px;
 }
@@ -2444,7 +2429,6 @@ body {
     }
 }
 
-/* ACTIVE PRODUCTION QUEUE STATUS COLORS */
 .production-queue-item {
     border-left-width: 4px;
 }
@@ -2469,7 +2453,6 @@ body {
     border-left-color: var(--green);
 }
 
-/* ACTIVE PRODUCTION QUEUE COLUMN ALIGNMENT */
 .production-queue-item {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 150px 170px;
@@ -2511,7 +2494,6 @@ body {
     }
 }
 
-/* PROJECTS TAB STATUS COLUMN ALIGNMENT */
 .full-project-table .table-head > span:nth-child(3) {
     text-align: center;
 }
@@ -2534,10 +2516,6 @@ body {
     }
 }
 
-/* =========================================================
-   RESPONSIVE SYSTEM
-   Dashboard: desktop -> laptop -> tablet -> mobile
-========================================================= */
 
 @media (max-width: 1280px) {
     .sidebar {
@@ -3172,9 +3150,6 @@ body {
     }
 }
 
-/* =========================================================
-   LANGUAGE SELECTOR
-========================================================= */
 .language-selector { min-height:42px; display:inline-flex; align-items:center; gap:8px; padding:0 10px; border:1px solid var(--line); background:var(--input-bg); color:var(--white); }
 .language-selector-label { flex:0 0 auto; font:9px "DM Mono", monospace; font-weight:500; letter-spacing:.1em; color:var(--muted); }
 .language-selector select { min-width:92px; max-width:130px; border:0; outline:0; background:transparent; color:var(--white); font:10px "DM Mono", monospace; font-weight:500; cursor:pointer; }

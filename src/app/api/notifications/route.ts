@@ -20,8 +20,6 @@ async function getAuthenticatedUser() {
     });
 }
 
-// GET /api/notifications
-// Optional: ?limit=20&unreadOnly=true
 export async function GET(request: Request) {
     try {
         const user = await getAuthenticatedUser();
@@ -85,9 +83,6 @@ export async function GET(request: Request) {
     }
 }
 
-// PATCH /api/notifications
-// { "notificationId": "..." }
-// or { "markAllRead": true }
 export async function PATCH(request: Request) {
     try {
         const user = await getAuthenticatedUser();

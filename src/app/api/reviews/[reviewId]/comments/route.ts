@@ -82,7 +82,7 @@ async function getAccessibleReview(
     }
 
     if (
-        user.accountType === "CREATOR" &&
+        user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId) &&
         user.creatorProfile?.id ===
             review.content.project.creatorId &&
         user.creatorProfile?.organizationId ===
@@ -310,6 +310,7 @@ export async function POST(
 
         const created = await prisma.$transaction(
             async (tx) => {
+                await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${review.content.id} FOR UPDATE`;
                 const reviewComment =
                     await tx.reviewComment.create({
                         data: {
@@ -371,7 +372,7 @@ export async function POST(
             }
         );
 
-        if (user.accountType === "CREATOR") {
+        if (user.memberships.some((member) => member.role === "CREATOR" && member.organizationId === user.creatorProfile?.organizationId)) {
             const assignedEditorUserIds =
                 await getAssignedEditorUserIds(
                     review.content.id
@@ -618,6 +619,7 @@ export async function PATCH(
             const updated =
                 await prisma.$transaction(
                     async (tx) => {
+                        await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${review.content.id} FOR UPDATE`;
                         const reviewComment =
                             await tx.reviewComment.update({
                                 where: {
@@ -703,6 +705,7 @@ export async function PATCH(
             const updated =
                 await prisma.$transaction(
                     async (tx) => {
+                        await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${review.content.id} FOR UPDATE`;
                         const reviewComment =
                             await tx.reviewComment.update({
                                 where: {
@@ -903,6 +906,7 @@ export async function DELETE(
 
         await prisma.$transaction(
             async (tx) => {
+                await tx.$queryRaw`SELECT id FROM "ContentItem" WHERE id = ${review.content.id} FOR UPDATE`;
                 await tx.auditLog.create({
                     data: {
                         action:

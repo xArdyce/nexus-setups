@@ -20,9 +20,6 @@ export default function CreatorDashboard({ user }) {
     const isEditor = accountType === "EDITOR";
     const isCreator = accountType === "CREATOR";
 
-    // =========================
-    // STATE MANAGEMENT
-    // =========================
     const [theme, setTheme] = useState("dark");
     const [currentView, setCurrentView] = useState("overview");
     const [projectFilter, setProjectFilter] = useState("all");
@@ -33,7 +30,6 @@ export default function CreatorDashboard({ user }) {
     const [briefSubmitting, setBriefSubmitting] = useState(false);
     const [settingsSaved, setSettingsSaved] = useState(false);
 
-    // Projects now come from the database via /api/projects
     const [projects, setProjects] = useState([]);
     const [projectsLoading, setProjectsLoading] = useState(true);
     const [projectsError, setProjectsError] = useState(null);
@@ -59,9 +55,6 @@ export default function CreatorDashboard({ user }) {
     const [assetsLoading, setAssetsLoading] = useState(true);
     const [assetsError, setAssetsError] = useState(null);
 
-    // =========================
-    // PROJECT STATUS HELPERS
-    // =========================
     const normalizeProjectStatus = (status) => {
         const legacyStatusMap = {
             rendering: "IN_PRODUCTION",
@@ -93,9 +86,6 @@ export default function CreatorDashboard({ user }) {
         );
     };
 
-    // =========================
-    // PROJECT FORMATTING HELPERS
-    // =========================
     const resolutionForType = (type) =>
         type === "YouTube Long-form" ? "3840x2160" : "1080x1920";
 
@@ -111,7 +101,6 @@ export default function CreatorDashboard({ user }) {
         return `Created ${month} ${day} • ${resolutionForType(type)}`;
     };
 
-    // Map a raw DB project record into the shape the UI renders
     const toDisplayProject = (p) => ({
         id: p.id,
         title: p.title,
@@ -121,9 +110,6 @@ export default function CreatorDashboard({ user }) {
         date: formatProjectDate(p.createdAt, p.type),
     });
 
-    // =========================
-    // FETCH ORGANIZATIONS
-    // =========================
     const loadOrganizations = async () => {
         setOrganizationsLoading(true);
         setOrganizationsError(null);
@@ -162,9 +148,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH CREATORS
-    // =========================
     const loadCreators = async (organizationId) => {
         if (!organizationId) {
             setCreators([]);
@@ -202,12 +185,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH PROJECTS
-    // =========================
-    // =========================
-    // FETCH ASSETS
-    // =========================
     const loadAssets = async (organizationId = activeOrganizationId) => {
         if (!organizationId) {
             setAssets([]);
@@ -288,9 +265,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH CREATOR PROJECTS
-    // =========================
     const loadCreatorProjects = async (creatorId) => {
         if (!creatorId || !activeOrganizationId) {
             setProjects([]);
@@ -333,9 +307,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // FETCH PROJECT DETAILS
-    // =========================
     const loadProjectDetails = async (projectId) => {
         if (!projectId) {
             return;
@@ -379,9 +350,6 @@ export default function CreatorDashboard({ user }) {
         await loadProjectDetails(project.id);
     };
 
-    // =========================
-    // INITIAL DATA LOAD
-    // =========================
     useEffect(() => {
         loadOrganizations();
 
@@ -412,9 +380,6 @@ export default function CreatorDashboard({ user }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [assetSearch, activeOrganizationId]);
 
-    // =========================
-    // THEME INITIALIZATION
-    // =========================
     useEffect(() => {
         const savedTheme = localStorage.getItem("nexus-theme");
 
@@ -447,9 +412,6 @@ export default function CreatorDashboard({ user }) {
         localStorage.setItem("nexus-theme", newTheme);
     };
 
-    // =========================
-    // VIEW TITLES
-    // =========================
     const viewTitles = {
         overview: isEditor
             ? "EDITOR OPERATIONS"
@@ -474,9 +436,6 @@ export default function CreatorDashboard({ user }) {
         settings: "WORKSPACE SETTINGS",
     };
 
-    // =========================
-    // ANALYTICS DATASETS
-    // =========================
     const analyticsData = {
         all: {
             views: "2.4M",
@@ -708,9 +667,6 @@ export default function CreatorDashboard({ user }) {
         analyticsData[activePlatform] ||
         analyticsData.all;
 
-    // =========================
-    // BRIEF SUBMISSION
-    // =========================
     const handleBriefSubmit = async (e) => {
         e.preventDefault();
 
@@ -778,9 +734,6 @@ export default function CreatorDashboard({ user }) {
         }
     };
 
-    // =========================
-    // ASSET VAULT HELPERS
-    // =========================
     const assetIcon = (assetType) => {
         switch (assetType) {
             case "VIDEO":
@@ -841,7 +794,6 @@ export default function CreatorDashboard({ user }) {
             <div className="noise"></div>
 
             <div className="app-shell">
-                {/* SIDEBAR NAVIGATION */}
                 <aside className="sidebar">
                     <a href="/homepage" className="brand">
                         <span>NEXUS</span>
@@ -970,9 +922,7 @@ export default function CreatorDashboard({ user }) {
                     </div>
                 </aside>
 
-                {/* MAIN DASHBOARD CONTENT */}
                 <main className="dashboard-main">
-                    {/* TOP BAR */}
                     <header className="dash-header">
                         <div className="page-title">
                             <span className="status-tag">
@@ -1074,9 +1024,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </header>
 
-                    {/* =========================================
-                        VIEW 1: OVERVIEW
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView ===
@@ -1382,9 +1329,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 2: PROJECTS
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView ===
@@ -1589,9 +1533,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 3: CREATORS
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView ===
@@ -1713,9 +1654,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 4: CREATOR WORKSPACE
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView ===
@@ -2006,9 +1944,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 5: PROJECT DETAILS / REVIEW
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView ===
@@ -2086,7 +2021,6 @@ export default function CreatorDashboard({ user }) {
                                     !projectDetailsError &&
                                     selectedProject && (
                                         <>
-                                            {/* PROJECT INFORMATION */}
                                             <div className="metrics-grid">
                                                 <div className="metric-card">
                                                     <span className="metric-label">
@@ -2190,7 +2124,6 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
                                             </div>
 
-                                            {/* RAW FOOTAGE */}
                                             <div
                                                 className="panel"
                                                 style={{
@@ -2246,7 +2179,6 @@ export default function CreatorDashboard({ user }) {
                                                 )}
                                             </div>
 
-                                            {/* PRODUCTION WORKFLOW */}
                                             <div
                                                 className="panel"
                                                 style={{
@@ -2413,7 +2345,6 @@ export default function CreatorDashboard({ user }) {
                                                 </div>
                                             </div>
 
-                                            {/* REVIEW */}
                                             <div
                                                 className="panel"
                                                 style={{
@@ -2450,7 +2381,6 @@ export default function CreatorDashboard({ user }) {
                                                     </span>
                                                 </div>
 
-                                                {/* REVIEW HISTORY */}
                                                 {selectedProject
                                                     .reviews
                                                     ?.length >
@@ -2530,7 +2460,6 @@ export default function CreatorDashboard({ user }) {
                                                     </div>
                                                 )}
 
-                                                {/* EDITOR REVIEW CONTROLS */}
                                                 {isEditor &&
                                                     [
                                                         "IN_REVIEW",
@@ -2582,7 +2511,6 @@ export default function CreatorDashboard({ user }) {
                                                                         "15px",
                                                                 }}
                                                             >
-                                                                {/* APPROVE */}
                                                                 <button
                                                                     type="button"
                                                                     className="button button-primary"
@@ -2671,7 +2599,6 @@ export default function CreatorDashboard({ user }) {
                                                                         : "✓ APPROVE CUT"}
                                                                 </button>
 
-                                                                {/* REQUEST REVISION */}
                                                                 <button
                                                                     type="button"
                                                                     className="action-btn active"
@@ -2762,7 +2689,6 @@ export default function CreatorDashboard({ user }) {
                                                         </>
                                                     )}
 
-                                                {/* NON-REVIEW STATE */}
                                                 {(!isEditor ||
                                                     ![
                                                         "IN_REVIEW",
@@ -2787,9 +2713,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 6: ASSET VAULT
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView === "assets"
@@ -2955,9 +2878,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 7: ANALYTICS
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView ===
@@ -3446,9 +3366,6 @@ export default function CreatorDashboard({ user }) {
                         </div>
                     </div>
 
-                    {/* =========================================
-                        VIEW 8: SETTINGS
-                    ========================================= */}
                     <div
                         className={`view-panel ${
                             currentView ===
@@ -3555,9 +3472,6 @@ export default function CreatorDashboard({ user }) {
                 </main>
             </div>
 
-            {/* =========================================
-                NEW PROJECT BRIEF MODAL
-            ========================================= */}
             <div
                 className={`modal-overlay ${
                     briefModalOpen

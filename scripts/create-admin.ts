@@ -29,7 +29,6 @@ async function main() {
       });
       console.log("Existing account password changed; previous sessions revoked.");
     } else {
-      // create, not upsert: a concurrent invocation cannot overwrite a password.
       await prisma.user.create({ data: {
         email, name: "Nexus Admin", password: hashedPassword, accountType: "EDITOR",
       } });
@@ -39,7 +38,6 @@ async function main() {
 }
 
 main().catch(error => {
-  // Static operator guidance; provider errors can contain connection strings.
   console.error("Admin setup failed. Check password requirements, DATABASE_URL and whether the account exists. No credentials are printed.");
   logServerError("Admin setup failure", error);
   process.exitCode = 1;

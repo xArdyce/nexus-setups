@@ -23,7 +23,6 @@ export function createDeliveryZip(
     active?.destroy();
     archive.abort();
     archive.destroy();
-    // Never expose provider errors or object keys through the response stream.
     output.destroy(error ? new Error("Delivery stream failed.") : undefined);
     requestSignal.removeEventListener("abort", onAbort);
   }
@@ -33,13 +32,13 @@ export function createDeliveryZip(
   }
   function onAbort() { stop(new Error("Delivery cancelled.")); }
 
-  output.on("error", () => {}); // Also safe before Response starts consuming.
+  output.on("error", () => {});
   output.on("close", () => {
     if (!output.readableEnded) stop();
     requestSignal.removeEventListener("abort", onAbort);
   });
   archive.on("error", fail);
-  archive.on("warning", fail); // Never silently omit a requested file.
+  archive.on("warning", fail);
   archive.pipe(output);
   requestSignal.addEventListener("abort", onAbort, { once: true });
   if (requestSignal.aborted) onAbort();
@@ -52,8 +51,6 @@ export function createDeliveryZip(
         if (stopped) { source.destroy(); return; }
         active = source;
         source.on("error", fail);
-        // Wait for archive consumption, not just GetObject headers, before
-        // opening the next R2 object. At most one R2 body is active.
         await new Promise<void>((resolve, reject) => {
           const clean = () => {
             archive.off("entry", onEntry);
